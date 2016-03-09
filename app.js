@@ -13,7 +13,7 @@ var Q = require('q');
 var app = koa();
 var server = http.createServer(app.callback());
 var port = process.env.PORT || 3000;
-var compute = require('./ffi/compute');
+var compute = require('./engine/compute/index.js');
 
 app.use(serve('.'));
 app.use(favicon('/assets/favicon.ico'));
@@ -45,7 +45,6 @@ function *index() {
 function *show(id) {
   this.body = yield this.render(id)
 }
-
 
 function *getLaplacian() {
   var json = this.request.body.json;
