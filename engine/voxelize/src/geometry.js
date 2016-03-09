@@ -3,7 +3,7 @@ var normals = require('normals');
 var rasterize = require('./rasterize')
 var rle2array = require('./rle2array')
 
-function Geometry (cells, positions, mappings, selected_cells, resolution, faceNormals) {
+function Geometry (cells, positions, mappings, selected_cells, resolution, faceNormals, uvMap) {
   if (cells.cells) {
     var hash = cells;
     cells = hash.cells;
@@ -12,6 +12,7 @@ function Geometry (cells, positions, mappings, selected_cells, resolution, faceN
     selected_cells = hash.selected_cells;
     resolution = hash.resolution;
     faceNormals = hash.faceNormals;
+    uvMap = hash.uvMap;
   }
   this.cells = cells;
   this.positions = positions;
@@ -19,6 +20,7 @@ function Geometry (cells, positions, mappings, selected_cells, resolution, faceN
   this.selected_cells = selected_cells || [];
   this.resolution = resolution || 1.0;
   this.faceNormals = faceNormals || normals.faceNormals(this.cells, this.positions);
+  this.uvMap = uvMap || { cells: [], positions: [] };
   return this;
 }
 
@@ -61,7 +63,11 @@ Geometry.prototype.voxelize = function (resolution) {
     positions: this.positions.length,
     selected_cells: this.selected_cells.length,
     mapppings: this.mappings.length,
-    resolution: this.resolution
+    resolution: this.resolution,
+    uvMap: {
+      cells: this.uvMap.cells.length,
+      positions: this.uvMap.positions.length
+    }
   }
   console.log(output)
   this.updatePositions()
@@ -78,6 +84,30 @@ Geometry.prototype.voxelize = function (resolution) {
     resolution: this.resolution
   }
 }
+
+Geometry.prototype.detect = function (p) {
+  var cells = this.uvMap.cells;
+  var positions = this.uvMap.positions;
+  var bool = false;
+  function sign (p1, p2, p3) {
+    return (p1.u-p3.u)*(p2.v-p3.v)-(p2.u-p3.u)*(p1.v-p3.v);
+  }
+  for (var i=0; i<cells.length; i++) {
+    var p1 = positions[cells[i][0]];
+    var p2 = positions[cells[i][1]];
+    var p3 = positions[cells[i][2]];
+
+    var b1 = sign(p, p1, p2) < 0;
+    var b2 = sign(p, p2, p3) < 0;
+    var b3 = sign(p, p3, p1) < 0;
+    if (b1 == b2 && b2 == b3) {
+      bool = true;
+      break;
+    }
+  }
+  return bool;
+}
+
 
 Geometry.prototype.mapping = function (grid, coord) {
   var current_cells = grid.closestCells(coord).cells;
@@ -123,9 +153,13 @@ Geometry.prototype.mapping = function (grid, coord) {
       var mapping = [u, v];
       var remove = false;
       var stripe = 0.02;
-      if ( Math.sqrt((u-0.5)^2 + (v-0.5)^2) < 0.3 ) {
-        console.log({u: u, v: v})
-        return true;
+      var point = {u: u, v: v};
+      var bool = this.detect(point)
+      console.log({ bool: bool })
+      return bool;
+      // if ( Math.sqrt((u-0.5)^2 + (v-0.5)^2) < 0.3 ) {
+      //   console.log({u: u, v: v})
+      //   return true;
         // for (var i=-200; i<200; i++) {
         //   if (i%2 == 0) continue;
         //   var l = stripe*i;
@@ -135,7 +169,7 @@ Geometry.prototype.mapping = function (grid, coord) {
         //     return true;
         //   }
         // }
-      }
+      // }
     }
   }
   return false;

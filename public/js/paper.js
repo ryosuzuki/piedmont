@@ -43,21 +43,28 @@ window.onload = function () {
     var percentage = 100 - Math.round(newSegmentCount / segmentCount * 100);
     end = event.point;
 
-    beautify(draft);
-    texture.material.map.needsUpdate = true;
-    /*
+
     console.log('Start exportSVG')
-    var svg = draft.exportSVG();
+    var path = beautify(draft);
+    if (texture) texture.material.map.needsUpdate = true;
+    var svg = path.exportSVG();
     d = $(svg).attr('d');
     console.log('Start svgMesh3d')
-    mesh = svgMesh3d(d, {
+    svgMesh = svgMesh3d(d, {
       scale: 10,
       simplify: 0.1,
       // randomization: 1000,
     });
-    complex = reindex(unindex(mesh.positions, mesh.cells));
-    drawSVG(complex)
-    */
+    complex = reindex(unindex(svgMesh.positions, svgMesh.cells));
+    // drawSVG(complex)
+
+    uvMap = {}
+    uvMap.cells = svgMesh.cells;
+    uvMap.positions = svgMesh.positions.map( function (pos) {
+      var u = pos[0]/3 + 0.5;
+      var v = pos[1]/3 + 0.5;
+      return { u: u, v: v }
+    })
 
   }
 
@@ -85,6 +92,19 @@ function beautify (draft) {
     var angle = pv.getAngleInRadians(nv);
     total += angle;
   }
+
+  var rectangle = new Rectangle(
+    new Point(_.min(x), _.min(y)),
+    new Point(_.max(x), _.max(y))
+  );
+  var path = new Path.Ellipse(rectangle);
+  path.style = pathStyle;
+  path.style.fillColor = 'red';
+  circles.push(path);
+  console.log('circle');
+  return path;
+
+  /*
   if (total < 1) {
     var from = new Point(draft.segments[0].point);
     var to = new Point(draft.segments[num-1].point);
@@ -111,6 +131,6 @@ function beautify (draft) {
     circles.push(path);
     console.log('circle');
   }
-
+  */
 }
 

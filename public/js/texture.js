@@ -119,7 +119,6 @@ function getMapping (geometry) {
         geometry.uvsNeedUpdate = true;
       }
 
-
       var rot = mesh.rotation;
       var pos = mesh.position;
       var axis = new THREE.Vector3(0, 1, 0);

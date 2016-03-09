@@ -60,7 +60,8 @@ function generateVoxel (callback, client) {
     positions: positions,
     mappings: mappings,
     selected_cells: selectIndex,
-    resolution: 0.02
+    resolution: 0.02,
+    uvMap: uvMap
   };
   if (client) {
     var object = voxelize(json);
