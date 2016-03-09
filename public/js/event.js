@@ -2,14 +2,14 @@
 var selectMode = false;
 var undoMode = false;
 
-$(document).on('click', '#add', function (event) {
-  console.log('add')
+$(document).on('click', '#mapping', function (event) {
+  console.log('mapping');
   addTexture();
 });
 
-$(document).on('click', '#mapping', function() {
-  console.log('mapping')
-  computeMapping();
+$(document).on('click', '#add', function (event) {
+  console.log('add');
+  addTexture();
 });
 
 $(document).on('click', '#export', function() {
