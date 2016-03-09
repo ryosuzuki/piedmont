@@ -1,0 +1,26 @@
+{
+  "name": "vizq",
+  "version": "0.0.0",
+  "homepage": "https://github.com/ryosuzuki/vizq",
+  "authors": [
+    "Ryo Suzuki <ryosuzk@gmail.com>"
+  ],
+  "license": "MIT",
+  "ignore": [
+    "**/.*",
+    "node_modules",
+    "bower_components",
+    "test",
+    "tests"
+  ],
+  "dependencies": {
+    "jquery": "~2.1.4",
+    "semantic-ui": "~2.1.4",
+    "three.js": "mrdoob/three.js",
+    "d3": "~3.5.14",
+    "FileSaver.js": "git@github.com:eligrey/FileSaver.js.git",
+    "numericjs": "~1.2.6",
+    "mousetrap": "~1.5.3",
+    "q": "~1.4.1"
+  }
+}

@@ -1,0 +1,42 @@
+html, body {
+  height: 100%;
+}
+
+#canvas {
+  position: absolute;
+  top: 100px;
+  left: 20px;
+  width: 300px;
+  height: 300px;
+  background: #fff;
+}
+
+.top-buttons {
+  position:absolute;
+  top:10px;
+  left:10px;
+}
+
+.bottom-buttons {
+  position:absolute;
+  bottom:10px;
+  right:10px;
+}
+
+
+.ui.grid {
+  height: 100%;
+}
+
+.ui.column {
+  height: 100%;
+}
+
+pre {
+  height: 100%;
+  overflow: scroll;
+}
+
+#editor {
+  height: 500px;
+}
