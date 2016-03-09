@@ -73,7 +73,7 @@ function drawSTL () {
   xhr.onerror = function(e) {
     console.log(e);
   }
-  xhr.open( "GET", '/public/stl/mini_knight.stl', true );
+  xhr.open( "GET", '/public/assets/mini_knight.stl', true );
   // xhr.open( "GET", 'assets/R2-D2.stl', true );
   xhr.responseType = "arraybuffer";
   xhr.send( null );

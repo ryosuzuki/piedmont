@@ -16,7 +16,7 @@ var port = process.env.PORT || 3000;
 var compute = require('./engine/compute/index.js');
 
 app.use(serve('.'));
-app.use(favicon('/assets/favicon.ico'));
+app.use(favicon('/public/assets/favicon.ico'));
 app.use(parser({
   strict: false,
   jsonLimit: '5000mb',
