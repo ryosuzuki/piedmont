@@ -67,7 +67,7 @@ function *save() {
   fs.writeFileSync('hoge.json', json, 'utf8')
 }
 
-var Geometry = require('./voxelize/src/geometry');
+var Geometry = require('./engine/voxelize/src/geometry');
 var stl = require('ndarray-stl');
 
 function *generateSTL () {
