@@ -128,6 +128,7 @@ function getMapping (geometry) {
       var loader = new THREE.TextureLoader();
       var image = loader.load('/public/assets/checkerboard.jpg');
       image.minFilter = THREE.LinearFilter;
+      image.needsUpdate = true;
       var material = new THREE.MeshBasicMaterial({map: image});
       texture = new THREE.Mesh(geometry, material);
       texture.castShadow = true;

@@ -56,7 +56,6 @@ var parseStlBinary = function(stl) {
     new THREE.MeshLambertMaterial({
       overdraw: true,
       color: 0xaa0000,
-      shading: THREE.FlatShading,
       vertexColors: THREE.FaceColors
     }
   ));
@@ -148,7 +147,6 @@ var parseStl = function(stl) {
             new THREE.MeshLambertMaterial({
               overdraw:true,
               color: 0xaa0000,
-              shading: THREE.FlatShading
             }
           ));
           scene.add(mesh);

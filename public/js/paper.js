@@ -44,6 +44,7 @@ window.onload = function () {
     end = event.point;
 
     beautify(draft);
+    texture.material.map.needsUpdate = true;
     /*
     console.log('Start exportSVG')
     var svg = draft.exportSVG();
@@ -62,7 +63,6 @@ window.onload = function () {
 
 
   view.onFrame = function (event) {
-
   }
   paper.view.draw();
 
@@ -107,7 +107,7 @@ function beautify (draft) {
     );
     var path = new Path.Ellipse(rectangle);
     path.style = pathStyle;
-
+    path.style.fillColor = 'red';
     circles.push(path);
     console.log('circle');
   }

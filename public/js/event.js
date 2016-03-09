@@ -9,7 +9,12 @@ $(document).on('click', '#mapping', function (event) {
 
 $(document).on('click', '#add', function (event) {
   console.log('add');
-  addTexture();
+  if (!texture) addTexture()
+  var canvas = document.getElementById('canvas');
+  var image = new THREE.Texture(canvas)
+  image.needsUpdate = true;
+  texture.material.map = image;
+  // addTexture();
 });
 
 $(document).on('click', '#export', function() {
