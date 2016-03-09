@@ -90,6 +90,7 @@ function *generateSTL () {
   var data = stl(object.voxels);
   // fs.writeFileSync('hoge.stl', str, 'utf8');
   console.log('done')
+  fs.writeFileSync('/Users/ryosuzuki/Downloads/hoge.stl', data, 'utf8');
   this.status = 200;
   this.response.body = JSON.stringify(data);
 }

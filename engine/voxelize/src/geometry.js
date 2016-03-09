@@ -155,7 +155,7 @@ Geometry.prototype.mapping = function (grid, coord) {
       var stripe = 0.02;
       var point = {u: u, v: v};
       var bool = this.detect(point)
-      console.log({ bool: bool })
+      // console.log({ bool: bool })
       return bool;
       // if ( Math.sqrt((u-0.5)^2 + (v-0.5)^2) < 0.3 ) {
       //   console.log({u: u, v: v})

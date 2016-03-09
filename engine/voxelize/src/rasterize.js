@@ -42,6 +42,7 @@ function rasterize(geometry) {
         // result.push([coord[0], coord[1], coord[2], 1, -d, [], faceNormals]);
         result.push([coord[0], coord[1], coord[2], 1, -d]);
       } else {
+        console.log('hole')
         result.push([coord[0], coord[1], coord[2], 0,  d]);
       }
     }
