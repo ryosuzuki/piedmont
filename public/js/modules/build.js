@@ -1674,6 +1674,2550 @@ module.exports = Array.isArray || function (arr) {
 };
 
 },{}],5:[function(require,module,exports){
+// Implementation of the Greiner-Hormann polygon clipping algorithm
+//
+
+var segseg = require('segseg');
+var preprocessPolygon = require("point-in-big-polygon");
+var area = require('2d-polygon-area');
+var sign = require('signum');
+var abs = Math.abs;
+
+function copy(a) {
+  var l = a.length;
+  var out = new Array(l);
+  for (var i = 0; i<l; i++) {
+    out[i] = a[i].slice();
+  }
+  return out;
+}
+
+function Node(vec, alpha, intersection) {
+  this.vec = vec;
+  this.alpha = alpha || 0;
+  this.intersect = !!intersection;
+}
+
+Node.prototype = {
+  vec: null,
+  next: null,
+  next: null,
+  prev: null,
+  nextPoly: null,
+  neighbor: null,
+  intersect: null,
+  entry: null,
+  visited : false,
+  alpha : 0,
+
+  nextNonIntersection : function nodeNextNonIntersection() {
+    var a = this;
+    while(a && a.intersect) {
+      a = a.next;
+    }
+    return a;
+  },
+
+  last : function nodeLast() {
+    var a = this;
+    while (a.next && a.next !== this) {
+      a = a.next;
+    }
+    return a;
+  },
+
+  createLoop : function nodeCreateLoop() {
+    var last = this.last();
+    last.prev.next = this;
+    this.prev = last.prev;
+  },
+
+  firstNodeOfInterest : function nodeFirstNodeOfInterest() {
+    var a = this;
+
+    if (a) {
+      do {
+        a=a.next;
+      } while(a!==this && (!a.intersect || a.intersect && a.visited));
+    }
+
+    return a;
+  },
+
+  insertBetween : function nodeInsertBetween(first, last) {
+    var a = first;
+    while(a !== last && a.alpha < this.alpha) {
+      a = a.next;
+    }
+
+    this.next = a;
+    this.prev = a.prev;
+    if (this.prev) {
+      this.prev.next = this;
+    }
+
+    this.next.prev = this;
+  }
+};
+
+
+function createLinkedList(vecs) {
+  var l = vecs.length;
+  var ret, where;
+  for (var i=0; i<l; i++) {
+    var current = vecs[i];
+    if (!ret) {
+      where = ret = new Node(current);
+    } else {
+      where.next = new Node(current);
+      where.next.prev = where;
+      where = where.next;
+    }
+  }
+
+  return ret;
+}
+
+function distance(v1, v2) {
+  var x = v1[0] - v2[0];
+  var y = v1[1] - v2[1];
+  return Math.sqrt(x*x + y*y);
+}
+
+function clean(array) {
+  var seen = {};
+  var cur = array.length - 1;
+  while (cur--) {
+    var c = array[cur];
+    var p = array[cur+1];
+    if (c[0] === p[0] && c[1] === p[1]) {
+      array.splice(cur, 1);
+    }
+  }
+  return array;
+}
+
+
+function identifyIntersections(subjectList, clipList) {
+  var subject, clip;
+  var auxs = subjectList.last();
+  auxs.next = new Node(subjectList.vec, auxs);
+  auxs.next.prev = auxs;
+
+  var auxc = clipList.last();
+  auxc.next = new Node(clipList.vec, auxc);
+  auxc.next.prev = auxc;
+
+  var found = false;
+  for(subject = subjectList; subject.next; subject = subject.next) {
+    if(!subject.intersect) {
+      for(clip = clipList; clip.next; clip = clip.next) {
+        if(!clip.intersect) {
+
+          var a = subject.vec,
+              b = subject.next.nextNonIntersection().vec,
+              c = clip.vec,
+              d = clip.next.nextNonIntersection().vec;
+
+          var i = segseg(a, b, c, d);
+
+          if(i && i !== true) {
+            found = true;
+            var intersectionSubject = new Node(i, distance(a, i) / distance(a, b), true);
+            var intersectionClip = new Node(i, distance(c, i) / distance(c, d), true);
+            intersectionSubject.neighbor = intersectionClip;
+            intersectionClip.neighbor = intersectionSubject;
+            intersectionSubject.insertBetween(subject, subject.next.nextNonIntersection());
+            intersectionClip.insertBetween(clip, clip.next.nextNonIntersection());
+          }
+        }
+      }
+    }
+  }
+
+  return found;
+};
+
+function identifyIntersectionType(subjectList, clipList, clipTest, subjectTest, type) {
+  var subject, clip;
+  var se = clipTest(subjectList.vec) < 0;
+  if (type === 'and') {
+    se = !se;
+  }
+
+  for(subject = subjectList; subject.next; subject = subject.next) {
+    if(subject.intersect) {
+      subject.entry = se;
+      se = !se;
+    }
+  }
+
+  var ce = subjectTest(clipList.vec) > 0;
+  if (type === 'or') {
+    ce = !ce;
+  }
+
+  for(clip = clipList; clip.next; clip = clip.next) {
+    if(clip.intersect) {
+      clip.entry = ce;
+      ce = !ce;
+    }
+  }
+};
+
+function collectClipResults(subjectList, clipList) {
+  subjectList.createLoop();
+  clipList.createLoop();
+
+  var crt, results = [], result;
+
+  while ((crt = subjectList.firstNodeOfInterest()) !== subjectList) {
+    result = [];
+    for (; !crt.visited; crt = crt.neighbor) {
+
+      result.push(crt.vec);
+      var forward = crt.entry
+      while(true) {
+        crt.visited = true;
+        crt = forward ? crt.next : crt.prev;
+
+        if(crt.intersect) {
+          crt.visited = true;
+          break;
+        } else {
+          result.push(crt.vec);
+        }
+      }
+    }
+
+    results.push(clean(result));
+  }
+
+  return results;
+};
+
+function polygonBoolean(subjectPoly, clipPoly, operation) {
+
+  var subjectList = createLinkedList(subjectPoly);
+  var clipList = createLinkedList(clipPoly);
+  var clipContains = preprocessPolygon([clipPoly]);
+  var subjectContains = preprocessPolygon([subjectPoly]);
+
+  var subject, clip, res;
+
+  // Phase 1: Identify and store intersections between the subject
+  //          and clip polygons
+  var isects = identifyIntersections(subjectList, clipList);
+
+  if (isects) {
+    // Phase 2: walk the resulting linked list and mark each intersection
+    //          as entering or exiting
+    identifyIntersectionType(
+      subjectList,
+      clipList,
+      clipContains,
+      subjectContains,
+      operation
+    );
+
+    // Phase 3: collect resulting polygons
+    res = collectClipResults(subjectList, clipList);
+  } else {
+    // No intersections
+
+    var inner = clipContains(subjectPoly[0]) < 0;
+    var outer = subjectContains(clipPoly[0]) < 0;
+
+    // TODO: slice will not copy the vecs
+
+    res = [];
+    switch (operation) {
+      case 'or':
+        if (!inner && !outer) {
+          res.push(copy(subjectPoly));
+          res.push(copy(clipPoly));
+        } else if (inner) {
+          res.push(copy(clipPoly));
+        } else if (outer) {
+          res.push(copy(subjectPoly));
+        }
+      break;
+
+      case 'and':
+        if (inner) {
+          res.push(copy(subjectPoly))
+        } else if (outer) {
+          res.push(copy(clipPoly));
+        } else {
+          throw new Error('woops')
+        }
+      break;
+
+      case 'not':
+        var sclone = copy(subjectPoly);
+        var cclone = copy(clipPoly);
+
+        var sarea = area(sclone);
+        var carea = area(cclone);
+        if (sign(sarea) === sign(carea)) {
+          if (outer) {
+            cclone.reverse();
+          } else if (inner) {
+            sclone.reverse();
+          }
+        }
+
+        res.push(sclone);
+
+        if (abs(sarea) > abs(carea)) {
+          res.push(cclone);
+        } else {
+          res.unshift(cclone);
+        }
+
+      break
+    }
+  }
+
+  return res;
+};
+
+module.exports = polygonBoolean;
+
+},{"2d-polygon-area":6,"point-in-big-polygon":17,"segseg":18,"signum":19}],6:[function(require,module,exports){
+module.exports = area;
+
+var e0 = [0, 0];
+var e1 = [0, 0];
+
+function area(a) {
+  var area = 0;
+  var first = a[0];
+
+  var l = a.length;
+  for (var i=2; i<l; i++) {
+    var p = a[i-1];
+    var c = a[i];
+    e0[0] = first[0] - c[0];
+    e0[1] = first[1] - c[1];
+    e1[0] = first[0] - p[0];
+    e1[1] = first[1] - p[1];
+
+    area += (e0[0] * e1[1]) - (e0[1] * e1[0]);
+  }
+  return area/2;
+}
+
+},{}],7:[function(require,module,exports){
+"use strict"
+
+module.exports = fastTwoSum
+
+function fastTwoSum(a, b, result) {
+	var x = a + b
+	var bv = x - a
+	var av = x - bv
+	var br = b - bv
+	var ar = a - av
+	if(result) {
+		result[0] = ar + br
+		result[1] = x
+		return result
+	}
+	return [ar+br, x]
+}
+},{}],8:[function(require,module,exports){
+"use strict"
+
+var twoProduct = require("two-product")
+var twoSum = require("two-sum")
+
+module.exports = scaleLinearExpansion
+
+function scaleLinearExpansion(e, scale) {
+  var n = e.length
+  if(n === 1) {
+    var ts = twoProduct(e[0], scale)
+    if(ts[0]) {
+      return ts
+    }
+    return [ ts[1] ]
+  }
+  var g = new Array(2 * n)
+  var q = [0.1, 0.1]
+  var t = [0.1, 0.1]
+  var count = 0
+  twoProduct(e[0], scale, q)
+  if(q[0]) {
+    g[count++] = q[0]
+  }
+  for(var i=1; i<n; ++i) {
+    twoProduct(e[i], scale, t)
+    var pq = q[1]
+    twoSum(pq, t[0], q)
+    if(q[0]) {
+      g[count++] = q[0]
+    }
+    var a = t[1]
+    var b = q[1]
+    var x = a + b
+    var bv = x - a
+    var y = b - bv
+    q[1] = x
+    if(y) {
+      g[count++] = y
+    }
+  }
+  if(q[1]) {
+    g[count++] = q[1]
+  }
+  if(count === 0) {
+    g[count++] = 0.0
+  }
+  g.length = count
+  return g
+}
+},{"two-product":11,"two-sum":7}],9:[function(require,module,exports){
+"use strict"
+
+module.exports = robustSubtract
+
+//Easy case: Add two scalars
+function scalarScalar(a, b) {
+  var x = a + b
+  var bv = x - a
+  var av = x - bv
+  var br = b - bv
+  var ar = a - av
+  var y = ar + br
+  if(y) {
+    return [y, x]
+  }
+  return [x]
+}
+
+function robustSubtract(e, f) {
+  var ne = e.length|0
+  var nf = f.length|0
+  if(ne === 1 && nf === 1) {
+    return scalarScalar(e[0], -f[0])
+  }
+  var n = ne + nf
+  var g = new Array(n)
+  var count = 0
+  var eptr = 0
+  var fptr = 0
+  var abs = Math.abs
+  var ei = e[eptr]
+  var ea = abs(ei)
+  var fi = -f[fptr]
+  var fa = abs(fi)
+  var a, b
+  if(ea < fa) {
+    b = ei
+    eptr += 1
+    if(eptr < ne) {
+      ei = e[eptr]
+      ea = abs(ei)
+    }
+  } else {
+    b = fi
+    fptr += 1
+    if(fptr < nf) {
+      fi = -f[fptr]
+      fa = abs(fi)
+    }
+  }
+  if((eptr < ne && ea < fa) || (fptr >= nf)) {
+    a = ei
+    eptr += 1
+    if(eptr < ne) {
+      ei = e[eptr]
+      ea = abs(ei)
+    }
+  } else {
+    a = fi
+    fptr += 1
+    if(fptr < nf) {
+      fi = -f[fptr]
+      fa = abs(fi)
+    }
+  }
+  var x = a + b
+  var bv = x - a
+  var y = b - bv
+  var q0 = y
+  var q1 = x
+  var _x, _bv, _av, _br, _ar
+  while(eptr < ne && fptr < nf) {
+    if(ea < fa) {
+      a = ei
+      eptr += 1
+      if(eptr < ne) {
+        ei = e[eptr]
+        ea = abs(ei)
+      }
+    } else {
+      a = fi
+      fptr += 1
+      if(fptr < nf) {
+        fi = -f[fptr]
+        fa = abs(fi)
+      }
+    }
+    b = q0
+    x = a + b
+    bv = x - a
+    y = b - bv
+    if(y) {
+      g[count++] = y
+    }
+    _x = q1 + x
+    _bv = _x - q1
+    _av = _x - _bv
+    _br = x - _bv
+    _ar = q1 - _av
+    q0 = _ar + _br
+    q1 = _x
+  }
+  while(eptr < ne) {
+    a = ei
+    b = q0
+    x = a + b
+    bv = x - a
+    y = b - bv
+    if(y) {
+      g[count++] = y
+    }
+    _x = q1 + x
+    _bv = _x - q1
+    _av = _x - _bv
+    _br = x - _bv
+    _ar = q1 - _av
+    q0 = _ar + _br
+    q1 = _x
+    eptr += 1
+    if(eptr < ne) {
+      ei = e[eptr]
+    }
+  }
+  while(fptr < nf) {
+    a = fi
+    b = q0
+    x = a + b
+    bv = x - a
+    y = b - bv
+    if(y) {
+      g[count++] = y
+    } 
+    _x = q1 + x
+    _bv = _x - q1
+    _av = _x - _bv
+    _br = x - _bv
+    _ar = q1 - _av
+    q0 = _ar + _br
+    q1 = _x
+    fptr += 1
+    if(fptr < nf) {
+      fi = -f[fptr]
+    }
+  }
+  if(q0) {
+    g[count++] = q0
+  }
+  if(q1) {
+    g[count++] = q1
+  }
+  if(!count) {
+    g[count++] = 0.0  
+  }
+  g.length = count
+  return g
+}
+},{}],10:[function(require,module,exports){
+"use strict"
+
+module.exports = linearExpansionSum
+
+//Easy case: Add two scalars
+function scalarScalar(a, b) {
+  var x = a + b
+  var bv = x - a
+  var av = x - bv
+  var br = b - bv
+  var ar = a - av
+  var y = ar + br
+  if(y) {
+    return [y, x]
+  }
+  return [x]
+}
+
+function linearExpansionSum(e, f) {
+  var ne = e.length|0
+  var nf = f.length|0
+  if(ne === 1 && nf === 1) {
+    return scalarScalar(e[0], f[0])
+  }
+  var n = ne + nf
+  var g = new Array(n)
+  var count = 0
+  var eptr = 0
+  var fptr = 0
+  var abs = Math.abs
+  var ei = e[eptr]
+  var ea = abs(ei)
+  var fi = f[fptr]
+  var fa = abs(fi)
+  var a, b
+  if(ea < fa) {
+    b = ei
+    eptr += 1
+    if(eptr < ne) {
+      ei = e[eptr]
+      ea = abs(ei)
+    }
+  } else {
+    b = fi
+    fptr += 1
+    if(fptr < nf) {
+      fi = f[fptr]
+      fa = abs(fi)
+    }
+  }
+  if((eptr < ne && ea < fa) || (fptr >= nf)) {
+    a = ei
+    eptr += 1
+    if(eptr < ne) {
+      ei = e[eptr]
+      ea = abs(ei)
+    }
+  } else {
+    a = fi
+    fptr += 1
+    if(fptr < nf) {
+      fi = f[fptr]
+      fa = abs(fi)
+    }
+  }
+  var x = a + b
+  var bv = x - a
+  var y = b - bv
+  var q0 = y
+  var q1 = x
+  var _x, _bv, _av, _br, _ar
+  while(eptr < ne && fptr < nf) {
+    if(ea < fa) {
+      a = ei
+      eptr += 1
+      if(eptr < ne) {
+        ei = e[eptr]
+        ea = abs(ei)
+      }
+    } else {
+      a = fi
+      fptr += 1
+      if(fptr < nf) {
+        fi = f[fptr]
+        fa = abs(fi)
+      }
+    }
+    b = q0
+    x = a + b
+    bv = x - a
+    y = b - bv
+    if(y) {
+      g[count++] = y
+    }
+    _x = q1 + x
+    _bv = _x - q1
+    _av = _x - _bv
+    _br = x - _bv
+    _ar = q1 - _av
+    q0 = _ar + _br
+    q1 = _x
+  }
+  while(eptr < ne) {
+    a = ei
+    b = q0
+    x = a + b
+    bv = x - a
+    y = b - bv
+    if(y) {
+      g[count++] = y
+    }
+    _x = q1 + x
+    _bv = _x - q1
+    _av = _x - _bv
+    _br = x - _bv
+    _ar = q1 - _av
+    q0 = _ar + _br
+    q1 = _x
+    eptr += 1
+    if(eptr < ne) {
+      ei = e[eptr]
+    }
+  }
+  while(fptr < nf) {
+    a = fi
+    b = q0
+    x = a + b
+    bv = x - a
+    y = b - bv
+    if(y) {
+      g[count++] = y
+    } 
+    _x = q1 + x
+    _bv = _x - q1
+    _av = _x - _bv
+    _br = x - _bv
+    _ar = q1 - _av
+    q0 = _ar + _br
+    q1 = _x
+    fptr += 1
+    if(fptr < nf) {
+      fi = f[fptr]
+    }
+  }
+  if(q0) {
+    g[count++] = q0
+  }
+  if(q1) {
+    g[count++] = q1
+  }
+  if(!count) {
+    g[count++] = 0.0  
+  }
+  g.length = count
+  return g
+}
+},{}],11:[function(require,module,exports){
+"use strict"
+
+module.exports = twoProduct
+
+var SPLITTER = +(Math.pow(2, 27) + 1.0)
+
+function twoProduct(a, b, result) {
+  var x = a * b
+
+  var c = SPLITTER * a
+  var abig = c - a
+  var ahi = c - abig
+  var alo = a - ahi
+
+  var d = SPLITTER * b
+  var bbig = d - b
+  var bhi = d - bbig
+  var blo = b - bhi
+
+  var err1 = x - (ahi * bhi)
+  var err2 = err1 - (alo * bhi)
+  var err3 = err2 - (ahi * blo)
+
+  var y = alo * blo - err3
+
+  if(result) {
+    result[0] = y
+    result[1] = x
+    return result
+  }
+
+  return [ y, x ]
+}
+},{}],12:[function(require,module,exports){
+"use strict"
+
+var twoProduct = require("two-product")
+var robustSum = require("robust-sum")
+var robustScale = require("robust-scale")
+var robustSubtract = require("robust-subtract")
+
+var NUM_EXPAND = 5
+
+var EPSILON     = 1.1102230246251565e-16
+var ERRBOUND3   = (3.0 + 16.0 * EPSILON) * EPSILON
+var ERRBOUND4   = (7.0 + 56.0 * EPSILON) * EPSILON
+
+function cofactor(m, c) {
+  var result = new Array(m.length-1)
+  for(var i=1; i<m.length; ++i) {
+    var r = result[i-1] = new Array(m.length-1)
+    for(var j=0,k=0; j<m.length; ++j) {
+      if(j === c) {
+        continue
+      }
+      r[k++] = m[i][j]
+    }
+  }
+  return result
+}
+
+function matrix(n) {
+  var result = new Array(n)
+  for(var i=0; i<n; ++i) {
+    result[i] = new Array(n)
+    for(var j=0; j<n; ++j) {
+      result[i][j] = ["m", j, "[", (n-i-1), "]"].join("")
+    }
+  }
+  return result
+}
+
+function sign(n) {
+  if(n & 1) {
+    return "-"
+  }
+  return ""
+}
+
+function generateSum(expr) {
+  if(expr.length === 1) {
+    return expr[0]
+  } else if(expr.length === 2) {
+    return ["sum(", expr[0], ",", expr[1], ")"].join("")
+  } else {
+    var m = expr.length>>1
+    return ["sum(", generateSum(expr.slice(0, m)), ",", generateSum(expr.slice(m)), ")"].join("")
+  }
+}
+
+function determinant(m) {
+  if(m.length === 2) {
+    return [["sum(prod(", m[0][0], ",", m[1][1], "),prod(-", m[0][1], ",", m[1][0], "))"].join("")]
+  } else {
+    var expr = []
+    for(var i=0; i<m.length; ++i) {
+      expr.push(["scale(", generateSum(determinant(cofactor(m, i))), ",", sign(i), m[0][i], ")"].join(""))
+    }
+    return expr
+  }
+}
+
+function orientation(n) {
+  var pos = []
+  var neg = []
+  var m = matrix(n)
+  var args = []
+  for(var i=0; i<n; ++i) {
+    if((i&1)===0) {
+      pos.push.apply(pos, determinant(cofactor(m, i)))
+    } else {
+      neg.push.apply(neg, determinant(cofactor(m, i)))
+    }
+    args.push("m" + i)
+  }
+  var posExpr = generateSum(pos)
+  var negExpr = generateSum(neg)
+  var funcName = "orientation" + n + "Exact"
+  var code = ["function ", funcName, "(", args.join(), "){var p=", posExpr, ",n=", negExpr, ",d=sub(p,n);\
+return d[d.length-1];};return ", funcName].join("")
+  var proc = new Function("sum", "prod", "scale", "sub", code)
+  return proc(robustSum, twoProduct, robustScale, robustSubtract)
+}
+
+var orientation3Exact = orientation(3)
+var orientation4Exact = orientation(4)
+
+var CACHED = [
+  function orientation0() { return 0 },
+  function orientation1() { return 0 },
+  function orientation2(a, b) { 
+    return b[0] - a[0]
+  },
+  function orientation3(a, b, c) {
+    var l = (a[1] - c[1]) * (b[0] - c[0])
+    var r = (a[0] - c[0]) * (b[1] - c[1])
+    var det = l - r
+    var s
+    if(l > 0) {
+      if(r <= 0) {
+        return det
+      } else {
+        s = l + r
+      }
+    } else if(l < 0) {
+      if(r >= 0) {
+        return det
+      } else {
+        s = -(l + r)
+      }
+    } else {
+      return det
+    }
+    var tol = ERRBOUND3 * s
+    if(det >= tol || det <= -tol) {
+      return det
+    }
+    return orientation3Exact(a, b, c)
+  },
+  function orientation4(a,b,c,d) {
+    var adx = a[0] - d[0]
+    var bdx = b[0] - d[0]
+    var cdx = c[0] - d[0]
+    var ady = a[1] - d[1]
+    var bdy = b[1] - d[1]
+    var cdy = c[1] - d[1]
+    var adz = a[2] - d[2]
+    var bdz = b[2] - d[2]
+    var cdz = c[2] - d[2]
+    var bdxcdy = bdx * cdy
+    var cdxbdy = cdx * bdy
+    var cdxady = cdx * ady
+    var adxcdy = adx * cdy
+    var adxbdy = adx * bdy
+    var bdxady = bdx * ady
+    var det = adz * (bdxcdy - cdxbdy) 
+            + bdz * (cdxady - adxcdy)
+            + cdz * (adxbdy - bdxady)
+    var permanent = (Math.abs(bdxcdy) + Math.abs(cdxbdy)) * Math.abs(adz)
+                  + (Math.abs(cdxady) + Math.abs(adxcdy)) * Math.abs(bdz)
+                  + (Math.abs(adxbdy) + Math.abs(bdxady)) * Math.abs(cdz)
+    var tol = ERRBOUND4 * permanent
+    if ((det > tol) || (-det > tol)) {
+      return det
+    }
+    return orientation4Exact(a,b,c,d)
+  }
+]
+
+function slowOrient(args) {
+  var proc = CACHED[args.length]
+  if(!proc) {
+    proc = CACHED[args.length] = orientation(args.length)
+  }
+  return proc.apply(undefined, args)
+}
+
+function generateOrientationProc() {
+  while(CACHED.length <= NUM_EXPAND) {
+    CACHED.push(orientation(CACHED.length))
+  }
+  var args = []
+  var procArgs = ["slow"]
+  for(var i=0; i<=NUM_EXPAND; ++i) {
+    args.push("a" + i)
+    procArgs.push("o" + i)
+  }
+  var code = [
+    "function getOrientation(", args.join(), "){switch(arguments.length){case 0:case 1:return 0;"
+  ]
+  for(var i=2; i<=NUM_EXPAND; ++i) {
+    code.push("case ", i, ":return o", i, "(", args.slice(0, i).join(), ");")
+  }
+  code.push("}var s=new Array(arguments.length);for(var i=0;i<arguments.length;++i){s[i]=arguments[i]};return slow(s);}return getOrientation")
+  procArgs.push(code.join(""))
+
+  var proc = Function.apply(undefined, procArgs)
+  module.exports = proc.apply(undefined, [slowOrient].concat(CACHED))
+  for(var i=0; i<=NUM_EXPAND; ++i) {
+    module.exports[i] = CACHED[i]
+  }
+}
+
+generateOrientationProc()
+},{"robust-scale":8,"robust-subtract":9,"robust-sum":10,"two-product":11}],13:[function(require,module,exports){
+"use strict"
+
+module.exports = orderSegments
+
+var orient = require("robust-orientation")
+
+function horizontalOrder(a, b) {
+  var bl, br
+  if(b[0][0] < b[1][0]) {
+    bl = b[0]
+    br = b[1]
+  } else if(b[0][0] > b[1][0]) {
+    bl = b[1]
+    br = b[0]
+  } else {
+    var alo = Math.min(a[0][1], a[1][1])
+    var ahi = Math.max(a[0][1], a[1][1])
+    var blo = Math.min(b[0][1], b[1][1])
+    var bhi = Math.max(b[0][1], b[1][1])
+    if(ahi < blo) {
+      return ahi - blo
+    }
+    if(alo > bhi) {
+      return alo - bhi
+    }
+    return ahi - bhi
+  }
+  var al, ar
+  if(a[0][1] < a[1][1]) {
+    al = a[0]
+    ar = a[1]
+  } else {
+    al = a[1]
+    ar = a[0]
+  }
+  var d = orient(br, bl, al)
+  if(d) {
+    return d
+  }
+  d = orient(br, bl, ar)
+  if(d) {
+    return d
+  }
+  return ar - br
+}
+
+function orderSegments(b, a) {
+  var al, ar
+  if(a[0][0] < a[1][0]) {
+    al = a[0]
+    ar = a[1]
+  } else if(a[0][0] > a[1][0]) {
+    al = a[1]
+    ar = a[0]
+  } else {
+    return horizontalOrder(a, b)
+  }
+  var bl, br
+  if(b[0][0] < b[1][0]) {
+    bl = b[0]
+    br = b[1]
+  } else if(b[0][0] > b[1][0]) {
+    bl = b[1]
+    br = b[0]
+  } else {
+    return -horizontalOrder(b, a)
+  }
+  var d1 = orient(al, ar, br)
+  var d2 = orient(al, ar, bl)
+  if(d1 < 0) {
+    if(d2 <= 0) {
+      return d1
+    }
+  } else if(d1 > 0) {
+    if(d2 >= 0) {
+      return d1
+    }
+  } else if(d2) {
+    return d2
+  }
+  d1 = orient(br, bl, ar)
+  d2 = orient(br, bl, al)
+  if(d1 < 0) {
+    if(d2 <= 0) {
+      return d1
+    }
+  } else if(d1 > 0) {
+    if(d2 >= 0) {
+      return d1
+    }
+  } else if(d2) {
+    return d2
+  }
+  return ar[0] - br[0]
+}
+},{"robust-orientation":12}],14:[function(require,module,exports){
+"use strict"
+
+function compileSearch(funcName, predicate, reversed, extraArgs, useNdarray, earlyOut) {
+  var code = [
+    "function ", funcName, "(a,l,h,", extraArgs.join(","),  "){",
+earlyOut ? "" : "var i=", (reversed ? "l-1" : "h+1"),
+";while(l<=h){\
+var m=(l+h)>>>1,x=a", useNdarray ? ".get(m)" : "[m]"]
+  if(earlyOut) {
+    if(predicate.indexOf("c") < 0) {
+      code.push(";if(x===y){return m}else if(x<=y){")
+    } else {
+      code.push(";var p=c(x,y);if(p===0){return m}else if(p<=0){")
+    }
+  } else {
+    code.push(";if(", predicate, "){i=m;")
+  }
+  if(reversed) {
+    code.push("l=m+1}else{h=m-1}")
+  } else {
+    code.push("h=m-1}else{l=m+1}")
+  }
+  code.push("}")
+  if(earlyOut) {
+    code.push("return -1};")
+  } else {
+    code.push("return i};")
+  }
+  return code.join("")
+}
+
+function compileBoundsSearch(predicate, reversed, suffix, earlyOut) {
+  var result = new Function([
+  compileSearch("A", "x" + predicate + "y", reversed, ["y"], false, earlyOut),
+  compileSearch("B", "x" + predicate + "y", reversed, ["y"], true, earlyOut),
+  compileSearch("P", "c(x,y)" + predicate + "0", reversed, ["y", "c"], false, earlyOut),
+  compileSearch("Q", "c(x,y)" + predicate + "0", reversed, ["y", "c"], true, earlyOut),
+"function dispatchBsearch", suffix, "(a,y,c,l,h){\
+if(a.shape){\
+if(typeof(c)==='function'){\
+return Q(a,(l===undefined)?0:l|0,(h===undefined)?a.shape[0]-1:h|0,y,c)\
+}else{\
+return B(a,(c===undefined)?0:c|0,(l===undefined)?a.shape[0]-1:l|0,y)\
+}}else{\
+if(typeof(c)==='function'){\
+return P(a,(l===undefined)?0:l|0,(h===undefined)?a.length-1:h|0,y,c)\
+}else{\
+return A(a,(c===undefined)?0:c|0,(l===undefined)?a.length-1:l|0,y)\
+}}}\
+return dispatchBsearch", suffix].join(""))
+  return result()
+}
+
+module.exports = {
+  ge: compileBoundsSearch(">=", false, "GE"),
+  gt: compileBoundsSearch(">", false, "GT"),
+  lt: compileBoundsSearch("<", true, "LT"),
+  le: compileBoundsSearch("<=", true, "LE"),
+  eq: compileBoundsSearch("-", true, "EQ", true)
+}
+
+},{}],15:[function(require,module,exports){
+"use strict"
+
+module.exports = createRBTree
+
+var RED   = 0
+var BLACK = 1
+
+function RBNode(color, key, value, left, right, count) {
+  this._color = color
+  this.key = key
+  this.value = value
+  this.left = left
+  this.right = right
+  this._count = count
+}
+
+function cloneNode(node) {
+  return new RBNode(node._color, node.key, node.value, node.left, node.right, node._count)
+}
+
+function repaint(color, node) {
+  return new RBNode(color, node.key, node.value, node.left, node.right, node._count)
+}
+
+function recount(node) {
+  node._count = 1 + (node.left ? node.left._count : 0) + (node.right ? node.right._count : 0)
+}
+
+function RedBlackTree(compare, root) {
+  this._compare = compare
+  this.root = root
+}
+
+var proto = RedBlackTree.prototype
+
+Object.defineProperty(proto, "keys", {
+  get: function() {
+    var result = []
+    this.forEach(function(k,v) {
+      result.push(k)
+    })
+    return result
+  }
+})
+
+Object.defineProperty(proto, "values", {
+  get: function() {
+    var result = []
+    this.forEach(function(k,v) {
+      result.push(v)
+    })
+    return result
+  }
+})
+
+//Returns the number of nodes in the tree
+Object.defineProperty(proto, "length", {
+  get: function() {
+    if(this.root) {
+      return this.root._count
+    }
+    return 0
+  }
+})
+
+//Insert a new item into the tree
+proto.insert = function(key, value) {
+  var cmp = this._compare
+  //Find point to insert new node at
+  var n = this.root
+  var n_stack = []
+  var d_stack = []
+  while(n) {
+    var d = cmp(key, n.key)
+    n_stack.push(n)
+    d_stack.push(d)
+    if(d <= 0) {
+      n = n.left
+    } else {
+      n = n.right
+    }
+  }
+  //Rebuild path to leaf node
+  n_stack.push(new RBNode(RED, key, value, null, null, 1))
+  for(var s=n_stack.length-2; s>=0; --s) {
+    var n = n_stack[s]
+    if(d_stack[s] <= 0) {
+      n_stack[s] = new RBNode(n._color, n.key, n.value, n_stack[s+1], n.right, n._count+1)
+    } else {
+      n_stack[s] = new RBNode(n._color, n.key, n.value, n.left, n_stack[s+1], n._count+1)
+    }
+  }
+  //Rebalance tree using rotations
+  //console.log("start insert", key, d_stack)
+  for(var s=n_stack.length-1; s>1; --s) {
+    var p = n_stack[s-1]
+    var n = n_stack[s]
+    if(p._color === BLACK || n._color === BLACK) {
+      break
+    }
+    var pp = n_stack[s-2]
+    if(pp.left === p) {
+      if(p.left === n) {
+        var y = pp.right
+        if(y && y._color === RED) {
+          //console.log("LLr")
+          p._color = BLACK
+          pp.right = repaint(BLACK, y)
+          pp._color = RED
+          s -= 1
+        } else {
+          //console.log("LLb")
+          pp._color = RED
+          pp.left = p.right
+          p._color = BLACK
+          p.right = pp
+          n_stack[s-2] = p
+          n_stack[s-1] = n
+          recount(pp)
+          recount(p)
+          if(s >= 3) {
+            var ppp = n_stack[s-3]
+            if(ppp.left === pp) {
+              ppp.left = p
+            } else {
+              ppp.right = p
+            }
+          }
+          break
+        }
+      } else {
+        var y = pp.right
+        if(y && y._color === RED) {
+          //console.log("LRr")
+          p._color = BLACK
+          pp.right = repaint(BLACK, y)
+          pp._color = RED
+          s -= 1
+        } else {
+          //console.log("LRb")
+          p.right = n.left
+          pp._color = RED
+          pp.left = n.right
+          n._color = BLACK
+          n.left = p
+          n.right = pp
+          n_stack[s-2] = n
+          n_stack[s-1] = p
+          recount(pp)
+          recount(p)
+          recount(n)
+          if(s >= 3) {
+            var ppp = n_stack[s-3]
+            if(ppp.left === pp) {
+              ppp.left = n
+            } else {
+              ppp.right = n
+            }
+          }
+          break
+        }
+      }
+    } else {
+      if(p.right === n) {
+        var y = pp.left
+        if(y && y._color === RED) {
+          //console.log("RRr", y.key)
+          p._color = BLACK
+          pp.left = repaint(BLACK, y)
+          pp._color = RED
+          s -= 1
+        } else {
+          //console.log("RRb")
+          pp._color = RED
+          pp.right = p.left
+          p._color = BLACK
+          p.left = pp
+          n_stack[s-2] = p
+          n_stack[s-1] = n
+          recount(pp)
+          recount(p)
+          if(s >= 3) {
+            var ppp = n_stack[s-3]
+            if(ppp.right === pp) {
+              ppp.right = p
+            } else {
+              ppp.left = p
+            }
+          }
+          break
+        }
+      } else {
+        var y = pp.left
+        if(y && y._color === RED) {
+          //console.log("RLr")
+          p._color = BLACK
+          pp.left = repaint(BLACK, y)
+          pp._color = RED
+          s -= 1
+        } else {
+          //console.log("RLb")
+          p.left = n.right
+          pp._color = RED
+          pp.right = n.left
+          n._color = BLACK
+          n.right = p
+          n.left = pp
+          n_stack[s-2] = n
+          n_stack[s-1] = p
+          recount(pp)
+          recount(p)
+          recount(n)
+          if(s >= 3) {
+            var ppp = n_stack[s-3]
+            if(ppp.right === pp) {
+              ppp.right = n
+            } else {
+              ppp.left = n
+            }
+          }
+          break
+        }
+      }
+    }
+  }
+  //Return new tree
+  n_stack[0]._color = BLACK
+  return new RedBlackTree(cmp, n_stack[0])
+}
+
+
+//Visit all nodes inorder
+function doVisitFull(visit, node) {
+  if(node.left) {
+    var v = doVisitFull(visit, node.left)
+    if(v) { return v }
+  }
+  var v = visit(node.key, node.value)
+  if(v) { return v }
+  if(node.right) {
+    return doVisitFull(visit, node.right)
+  }
+}
+
+//Visit half nodes in order
+function doVisitHalf(lo, compare, visit, node) {
+  var l = compare(lo, node.key)
+  if(l <= 0) {
+    if(node.left) {
+      var v = doVisitHalf(lo, compare, visit, node.left)
+      if(v) { return v }
+    }
+    var v = visit(node.key, node.value)
+    if(v) { return v }
+  }
+  if(node.right) {
+    return doVisitHalf(lo, compare, visit, node.right)
+  }
+}
+
+//Visit all nodes within a range
+function doVisit(lo, hi, compare, visit, node) {
+  var l = compare(lo, node.key)
+  var h = compare(hi, node.key)
+  var v
+  if(l <= 0) {
+    if(node.left) {
+      v = doVisit(lo, hi, compare, visit, node.left)
+      if(v) { return v }
+    }
+    if(h > 0) {
+      v = visit(node.key, node.value)
+      if(v) { return v }
+    }
+  }
+  if(h > 0 && node.right) {
+    return doVisit(lo, hi, compare, visit, node.right)
+  }
+}
+
+
+proto.forEach = function rbTreeForEach(visit, lo, hi) {
+  if(!this.root) {
+    return
+  }
+  switch(arguments.length) {
+    case 1:
+      return doVisitFull(visit, this.root)
+    break
+
+    case 2:
+      return doVisitHalf(lo, this._compare, visit, this.root)
+    break
+
+    case 3:
+      if(this._compare(lo, hi) >= 0) {
+        return
+      }
+      return doVisit(lo, hi, this._compare, visit, this.root)
+    break
+  }
+}
+
+//First item in list
+Object.defineProperty(proto, "begin", {
+  get: function() {
+    var stack = []
+    var n = this.root
+    while(n) {
+      stack.push(n)
+      n = n.left
+    }
+    return new RedBlackTreeIterator(this, stack)
+  }
+})
+
+//Last item in list
+Object.defineProperty(proto, "end", {
+  get: function() {
+    var stack = []
+    var n = this.root
+    while(n) {
+      stack.push(n)
+      n = n.right
+    }
+    return new RedBlackTreeIterator(this, stack)
+  }
+})
+
+//Find the ith item in the tree
+proto.at = function(idx) {
+  if(idx < 0) {
+    return new RedBlackTreeIterator(this, [])
+  }
+  var n = this.root
+  var stack = []
+  while(true) {
+    stack.push(n)
+    if(n.left) {
+      if(idx < n.left._count) {
+        n = n.left
+        continue
+      }
+      idx -= n.left._count
+    }
+    if(!idx) {
+      return new RedBlackTreeIterator(this, stack)
+    }
+    idx -= 1
+    if(n.right) {
+      if(idx >= n.right._count) {
+        break
+      }
+      n = n.right
+    } else {
+      break
+    }
+  }
+  return new RedBlackTreeIterator(this, [])
+}
+
+proto.ge = function(key) {
+  var cmp = this._compare
+  var n = this.root
+  var stack = []
+  var last_ptr = 0
+  while(n) {
+    var d = cmp(key, n.key)
+    stack.push(n)
+    if(d <= 0) {
+      last_ptr = stack.length
+    }
+    if(d <= 0) {
+      n = n.left
+    } else {
+      n = n.right
+    }
+  }
+  stack.length = last_ptr
+  return new RedBlackTreeIterator(this, stack)
+}
+
+proto.gt = function(key) {
+  var cmp = this._compare
+  var n = this.root
+  var stack = []
+  var last_ptr = 0
+  while(n) {
+    var d = cmp(key, n.key)
+    stack.push(n)
+    if(d < 0) {
+      last_ptr = stack.length
+    }
+    if(d < 0) {
+      n = n.left
+    } else {
+      n = n.right
+    }
+  }
+  stack.length = last_ptr
+  return new RedBlackTreeIterator(this, stack)
+}
+
+proto.lt = function(key) {
+  var cmp = this._compare
+  var n = this.root
+  var stack = []
+  var last_ptr = 0
+  while(n) {
+    var d = cmp(key, n.key)
+    stack.push(n)
+    if(d > 0) {
+      last_ptr = stack.length
+    }
+    if(d <= 0) {
+      n = n.left
+    } else {
+      n = n.right
+    }
+  }
+  stack.length = last_ptr
+  return new RedBlackTreeIterator(this, stack)
+}
+
+proto.le = function(key) {
+  var cmp = this._compare
+  var n = this.root
+  var stack = []
+  var last_ptr = 0
+  while(n) {
+    var d = cmp(key, n.key)
+    stack.push(n)
+    if(d >= 0) {
+      last_ptr = stack.length
+    }
+    if(d < 0) {
+      n = n.left
+    } else {
+      n = n.right
+    }
+  }
+  stack.length = last_ptr
+  return new RedBlackTreeIterator(this, stack)
+}
+
+//Finds the item with key if it exists
+proto.find = function(key) {
+  var cmp = this._compare
+  var n = this.root
+  var stack = []
+  while(n) {
+    var d = cmp(key, n.key)
+    stack.push(n)
+    if(d === 0) {
+      return new RedBlackTreeIterator(this, stack)
+    }
+    if(d <= 0) {
+      n = n.left
+    } else {
+      n = n.right
+    }
+  }
+  return new RedBlackTreeIterator(this, [])
+}
+
+//Removes item with key from tree
+proto.remove = function(key) {
+  var iter = this.find(key)
+  if(iter) {
+    return iter.remove()
+  }
+  return this
+}
+
+//Returns the item at `key`
+proto.get = function(key) {
+  var cmp = this._compare
+  var n = this.root
+  while(n) {
+    var d = cmp(key, n.key)
+    if(d === 0) {
+      return n.value
+    }
+    if(d <= 0) {
+      n = n.left
+    } else {
+      n = n.right
+    }
+  }
+  return
+}
+
+//Iterator for red black tree
+function RedBlackTreeIterator(tree, stack) {
+  this.tree = tree
+  this._stack = stack
+}
+
+var iproto = RedBlackTreeIterator.prototype
+
+//Test if iterator is valid
+Object.defineProperty(iproto, "valid", {
+  get: function() {
+    return this._stack.length > 0
+  }
+})
+
+//Node of the iterator
+Object.defineProperty(iproto, "node", {
+  get: function() {
+    if(this._stack.length > 0) {
+      return this._stack[this._stack.length-1]
+    }
+    return null
+  },
+  enumerable: true
+})
+
+//Makes a copy of an iterator
+iproto.clone = function() {
+  return new RedBlackTreeIterator(this.tree, this._stack.slice())
+}
+
+//Swaps two nodes
+function swapNode(n, v) {
+  n.key = v.key
+  n.value = v.value
+  n.left = v.left
+  n.right = v.right
+  n._color = v._color
+  n._count = v._count
+}
+
+//Fix up a double black node in a tree
+function fixDoubleBlack(stack) {
+  var n, p, s, z
+  for(var i=stack.length-1; i>=0; --i) {
+    n = stack[i]
+    if(i === 0) {
+      n._color = BLACK
+      return
+    }
+    //console.log("visit node:", n.key, i, stack[i].key, stack[i-1].key)
+    p = stack[i-1]
+    if(p.left === n) {
+      //console.log("left child")
+      s = p.right
+      if(s.right && s.right._color === RED) {
+        //console.log("case 1: right sibling child red")
+        s = p.right = cloneNode(s)
+        z = s.right = cloneNode(s.right)
+        p.right = s.left
+        s.left = p
+        s.right = z
+        s._color = p._color
+        n._color = BLACK
+        p._color = BLACK
+        z._color = BLACK
+        recount(p)
+        recount(s)
+        if(i > 1) {
+          var pp = stack[i-2]
+          if(pp.left === p) {
+            pp.left = s
+          } else {
+            pp.right = s
+          }
+        }
+        stack[i-1] = s
+        return
+      } else if(s.left && s.left._color === RED) {
+        //console.log("case 1: left sibling child red")
+        s = p.right = cloneNode(s)
+        z = s.left = cloneNode(s.left)
+        p.right = z.left
+        s.left = z.right
+        z.left = p
+        z.right = s
+        z._color = p._color
+        p._color = BLACK
+        s._color = BLACK
+        n._color = BLACK
+        recount(p)
+        recount(s)
+        recount(z)
+        if(i > 1) {
+          var pp = stack[i-2]
+          if(pp.left === p) {
+            pp.left = z
+          } else {
+            pp.right = z
+          }
+        }
+        stack[i-1] = z
+        return
+      }
+      if(s._color === BLACK) {
+        if(p._color === RED) {
+          //console.log("case 2: black sibling, red parent", p.right.value)
+          p._color = BLACK
+          p.right = repaint(RED, s)
+          return
+        } else {
+          //console.log("case 2: black sibling, black parent", p.right.value)
+          p.right = repaint(RED, s)
+          continue  
+        }
+      } else {
+        //console.log("case 3: red sibling")
+        s = cloneNode(s)
+        p.right = s.left
+        s.left = p
+        s._color = p._color
+        p._color = RED
+        recount(p)
+        recount(s)
+        if(i > 1) {
+          var pp = stack[i-2]
+          if(pp.left === p) {
+            pp.left = s
+          } else {
+            pp.right = s
+          }
+        }
+        stack[i-1] = s
+        stack[i] = p
+        if(i+1 < stack.length) {
+          stack[i+1] = n
+        } else {
+          stack.push(n)
+        }
+        i = i+2
+      }
+    } else {
+      //console.log("right child")
+      s = p.left
+      if(s.left && s.left._color === RED) {
+        //console.log("case 1: left sibling child red", p.value, p._color)
+        s = p.left = cloneNode(s)
+        z = s.left = cloneNode(s.left)
+        p.left = s.right
+        s.right = p
+        s.left = z
+        s._color = p._color
+        n._color = BLACK
+        p._color = BLACK
+        z._color = BLACK
+        recount(p)
+        recount(s)
+        if(i > 1) {
+          var pp = stack[i-2]
+          if(pp.right === p) {
+            pp.right = s
+          } else {
+            pp.left = s
+          }
+        }
+        stack[i-1] = s
+        return
+      } else if(s.right && s.right._color === RED) {
+        //console.log("case 1: right sibling child red")
+        s = p.left = cloneNode(s)
+        z = s.right = cloneNode(s.right)
+        p.left = z.right
+        s.right = z.left
+        z.right = p
+        z.left = s
+        z._color = p._color
+        p._color = BLACK
+        s._color = BLACK
+        n._color = BLACK
+        recount(p)
+        recount(s)
+        recount(z)
+        if(i > 1) {
+          var pp = stack[i-2]
+          if(pp.right === p) {
+            pp.right = z
+          } else {
+            pp.left = z
+          }
+        }
+        stack[i-1] = z
+        return
+      }
+      if(s._color === BLACK) {
+        if(p._color === RED) {
+          //console.log("case 2: black sibling, red parent")
+          p._color = BLACK
+          p.left = repaint(RED, s)
+          return
+        } else {
+          //console.log("case 2: black sibling, black parent")
+          p.left = repaint(RED, s)
+          continue  
+        }
+      } else {
+        //console.log("case 3: red sibling")
+        s = cloneNode(s)
+        p.left = s.right
+        s.right = p
+        s._color = p._color
+        p._color = RED
+        recount(p)
+        recount(s)
+        if(i > 1) {
+          var pp = stack[i-2]
+          if(pp.right === p) {
+            pp.right = s
+          } else {
+            pp.left = s
+          }
+        }
+        stack[i-1] = s
+        stack[i] = p
+        if(i+1 < stack.length) {
+          stack[i+1] = n
+        } else {
+          stack.push(n)
+        }
+        i = i+2
+      }
+    }
+  }
+}
+
+//Removes item at iterator from tree
+iproto.remove = function() {
+  var stack = this._stack
+  if(stack.length === 0) {
+    return this.tree
+  }
+  //First copy path to node
+  var cstack = new Array(stack.length)
+  var n = stack[stack.length-1]
+  cstack[cstack.length-1] = new RBNode(n._color, n.key, n.value, n.left, n.right, n._count)
+  for(var i=stack.length-2; i>=0; --i) {
+    var n = stack[i]
+    if(n.left === stack[i+1]) {
+      cstack[i] = new RBNode(n._color, n.key, n.value, cstack[i+1], n.right, n._count)
+    } else {
+      cstack[i] = new RBNode(n._color, n.key, n.value, n.left, cstack[i+1], n._count)
+    }
+  }
+
+  //Get node
+  n = cstack[cstack.length-1]
+  //console.log("start remove: ", n.value)
+
+  //If not leaf, then swap with previous node
+  if(n.left && n.right) {
+    //console.log("moving to leaf")
+
+    //First walk to previous leaf
+    var split = cstack.length
+    n = n.left
+    while(n.right) {
+      cstack.push(n)
+      n = n.right
+    }
+    //Copy path to leaf
+    var v = cstack[split-1]
+    cstack.push(new RBNode(n._color, v.key, v.value, n.left, n.right, n._count))
+    cstack[split-1].key = n.key
+    cstack[split-1].value = n.value
+
+    //Fix up stack
+    for(var i=cstack.length-2; i>=split; --i) {
+      n = cstack[i]
+      cstack[i] = new RBNode(n._color, n.key, n.value, n.left, cstack[i+1], n._count)
+    }
+    cstack[split-1].left = cstack[split]
+  }
+  //console.log("stack=", cstack.map(function(v) { return v.value }))
+
+  //Remove leaf node
+  n = cstack[cstack.length-1]
+  if(n._color === RED) {
+    //Easy case: removing red leaf
+    //console.log("RED leaf")
+    var p = cstack[cstack.length-2]
+    if(p.left === n) {
+      p.left = null
+    } else if(p.right === n) {
+      p.right = null
+    }
+    cstack.pop()
+    for(var i=0; i<cstack.length; ++i) {
+      cstack[i]._count--
+    }
+    return new RedBlackTree(this.tree._compare, cstack[0])
+  } else {
+    if(n.left || n.right) {
+      //Second easy case:  Single child black parent
+      //console.log("BLACK single child")
+      if(n.left) {
+        swapNode(n, n.left)
+      } else if(n.right) {
+        swapNode(n, n.right)
+      }
+      //Child must be red, so repaint it black to balance color
+      n._color = BLACK
+      for(var i=0; i<cstack.length-1; ++i) {
+        cstack[i]._count--
+      }
+      return new RedBlackTree(this.tree._compare, cstack[0])
+    } else if(cstack.length === 1) {
+      //Third easy case: root
+      //console.log("ROOT")
+      return new RedBlackTree(this.tree._compare, null)
+    } else {
+      //Hard case: Repaint n, and then do some nasty stuff
+      //console.log("BLACK leaf no children")
+      for(var i=0; i<cstack.length; ++i) {
+        cstack[i]._count--
+      }
+      var parent = cstack[cstack.length-2]
+      fixDoubleBlack(cstack)
+      //Fix up links
+      if(parent.left === n) {
+        parent.left = null
+      } else {
+        parent.right = null
+      }
+    }
+  }
+  return new RedBlackTree(this.tree._compare, cstack[0])
+}
+
+//Returns key
+Object.defineProperty(iproto, "key", {
+  get: function() {
+    if(this._stack.length > 0) {
+      return this._stack[this._stack.length-1].key
+    }
+    return
+  },
+  enumerable: true
+})
+
+//Returns value
+Object.defineProperty(iproto, "value", {
+  get: function() {
+    if(this._stack.length > 0) {
+      return this._stack[this._stack.length-1].value
+    }
+    return
+  },
+  enumerable: true
+})
+
+
+//Returns the position of this iterator in the sorted list
+Object.defineProperty(iproto, "index", {
+  get: function() {
+    var idx = 0
+    var stack = this._stack
+    if(stack.length === 0) {
+      var r = this.tree.root
+      if(r) {
+        return r._count
+      }
+      return 0
+    } else if(stack[stack.length-1].left) {
+      idx = stack[stack.length-1].left._count
+    }
+    for(var s=stack.length-2; s>=0; --s) {
+      if(stack[s+1] === stack[s].right) {
+        ++idx
+        if(stack[s].left) {
+          idx += stack[s].left._count
+        }
+      }
+    }
+    return idx
+  },
+  enumerable: true
+})
+
+//Advances iterator to next element in list
+iproto.next = function() {
+  var stack = this._stack
+  if(stack.length === 0) {
+    return
+  }
+  var n = stack[stack.length-1]
+  if(n.right) {
+    n = n.right
+    while(n) {
+      stack.push(n)
+      n = n.left
+    }
+  } else {
+    stack.pop()
+    while(stack.length > 0 && stack[stack.length-1].right === n) {
+      n = stack[stack.length-1]
+      stack.pop()
+    }
+  }
+}
+
+//Checks if iterator is at end of tree
+Object.defineProperty(iproto, "hasNext", {
+  get: function() {
+    var stack = this._stack
+    if(stack.length === 0) {
+      return false
+    }
+    if(stack[stack.length-1].right) {
+      return true
+    }
+    for(var s=stack.length-1; s>0; --s) {
+      if(stack[s-1].left === stack[s]) {
+        return true
+      }
+    }
+    return false
+  }
+})
+
+//Update value
+iproto.update = function(value) {
+  var stack = this._stack
+  if(stack.length === 0) {
+    throw new Error("Can't update empty node!")
+  }
+  var cstack = new Array(stack.length)
+  var n = stack[stack.length-1]
+  cstack[cstack.length-1] = new RBNode(n._color, n.key, value, n.left, n.right, n._count)
+  for(var i=stack.length-2; i>=0; --i) {
+    n = stack[i]
+    if(n.left === stack[i+1]) {
+      cstack[i] = new RBNode(n._color, n.key, n.value, cstack[i+1], n.right, n._count)
+    } else {
+      cstack[i] = new RBNode(n._color, n.key, n.value, n.left, cstack[i+1], n._count)
+    }
+  }
+  return new RedBlackTree(this.tree._compare, cstack[0])
+}
+
+//Moves iterator backward one element
+iproto.prev = function() {
+  var stack = this._stack
+  if(stack.length === 0) {
+    return
+  }
+  var n = stack[stack.length-1]
+  if(n.left) {
+    n = n.left
+    while(n) {
+      stack.push(n)
+      n = n.right
+    }
+  } else {
+    stack.pop()
+    while(stack.length > 0 && stack[stack.length-1].left === n) {
+      n = stack[stack.length-1]
+      stack.pop()
+    }
+  }
+}
+
+//Checks if iterator is at start of tree
+Object.defineProperty(iproto, "hasPrev", {
+  get: function() {
+    var stack = this._stack
+    if(stack.length === 0) {
+      return false
+    }
+    if(stack[stack.length-1].left) {
+      return true
+    }
+    for(var s=stack.length-1; s>0; --s) {
+      if(stack[s-1].right === stack[s]) {
+        return true
+      }
+    }
+    return false
+  }
+})
+
+//Default comparison function
+function defaultCompare(a, b) {
+  if(a < b) {
+    return -1
+  }
+  if(a > b) {
+    return 1
+  }
+  return 0
+}
+
+//Build a tree
+function createRBTree(compare) {
+  return new RedBlackTree(compare || defaultCompare, null)
+}
+},{}],16:[function(require,module,exports){
+"use strict"
+
+module.exports = createSlabDecomposition
+
+var bounds = require("binary-search-bounds")
+var createRBTree = require("functional-red-black-tree")
+var orient = require("robust-orientation")
+var orderSegments = require("./lib/order-segments")
+
+function SlabDecomposition(slabs, coordinates, horizontal) {
+  this.slabs = slabs
+  this.coordinates = coordinates
+  this.horizontal = horizontal
+}
+
+var proto = SlabDecomposition.prototype
+
+function compareHorizontal(e, y) {
+  return e.y - y
+}
+
+function searchBucket(root, p) {
+  var lastNode = null
+  while(root) {
+    var seg = root.key
+    var l, r
+    if(seg[0][0] < seg[1][0]) {
+      l = seg[0]
+      r = seg[1]
+    } else {
+      l = seg[1]
+      r = seg[0]
+    }
+    var o = orient(l, r, p)
+    if(o < 0) {
+      root = root.left
+    } else if(o > 0) {
+      if(p[0] !== seg[1][0]) {
+        lastNode = root
+        root = root.right
+      } else {
+        var val = searchBucket(root.right, p)
+        if(val) {
+          return val
+        }
+        root = root.left
+      }
+    } else {
+      if(p[0] !== seg[1][0]) {
+        return root
+      } else {
+        var val = searchBucket(root.right, p)
+        if(val) {
+          return val
+        }
+        root = root.left
+      }
+    }
+  }
+  return lastNode
+}
+
+proto.castUp = function(p) {
+  var bucket = bounds.le(this.coordinates, p[0])
+  if(bucket < 0) {
+    return -1
+  }
+  var root = this.slabs[bucket]
+  var hitNode = searchBucket(this.slabs[bucket], p)
+  var lastHit = -1
+  if(hitNode) {
+    lastHit = hitNode.value
+  }
+  //Edge case: need to handle horizontal segments (sucks)
+  if(this.coordinates[bucket] === p[0]) {
+    var lastSegment = null
+    if(hitNode) {
+      lastSegment = hitNode.key
+    }
+    if(bucket > 0) {
+      var otherHitNode = searchBucket(this.slabs[bucket-1], p)
+      if(otherHitNode) {
+        if(lastSegment) {
+          if(orderSegments(otherHitNode.key, lastSegment) > 0) {
+            lastSegment = otherHitNode.key
+            lastHit = otherHitNode.value
+          }
+        } else {
+          lastHit = otherHitNode.value
+          lastSegment = otherHitNode.key
+        }
+      }
+    }
+    var horiz = this.horizontal[bucket]
+    if(horiz.length > 0) {
+      var hbucket = bounds.ge(horiz, p[1], compareHorizontal)
+      if(hbucket < horiz.length) {
+        var e = horiz[hbucket]
+        if(p[1] === e.y) {
+          if(e.closed) {
+            return e.index
+          } else {
+            while(hbucket < horiz.length-1 && horiz[hbucket+1].y === p[1]) {
+              hbucket = hbucket+1
+              e = horiz[hbucket]
+              if(e.closed) {
+                return e.index
+              }
+            }
+            if(e.y === p[1] && !e.start) {
+              hbucket = hbucket+1
+              if(hbucket >= horiz.length) {
+                return lastHit
+              }
+              e = horiz[hbucket]
+            }
+          }
+        }
+        //Check if e is above/below last segment
+        if(e.start) {
+          if(lastSegment) {
+            var o = orient(lastSegment[0], lastSegment[1], [p[0], e.y])
+            if(lastSegment[0][0] > lastSegment[1][0]) {
+              o = -o
+            }
+            if(o > 0) {
+              lastHit = e.index
+            }
+          } else {
+            lastHit = e.index
+          }
+        } else if(e.y !== p[1]) {
+          lastHit = e.index
+        }
+      }
+    }
+  }
+  return lastHit
+}
+
+function IntervalSegment(y, index, start, closed) {
+  this.y = y
+  this.index = index
+  this.start = start
+  this.closed = closed
+}
+
+function Event(x, segment, create, index) {
+  this.x = x
+  this.segment = segment
+  this.create = create
+  this.index = index
+}
+
+
+function createSlabDecomposition(segments) {
+  var numSegments = segments.length
+  var numEvents = 2 * numSegments
+  var events = new Array(numEvents)
+  for(var i=0; i<numSegments; ++i) {
+    var s = segments[i]
+    var f = s[0][0] < s[1][0]
+    events[2*i] = new Event(s[0][0], s, f, i)
+    events[2*i+1] = new Event(s[1][0], s, !f, i)
+  }
+  events.sort(function(a,b) {
+    var d = a.x - b.x
+    if(d) {
+      return d
+    }
+    d = a.create - b.create
+    if(d) {
+      return d
+    }
+    return Math.min(a.segment[0][1], a.segment[1][1]) - Math.min(b.segment[0][1], b.segment[1][1])
+  })
+  var tree = createRBTree(orderSegments)
+  var slabs = []
+  var lines = []
+  var horizontal = []
+  var lastX = -Infinity
+  for(var i=0; i<numEvents; ) {
+    var x = events[i].x
+    var horiz = []
+    while(i < numEvents) {
+      var e = events[i]
+      if(e.x !== x) {
+        break
+      }
+      i += 1
+      if(e.segment[0][0] === e.x && e.segment[1][0] === e.x) {
+        if(e.create) {
+          if(e.segment[0][1] < e.segment[1][1]) {
+            horiz.push(new IntervalSegment(
+                e.segment[0][1],
+                e.index,
+                true,
+                true))
+            horiz.push(new IntervalSegment(
+                e.segment[1][1],
+                e.index,
+                false,
+                false))
+          } else {
+            horiz.push(new IntervalSegment(
+                e.segment[1][1],
+                e.index,
+                true,
+                false))
+            horiz.push(new IntervalSegment(
+                e.segment[0][1],
+                e.index,
+                false,
+                true))
+          }
+        }
+      } else {
+        if(e.create) {
+          tree = tree.insert(e.segment, e.index)
+        } else {
+          tree = tree.remove(e.segment)
+        }
+      }
+    }
+    slabs.push(tree.root)
+    lines.push(x)
+    horizontal.push(horiz)
+  }
+  return new SlabDecomposition(slabs, lines, horizontal)
+}
+},{"./lib/order-segments":13,"binary-search-bounds":14,"functional-red-black-tree":15,"robust-orientation":12}],17:[function(require,module,exports){
+"use strict"
+
+module.exports = preprocessPolygon
+
+var orient = require("robust-orientation")
+var makeSlabs = require("slab-decomposition")
+
+function dummyFunction(p) {
+  return -1
+}
+
+function createClassifyPoint(segments, slabs, outside, orientation) {
+  function classifyPoint(p) {
+    var index = slabs.castUp(p)
+    if(index < 0) {
+      return outside
+    }
+    var seg = segments[index]
+    if(!orientation) {
+      return orient(p, seg[0], seg[1])
+    } else {
+      return orient(p, seg[1], seg[0])
+    }
+  }
+  return classifyPoint
+}
+
+function preprocessPolygon(loops, orientation) {
+  orientation = !!orientation
+
+  //Compute number of loops
+  var numLoops = loops.length
+  var numSegments = 0
+  for(var i=0; i<numLoops; ++i) {
+    numSegments += loops[i].length
+  }
+
+  //Degenerate case: All loops are empty
+  if(numSegments === 0) {
+    return dummyFunction
+  }
+
+  //Unpack segments
+  var segments = new Array(numSegments)
+  var ptr = 0
+  for(var i=0; i<numLoops; ++i) {
+    var loop = loops[i]
+    var numVertices = loop.length
+    for(var s=numVertices-1,t=0; t<numVertices; s=(t++)) {
+      segments[ptr++] = [loop[s], loop[t]]
+    }
+  }
+
+  //Build slab decomposition
+  var slabs = makeSlabs(segments)
+
+  //Find outer orientation
+  var outside
+  var root = slabs.slabs[0]
+  if(root) {
+    while(root.left) {
+      root = root.left
+    }
+    var h = root.key
+    if(h[0][0] < h[1][0]) {
+      outside = -1
+    } else {
+      outside = 1
+    }
+  } else {
+    var h = segments[slabs.horizontal[0][0].index]
+    if(h[0][1] < h[1][1]) {
+      outside = 1
+    } else {
+      outside = -1
+    }
+  }
+  if(orientation) {
+    outside = -outside
+  }
+
+  //Return classification function
+  return createClassifyPoint(segments, slabs, outside, orientation)
+}
+},{"robust-orientation":12,"slab-decomposition":16}],18:[function(require,module,exports){
+/*  Ported from Mukesh Prasad's public domain code:
+ *    http://tog.acm.org/resources/GraphicsGems/gemsii/xlines.c
+ *
+ *   This function computes whether two line segments,
+ *   respectively joining the input points (x1,y1) -- (x2,y2)
+ *   and the input points (x3,y3) -- (x4,y4) intersect.
+ *   If the lines intersect, the return value is an array
+ *   containing coordinates of the point of intersection.
+ *
+ *   Params
+ *        x1, y1,  x2, y2   Coordinates of endpoints of one segment.
+ *        x3, y3,  x4, y4   Coordinates of endpoints of other segment.
+ *
+ *   Also Accepts:
+ *    4 objects with the minimal object structure { x: .., y: ..}
+ *    4 arrays where [0] is x and [1] is y
+ *
+ *   The value returned by the function is one of:
+ *
+ *        undefined - no intersection
+ *        array     - intersection
+ *        true      - colinear
+ */
+
+function segseg(x1, y1, x2, y2, x3, y3, x4, y4) {
+
+  if (arguments.length === 4) {
+    var p1 = x1;
+    var p2 = y1;
+    var p3 = x2;
+    var p4 = y2;
+
+    // assume array [x, y]
+    if (p1.length && p1.length === 2) {
+      x1 = p1[0];
+      y1 = p1[1];
+      x2 = p2[0];
+      y2 = p2[1];
+      x3 = p3[0];
+      y3 = p3[1];
+      x4 = p4[0];
+      y4 = p4[1];
+
+    // assume object with obj.x and obj.y
+    } else {
+      x1 = p1.x;
+      y1 = p1.y;
+      x2 = p2.x;
+      y2 = p2.y;
+      x3 = p3.x;
+      y3 = p3.y;
+      x4 = p4.x;
+      y4 = p4.y;
+    }
+  }
+
+
+  var a1, a2, b1, b2, c1, c2; // Coefficients of line eqns.
+  var r1, r2, r3, r4;         // 'Sign' values
+  var denom, offset;          // Intermediate values
+  var x, y;                   // Intermediate return values
+
+  // Compute a1, b1, c1, where line joining points 1 and 2
+  // is "a1 x  +  b1 y  +  c1  =  0".
+  a1 = y2 - y1;
+  b1 = x1 - x2;
+  c1 = x2 * y1 - x1 * y2;
+
+  // Compute r3 and r4.
+  r3 = a1 * x3 + b1 * y3 + c1;
+  r4 = a1 * x4 + b1 * y4 + c1;
+
+  // Check signs of r3 and r4.  If both point 3 and point 4 lie on
+  // same side of line 1, the line segments do not intersect.
+  if ( r3 !== 0 && r4 !== 0 && ((r3 >= 0 && r4 >= 0) || (r3 < 0 && r4 < 0))) {
+    return; // no intersection
+  }
+
+
+  // Compute a2, b2, c2
+  a2 = y4 - y3;
+  b2 = x3 - x4;
+  c2 = x4 * y3 - x3 * y4;
+
+  // Compute r1 and r2
+  r1 = a2 * x1 + b2 * y1 + c2;
+  r2 = a2 * x2 + b2 * y2 + c2;
+
+  // Check signs of r1 and r2.  If both point 1 and point 2 lie
+  // on same side of second line segment, the line segments do
+  // not intersect.
+  if (r1 !== 0 && r2 !== 0 && ((r1 >= 0 && r2 >= 0) || (r1 < 0 && r2 < 0))) {
+    return; // no intersections
+  }
+
+  // Line segments intersect: compute intersection point.
+  denom = a1 * b2 - a2 * b1;
+
+  if ( denom === 0 ) {
+    return true;
+  }
+
+  offset = denom < 0 ? - denom / 2 : denom / 2;
+
+  x = b1 * c2 - b2 * c1;
+  y = a2 * c1 - a1 * c2;
+
+  return [
+    ( x < 0 ? x : x ) / denom,
+    ( y < 0 ? y : y ) / denom,
+  ];
+};
+
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = segseg;
+}
+
+if (typeof window !== 'undefined') {
+  window.segseg = window.segseg || segseg;
+}
+
+},{}],19:[function(require,module,exports){
+"use strict"
+
+module.exports = function signum(x) {
+  if(x < 0) { return -1 }
+  if(x > 0) { return 1 }
+  return 0.0
+}
+},{}],20:[function(require,module,exports){
 "use strict"
 
 var almostEqual = require('almost-equal')
@@ -1921,7 +4465,7 @@ function fromNDArray(array) {
   return fromList(list, rows, cols)
 }
 
-},{"almost-equal":6,"dup":7}],6:[function(require,module,exports){
+},{"almost-equal":21,"dup":22}],21:[function(require,module,exports){
 "use strict"
 
 var abs = Math.abs
@@ -1943,7 +4487,7 @@ almostEqual.DBL_EPSILON = 2.2204460492503131e-16
 
 module.exports = almostEqual
 
-},{}],7:[function(require,module,exports){
+},{}],22:[function(require,module,exports){
 "use strict"
 
 function dupe_array(count, value, i) {
@@ -1993,7 +4537,7 @@ function dupe(count, value) {
 }
 
 module.exports = dupe
-},{}],8:[function(require,module,exports){
+},{}],23:[function(require,module,exports){
 module.exports = function drawTriangles(ctx, positions, cells, start, end) {
     var v = positions
     start = (start|0)
@@ -2010,7 +4554,7 @@ module.exports = function drawTriangles(ctx, positions, cells, start, end) {
         ctx.lineTo(v0[0], v0[1])
     }
 }
-},{}],9:[function(require,module,exports){
+},{}],24:[function(require,module,exports){
 var parseXml = require('xml-parse-from-string')
 
 function extractSvgPath (svgDoc) {
@@ -2038,7 +4582,7 @@ module.exports.parse = extractSvgPath
 //deprecated
 module.exports.fromString = extractSvgPath
 
-},{"xml-parse-from-string":10}],10:[function(require,module,exports){
+},{"xml-parse-from-string":25}],25:[function(require,module,exports){
 module.exports = (function xmlparser() {
   //common browsers
   if (typeof window.DOMParser !== 'undefined') {
@@ -2066,7 +4610,7 @@ module.exports = (function xmlparser() {
     return div
   }
 })()
-},{}],11:[function(require,module,exports){
+},{}],26:[function(require,module,exports){
 var xhr = require('xhr');
 
 module.exports = function (opts, cb) {
@@ -2085,7 +4629,7 @@ module.exports = function (opts, cb) {
     });
 };
 
-},{"xhr":12}],12:[function(require,module,exports){
+},{"xhr":27}],27:[function(require,module,exports){
 var window = require("global/window")
 var once = require("once")
 var parseHeaders = require('parse-headers')
@@ -2264,7 +4808,7 @@ function createXHR(options, callback) {
 
 function noop() {}
 
-},{"global/window":13,"once":14,"parse-headers":18}],13:[function(require,module,exports){
+},{"global/window":28,"once":29,"parse-headers":33}],28:[function(require,module,exports){
 (function (global){
 if (typeof window !== "undefined") {
     module.exports = window;
@@ -2277,7 +4821,7 @@ if (typeof window !== "undefined") {
 }
 
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{}],14:[function(require,module,exports){
+},{}],29:[function(require,module,exports){
 module.exports = once
 
 once.proto = once(function () {
@@ -2298,7 +4842,7 @@ function once (fn) {
   }
 }
 
-},{}],15:[function(require,module,exports){
+},{}],30:[function(require,module,exports){
 var isFunction = require('is-function')
 
 module.exports = forEach
@@ -2346,7 +4890,7 @@ function forEachObject(object, iterator, context) {
     }
 }
 
-},{"is-function":16}],16:[function(require,module,exports){
+},{"is-function":31}],31:[function(require,module,exports){
 module.exports = isFunction
 
 var toString = Object.prototype.toString
@@ -2363,7 +4907,7 @@ function isFunction (fn) {
       fn === window.prompt))
 };
 
-},{}],17:[function(require,module,exports){
+},{}],32:[function(require,module,exports){
 
 exports = module.exports = trim;
 
@@ -2379,7 +4923,7 @@ exports.right = function(str){
   return str.replace(/\s*$/, '');
 };
 
-},{}],18:[function(require,module,exports){
+},{}],33:[function(require,module,exports){
 var trim = require('trim')
   , forEach = require('for-each')
   , isArray = function(arg) {
@@ -2411,7 +4955,7 @@ module.exports = function (headers) {
 
   return result
 }
-},{"for-each":15,"trim":17}],19:[function(require,module,exports){
+},{"for-each":30,"trim":32}],34:[function(require,module,exports){
 'use strict'
 
 var pool = require('typedarray-pool')
@@ -2523,7 +5067,7 @@ function meshLaplacian(cells, positions) {
   return entries
 }
 
-},{"typedarray-pool":22}],20:[function(require,module,exports){
+},{"typedarray-pool":37}],35:[function(require,module,exports){
 /**
  * Bit twiddling hacks for JavaScript.
  *
@@ -2729,9 +5273,9 @@ exports.nextCombination = function(v) {
 }
 
 
-},{}],21:[function(require,module,exports){
-arguments[4][7][0].apply(exports,arguments)
-},{"dup":7}],22:[function(require,module,exports){
+},{}],36:[function(require,module,exports){
+arguments[4][22][0].apply(exports,arguments)
+},{"dup":22}],37:[function(require,module,exports){
 (function (global,Buffer){
 'use strict'
 
@@ -2948,7 +5492,7 @@ exports.clearCache = function clearCache() {
   }
 }
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {},require("buffer").Buffer)
-},{"bit-twiddle":20,"buffer":1,"dup":21}],23:[function(require,module,exports){
+},{"bit-twiddle":35,"buffer":1,"dup":36}],38:[function(require,module,exports){
 module.exports = reindex
 
 function reindex(array) {
@@ -2980,7 +5524,3205 @@ function reindex(array) {
   }
 }
 
-},{}],24:[function(require,module,exports){
+},{}],39:[function(require,module,exports){
+// expose module classes
+
+exports.intersect = require('./lib/intersect');
+exports.shape = require('./lib/IntersectionParams').newShape;
+},{"./lib/IntersectionParams":41,"./lib/intersect":42}],40:[function(require,module,exports){
+/**
+ *  Intersection
+ */
+function Intersection(status) {
+    this.init(status);
+}
+
+/**
+ *  init
+ *
+ *  @param {String} status
+ *  @returns {Intersection}
+ */
+Intersection.prototype.init = function(status) {
+    this.status = status;
+    this.points = [];
+};
+
+/**
+ *  appendPoint
+ *
+ *  @param {Point2D} point
+ */
+Intersection.prototype.appendPoint = function(point) {
+    this.points.push(point);
+};
+
+/**
+ *  appendPoints
+ *
+ *  @param {Array<Point2D>} points
+ */
+Intersection.prototype.appendPoints = function(points) {
+    this.points = this.points.concat(points);
+};
+
+module.exports = Intersection;
+
+},{}],41:[function(require,module,exports){
+var Point2D = require('kld-affine').Point2D;
+
+
+/**
+    getArcParameters
+
+    @param {Point2D} startPoint
+    @param {Point2D} endPoint
+    @param {Number} rx
+    @param {Number} ry
+    @param {Number} angle - in degrees
+    @param {Boolean} arcFlag
+    @param {Boolean} sweepFlag
+    @returns {{ center: Point2D, rx: Number, ry: Number, theta1: Number, deltaTheta: Number }}
+*/
+function getArcParameters(startPoint, endPoint, rx, ry, angle, arcFlag, sweepFlag) {
+    function radian(ux, uy, vx, vy) {
+        var dot = ux * vx + uy * vy;
+        var mod = Math.sqrt((ux * ux + uy * uy) * (vx * vx + vy * vy));
+        var rad = Math.acos(dot / mod);
+        if (ux * vy - uy * vx < 0.0) rad = -rad;
+        return rad;
+    }
+    angle = angle * Math.PI / 180;
+    var c = Math.cos(angle);
+    var s = Math.sin(angle);
+    var TOLERANCE = 1e-6;
+    var halfDiff = startPoint.subtract(endPoint).divide(2);
+    var x1p = halfDiff.x * c + halfDiff.y * s;
+    var y1p = halfDiff.x * -s + halfDiff.y * c;
+    var x1px1p = x1p * x1p;
+    var y1py1p = y1p * y1p;
+    var lambda = (x1px1p / (rx * rx)) + (y1py1p / (ry * ry));
+    var factor;
+    if (lambda > 1) {
+        factor = Math.sqrt(lambda);
+        rx *= factor;
+        ry *= factor;
+    }
+    var rxrx = rx * rx;
+    var ryry = ry * ry;
+    var rxy1 = rxrx * y1py1p;
+    var ryx1 = ryry * x1px1p;
+    factor = (rxrx * ryry - rxy1 - ryx1) / (rxy1 + ryx1);
+    if (Math.abs(factor) < TOLERANCE) factor = 0;
+    var sq = Math.sqrt(factor);
+    if (arcFlag == sweepFlag) sq = -sq;
+    var mid = startPoint.add(endPoint).divide(2);
+    var cxp = sq * rx * y1p / ry;
+    var cyp = sq * -ry * x1p / rx;
+    //return new Point2D(cxp * c - cyp * s + mid.x, cxp * s + cyp * c + mid.y);
+
+    var xcr1 = (x1p - cxp) / rx;
+    var xcr2 = (x1p + cxp) / rx;
+    var ycr1 = (y1p - cyp) / ry;
+    var ycr2 = (y1p + cyp) / ry;
+
+    var vcr1 = new Vector2D(1, 0);
+    var theta1 = radian(1.0, 0.0, xcr1, ycr1);
+
+    var deltaTheta = radian(xcr1, ycr1, -xcr2, -ycr2);
+    var PIx2 = Math.PI * 2.0;
+    while (deltaTheta > PIx2) deltaTheta -= PIx2;
+    while (deltaTheta < 0.0) deltaTheta += PIx2;
+    if (sweepFlag == false) deltaTheta -= PIx2;
+
+    return {
+        center: new Point2D(cxp * c - cyp * s + mid.x, cxp * s + cyp * c + mid.y),
+        rx: rx,
+        ry: ry,
+        theta1: theta1,
+        deltaTheta: deltaTheta
+    };
+}
+
+
+/**
+ *  IntersectionParams
+ *
+ *  @param {String} name
+ *  @param {Array<Point2D} params
+ *  @returns {IntersectionParams}
+ */
+function IntersectionParams(name, params) {
+    this.init(name, params);
+}
+
+/** 
+ *  init
+ *
+ *  @param {String} type
+ *  @param {Array<Point2D>} params
+ */
+IntersectionParams.prototype.init = function (type, params) {
+    this.type = type;
+    this.params = params;
+    this.meta = {};
+};
+
+IntersectionParams.TYPE = {};
+var IPTYPE = IntersectionParams.TYPE;
+IPTYPE.LINE = 'Line';
+IPTYPE.RECT = 'Rectangle';
+IPTYPE.ROUNDRECT = 'RoundRectangle';
+IPTYPE.CIRCLE = 'Circle';
+IPTYPE.ELLIPSE = 'Ellipse';
+IPTYPE.POLYGON = 'Polygon';
+IPTYPE.POLYLINE = 'Polyline';
+IPTYPE.PATH = 'Path';
+IPTYPE.ARC = 'Arc';
+IPTYPE.BEZIER2 = 'Bezier2';
+IPTYPE.BEZIER3 = 'Bezier3';
+
+
+function parsePointsString(points) {
+    return points.split(" ").map(function(point) {
+        point = point.split(",");
+        return new Point2D(point[0], point[1]);
+    });
+}
+
+IntersectionParams.newShape = function(svgElementName, props) {
+    svgElementName = svgElementName.toLowerCase();
+
+    if(svgElementName === "line") {
+        return IntersectionParams.newLine(
+            new Point2D(props.x1, props.y1),
+            new Point2D(props.x2, props.y2)
+        );
+    }
+
+    if(svgElementName === "rect") {
+        if(props.rx > 0 || props.ry > 0) {
+            return IntersectionParams.newRoundRect(
+                props.x, props.y,
+                props.width, props.height,
+                props.rx, props.ry
+            );
+        } else {
+            return IntersectionParams.newRect(
+                props.x, props.y,
+                props.width, props.height
+            );
+        }
+    }
+
+    if(svgElementName === "circle") {
+        return IntersectionParams.newCircle(
+            new Point2D(props.cx, props.cy),
+            props.r
+        );
+    }
+
+    if(svgElementName === "ellipse") {
+        return IntersectionParams.newEllipse(
+            new Point2D(props.cx, props.cy),
+            props.rx, props.ry
+        );
+    }
+
+    if(svgElementName === "polygon") {
+        return IntersectionParams.newPolygon(
+            parsePointsString(props.points)
+        );
+    }
+
+    if(svgElementName === "polyline") {
+        return IntersectionParams.newPolyline(
+            parsePointsString(props.points)
+        );
+    }
+
+    if(svgElementName === "path") {
+        return IntersectionParams.newPath(
+            props.d
+        );
+    }
+
+}
+
+
+///////////////////////////////////////////////////////////////////
+/**
+    Creates IntersectionParams for arc.
+
+    @param {Point2D} startPoint - arc start point
+    @param {Point2D} endPoint - arc end point
+    @param {Number} rx - arc ellipse x radius
+    @param {Number} ry - arc ellipse y radius
+    @param {Number} angle - arc ellipse rotation in degrees
+    @param {Boolean} largeArcFlag
+    @param {Boolean} sweepFlag
+    @returns {IntersectionParams}
+*/
+IntersectionParams.newArc = function (startPoint, endPoint, rx, ry, angle, largeArcFlag, sweepFlag) {
+    var p = getArcParameters(startPoint, endPoint, rx, ry, angle, largeArcFlag, sweepFlag);
+    return new IntersectionParams(IPTYPE.ARC, [p.center, p.rx, p.ry, (angle * Math.PI / 180), p.theta1, p.deltaTheta]);
+};
+
+///////////////////////////////////////////////////////////////////
+/**
+    Creates IntersectionParams for bezier2.
+
+    @param {Point2D} p1
+    @param {Point2D} p2
+    @param {Point2D} p3
+    @returns {IntersectionParams}
+*/
+IntersectionParams.newBezier2 = function (p1, p2, p3) {
+    return new IntersectionParams(IPTYPE.BEZIER2, [p1, p2, p3]);
+};
+
+///////////////////////////////////////////////////////////////////
+/**
+    Creates IntersectionParams for bezier3.
+
+    @param {Point2D} p1
+    @param {Point2D} p2
+    @param {Point2D} p3
+    @param {Point2D} p4
+    @returns {IntersectionParams}
+*/
+IntersectionParams.newBezier3 = function (p1, p2, p3, p4) {
+    return new IntersectionParams(IPTYPE.BEZIER3, [p1, p2, p3, p4]);
+};
+
+///////////////////////////////////////////////////////////////////
+/**
+    Creates IntersectionParams for circle.
+
+    @param {Point2D} c
+    @param {Number} r
+    @returns {IntersectionParams}
+*/
+IntersectionParams.newCircle = function (c, r) {
+    return new IntersectionParams(IPTYPE.CIRCLE, [c, r]);
+};
+
+///////////////////////////////////////////////////////////////////
+/**
+    Creates IntersectionParams for ellipse.
+
+    @param {Point2D} c
+    @param {Number} rx
+    @param {Number} ry
+    @returns {IntersectionParams}
+*/
+IntersectionParams.newEllipse = function (c, rx, ry) {
+    return new IntersectionParams(IPTYPE.ELLIPSE, [c, rx, ry]);
+};
+
+///////////////////////////////////////////////////////////////////
+/**
+    Creates IntersectionParams for line.
+
+    @param {Point2D} a1
+    @param {Point2D} a2
+    @returns {IntersectionParams}
+*/
+IntersectionParams.newLine = function (a1, a2) {
+    return new IntersectionParams(IPTYPE.LINE, [a1, a2]);
+};
+
+///////////////////////////////////////////////////////////////////
+/**
+    Creates IntersectionParams for polygon.
+
+    @param {Array<Point2D>} points
+    @returns {IntersectionParams}
+*/
+IntersectionParams.newPolygon = function (points) {
+    return new IntersectionParams(IPTYPE.POLYGON, [points]);
+};
+
+///////////////////////////////////////////////////////////////////
+/**
+    Creates IntersectionParams for polyline.
+
+     @param {Array<Point2D>} points
+    @returns {IntersectionParams}
+*/
+IntersectionParams.newPolyline = function (points) {
+    return new IntersectionParams(IPTYPE.POLYLINE, [points]);
+};
+
+
+///////////////////////////////////////////////////////////////////
+/**
+    Creates IntersectionParams for rectangle.
+
+    @param {Number} x
+    @param {Number} y
+    @param {Number} width
+    @param {Number} height
+    @returns {IntersectionParams}
+*/
+IntersectionParams.newRect = function (x, y, width, height) {
+    var points = [];
+    points.push(new Point2D(x, y));
+    points.push(new Point2D(x + width, y));
+    points.push(new Point2D(x + width, y + height));
+    points.push(new Point2D(x, y + height));
+    return new IntersectionParams(IPTYPE.RECT, [points]);
+};
+
+var degreesToRadians = function (angle) {
+    return angle * Math.PI / 180;
+};
+///////////////////////////////////////////////////////////////////
+/**
+    Creates IntersectionParams for round rectangle, or for rectangle if rx and ry are 0.
+
+    @param {Number} x
+    @param {Number} y
+    @param {Number} width
+    @param {Number} height
+    @param {Number} rx
+    @param {Number} ry
+    @returns {IntersectionParams}
+*/
+IntersectionParams.newRoundRect = function (x, y, width, height, rx, ry) {
+    if (rx === 0 && ry === 0)
+        return IntersectionParams.newRect(x, y, width, height);
+    if (rx === 0)
+        rx = ry;
+    if (ry === 0)
+        ry = rx;
+    if (rx > width / 2)
+        rx = width / 2;
+    if (ry > height / 2)
+        rx = height / 2;
+    var shape = [];
+    var x0 = x, x1 = x + rx, x2 = x + width - rx, x3 = x + width;
+    var y0 = y, y1 = y + ry, y2 = y + height - ry, y3 = y + height;
+    shape.push(new IntersectionParams(IPTYPE.ARC, [new Point2D(x1, y1), rx, ry, 0, degreesToRadians(180), degreesToRadians(90)]));
+    shape.push(new IntersectionParams(IPTYPE.LINE, [new Point2D(x1, y0), new Point2D(x2, y0)]));
+    shape.push(new IntersectionParams(IPTYPE.ARC, [new Point2D(x2, y1), rx, ry, 0, degreesToRadians(-90), degreesToRadians(90)]));
+    shape.push(new IntersectionParams(IPTYPE.LINE, [new Point2D(x3, y1), new Point2D(x3, y2)]));
+    shape.push(new IntersectionParams(IPTYPE.ARC, [new Point2D(x2, y2), rx, ry, 0, degreesToRadians(0), degreesToRadians(90)]));
+    shape.push(new IntersectionParams(IPTYPE.LINE, [new Point2D(x2, y3), new Point2D(x1, y3)]));
+    shape.push(new IntersectionParams(IPTYPE.ARC, [new Point2D(x1, y2), rx, ry, 0, degreesToRadians(90), degreesToRadians(90)]));
+    shape.push(new IntersectionParams(IPTYPE.LINE, [new Point2D(x0, y2), new Point2D(x0, y1)]));
+    shape[shape.length - 1].meta.closePath = true;
+    return new IntersectionParams(IPTYPE.ROUNDRECT, [shape]);
+};
+
+
+
+
+function Token(type, text) {
+    if (arguments.length > 0) {
+        this.init(type, text);
+    }
+}
+Token.prototype.init = function(type, text) {
+    this.type = type;
+    this.text = text;
+};
+Token.prototype.typeis = function(type) {
+    return this.type == type;
+}
+var Path = {};
+Path.COMMAND = 0;
+Path.NUMBER = 1;
+Path.EOD = 2;
+Path.PARAMS = {
+    A: ["rx", "ry", "x-axis-rotation", "large-arc-flag", "sweep-flag", "x", "y"],
+    a: ["rx", "ry", "x-axis-rotation", "large-arc-flag", "sweep-flag", "x", "y"],
+    C: ["x1", "y1", "x2", "y2", "x", "y"],
+    c: ["x1", "y1", "x2", "y2", "x", "y"],
+    H: ["x"],
+    h: ["x"],
+    L: ["x", "y"],
+    l: ["x", "y"],
+    M: ["x", "y"],
+    m: ["x", "y"],
+    Q: ["x1", "y1", "x", "y"],
+    q: ["x1", "y1", "x", "y"],
+    S: ["x2", "y2", "x", "y"],
+    s: ["x2", "y2", "x", "y"],
+    T: ["x", "y"],
+    t: ["x", "y"],
+    V: ["y"],
+    v: ["y"],
+    Z: [],
+    z: []
+};
+
+function tokenize(d) {
+    var tokens = new Array();
+    while (d != "") {
+        if (d.match(/^([ \t\r\n,]+)/)) {
+            d = d.substr(RegExp.$1.length);
+        } else if (d.match(/^([aAcChHlLmMqQsStTvVzZ])/)) {
+            tokens[tokens.length] = new Token(Path.COMMAND, RegExp.$1);
+            d = d.substr(RegExp.$1.length);
+        } else if (d.match(/^(([-+]?[0-9]+(\.[0-9]*)?|[-+]?\.[0-9]+)([eE][-+]?[0-9]+)?)/)) {
+            tokens[tokens.length] = new Token(Path.NUMBER, parseFloat(RegExp.$1));
+            d = d.substr(RegExp.$1.length);
+        } else {
+            throw new Error("Unrecognized segment command: " + d);
+        }
+    }
+    tokens[tokens.length] = new Token(Path.EOD, null);
+    return tokens;
+}
+
+IntersectionParams.newPath = function(d) {
+    var tokens = tokenize(d);
+    var index = 0;
+    var token = tokens[index];
+    var mode = "BOD";
+    var segments = [];
+
+    while (!token.typeis(Path.EOD)) {
+        var param_length;
+        var params = new Array();
+        if (mode == "BOD") {
+            if (token.text == "M" || token.text == "m") {
+                index++;
+                param_length = Path.PARAMS[token.text].length;
+                mode = token.text;
+            } else {
+                throw new Error("Path data must begin with a moveto command");
+            }
+        } else {
+            if (token.typeis(Path.NUMBER)) {
+                param_length = Path.PARAMS[mode].length;
+            } else {
+                index++;
+                param_length = Path.PARAMS[token.text].length;
+                mode = token.text;
+            }
+        }
+        if ((index + param_length) < tokens.length) {
+            for (var i = index; i < index + param_length; i++) {
+                var number = tokens[i];
+                if (number.typeis(Path.NUMBER)) params[params.length] = number.text;
+                else throw new Error("Parameter type is not a number: " + mode + "," + number.text);
+            }
+            var segment;
+            var length = segments.length;
+            var previous = (length == 0) ? null : segments[length - 1];
+            switch (mode) {
+                case "A":
+                    segment = new AbsoluteArcPath(params, previous);
+                    break;
+                case "C":
+                    segment = new AbsoluteCurveto3(params, previous);
+                    break;
+                case "c":
+                    segment = new RelativeCurveto3(params, previous);
+                    break;
+                case "H":
+                    segment = new AbsoluteHLineto(params, previous);
+                    break;
+                case "L":
+                    segment = new AbsoluteLineto(params, previous);
+                    break;
+                case "l":
+                    segment = new RelativeLineto(params, previous);
+                    break;
+                case "M":
+                    segment = new AbsoluteMoveto(params, previous);
+                    break;
+                case "m":
+                    segment = new RelativeMoveto(params, previous);
+                    break;
+                case "Q":
+                    segment = new AbsoluteCurveto2(params, previous);
+                    break;
+                case "q":
+                    segment = new RelativeCurveto2(params, previous);
+                    break;
+                case "S":
+                    segment = new AbsoluteSmoothCurveto3(params, previous);
+                    break;
+                case "s":
+                    segment = new RelativeSmoothCurveto3(params, previous);
+                    break;
+                case "T":
+                    segment = new AbsoluteSmoothCurveto2(params, previous);
+                    break;
+                case "t":
+                    segment = new RelativeSmoothCurveto2(params, previous);
+                    break;
+                case "Z":
+                    segment = new RelativeClosePath(params, previous);
+                    break;
+                case "z":
+                    segment = new RelativeClosePath(params, previous);
+                    break;
+                default:
+                    throw new Error("Unsupported segment type: " + mode);
+            };
+            segments.push(segment);
+            index += param_length;
+            token = tokens[index];
+            if (mode == "M") mode = "L";
+            if (mode == "m") mode = "l";
+        } else {
+            throw new Error("Path data ended before all parameters were found");
+        }
+    }
+
+    var segmentParams = [];
+    for(i=0; i<segments.length; i++) {
+        var ip = segments[i].getIntersectionParams();
+        if(ip) {
+            segmentParams.push(ip);
+        }
+    }
+
+    return new IntersectionParams(IPTYPE.PATH, [segmentParams]);
+}
+
+
+function AbsolutePathSegment(command, params, previous) {
+    if (arguments.length > 0) this.init(command, params, previous);
+};
+AbsolutePathSegment.prototype.init = function(command, params, previous) {
+    this.command = command;
+    this.previous = previous;
+    this.points = [];
+    var index = 0;
+    while (index < params.length) {
+        this.points.push(new Point2D(params[index], params[index + 1]));
+        index += 2;
+    }
+};
+AbsolutePathSegment.prototype.getLastPoint = function() {
+    return this.points[this.points.length - 1];
+};
+AbsolutePathSegment.prototype.getIntersectionParams = function() {
+    return null;
+};
+
+
+
+function AbsoluteArcPath(params, previous) {
+    if (arguments.length > 0) {
+        this.init("A", params, previous);
+    }
+}
+AbsoluteArcPath.prototype.init = function(command, params, previous) {
+    var point = new Array();
+    var y = params.pop();
+    var x = params.pop();
+    point.push(x, y);
+    AbsoluteArcPath.superclass.init.call(this, command, point, previous);
+    this.rx = parseFloat(params.shift());
+    this.ry = parseFloat(params.shift());
+    this.angle = parseFloat(params.shift());
+    this.arcFlag = parseFloat(params.shift());
+    this.sweepFlag = parseFloat(params.shift());
+};
+AbsoluteArcPath.prototype.getIntersectionParams = function() {
+    return new IntersectionParams("Ellipse", [this.getCenter(), this.rx, this.ry]);
+};
+AbsoluteArcPath.prototype.getCenter = function() {
+    var startPoint = this.previous.getLastPoint();
+    var endPoint = this.points[0];
+    var rx = this.rx;
+    var ry = this.ry;
+    var angle = this.angle * Math.PI / 180;
+    var c = Math.cos(angle);
+    var s = Math.sin(angle);
+    var TOLERANCE = 1e-6;
+    var halfDiff = startPoint.subtract(endPoint).divide(2);
+    var x1p = halfDiff.x * c + halfDiff.y * s;
+    var y1p = halfDiff.x * -s + halfDiff.y * c;
+    var x1px1p = x1p * x1p;
+    var y1py1p = y1p * y1p;
+    var lambda = (x1px1p / (rx * rx)) + (y1py1p / (ry * ry));
+    if (lambda > 1) {
+        var factor = Math.sqrt(lambda);
+        rx *= factor;
+        ry *= factor;
+    }
+    var rxrx = rx * rx;
+    var ryry = ry * ry;
+    var rxy1 = rxrx * y1py1p;
+    var ryx1 = ryry * x1px1p;
+    var factor = (rxrx * ryry - rxy1 - ryx1) / (rxy1 + ryx1);
+    if (Math.abs(factor) < TOLERANCE) factor = 0;
+    var sq = Math.sqrt(factor);
+    if (this.arcFlag == this.sweepFlag) sq = -sq;
+    var mid = startPoint.add(endPoint).divide(2);
+    var cxp = sq * rx * y1p / ry;
+    var cyp = sq * -ry * x1p / rx;
+    return new Point2D(cxp * c - cyp * s + mid.x, cxp * s + cyp * c + mid.y);
+};
+
+
+
+function AbsoluteCurveto2(params, previous) {
+    if (arguments.length > 0) {
+        this.init("Q", params, previous);
+    }
+}
+AbsoluteCurveto2.prototype = new AbsolutePathSegment();
+AbsoluteCurveto2.prototype.constructor = AbsoluteCurveto2;
+AbsoluteCurveto2.superclass = AbsolutePathSegment.prototype;
+
+AbsoluteCurveto2.prototype.getIntersectionParams = function() {
+    return new IntersectionParams("Bezier2", [this.previous.getLastPoint(), this.points[0], this.points[1]]);
+};
+
+
+
+function AbsoluteCurveto3(params, previous) {
+    if (arguments.length > 0) {
+        this.init("C", params, previous);
+    }
+}
+AbsoluteCurveto3.prototype = new AbsolutePathSegment();
+AbsoluteCurveto3.prototype.constructor = AbsoluteCurveto3;
+AbsoluteCurveto3.superclass = AbsolutePathSegment.prototype;
+
+AbsoluteCurveto3.prototype.getLastControlPoint = function() {
+    return this.points[1];
+};
+AbsoluteCurveto3.prototype.getIntersectionParams = function() {
+    return new IntersectionParams("Bezier3", [this.previous.getLastPoint(), this.points[0], this.points[1], this.points[2]]);
+};
+
+
+function AbsoluteHLineto(params, previous) {
+    if (arguments.length > 0) {
+        this.init("H", params, previous);
+    }
+}
+AbsoluteHLineto.prototype = new AbsolutePathSegment();
+AbsoluteHLineto.prototype.constructor = AbsoluteHLineto;
+AbsoluteHLineto.superclass = AbsolutePathSegment.prototype;
+
+AbsoluteHLineto.prototype.init = function(command, params, previous) {
+    var prevPoint = previous.getLastPoint();
+    var point = new Array();
+    point.push(params.pop(), prevPoint.y);
+    AbsoluteHLineto.superclass.init.call(this, command, point, previous);
+};
+
+
+function AbsoluteLineto(params, previous) {
+    if (arguments.length > 0) {
+        this.init("L", params, previous);
+    }
+}
+AbsoluteLineto.prototype = new AbsolutePathSegment();
+AbsoluteLineto.prototype.constructor = AbsoluteLineto;
+AbsoluteLineto.superclass = AbsolutePathSegment.prototype;
+
+AbsoluteLineto.prototype.getIntersectionParams = function() {
+    return new IntersectionParams("Line", [this.previous.getLastPoint(), this.points[0]]);
+};
+
+
+
+function AbsoluteMoveto(params, previous) {
+    if (arguments.length > 0) {
+        this.init("M", params, previous);
+    }
+}
+AbsoluteMoveto.prototype = new AbsolutePathSegment();
+AbsoluteMoveto.prototype.constructor = AbsoluteMoveto;
+AbsoluteMoveto.superclass = AbsolutePathSegment.prototype;
+
+
+function AbsoluteSmoothCurveto2(params, previous) {
+    if (arguments.length > 0) {
+        this.init("T", params, previous);
+    }
+}
+AbsoluteSmoothCurveto2.prototype = new AbsolutePathSegment();
+AbsoluteSmoothCurveto2.prototype.constructor = AbsoluteSmoothCurveto2;
+AbsoluteSmoothCurveto2.superclass = AbsolutePathSegment.prototype;
+
+AbsoluteSmoothCurveto2.prototype.getControlPoint = function() {
+    var lastPoint = this.previous.getLastPoint();
+    var point;
+    if (this.previous.command.match(/^[QqTt]$/)) {
+        var ctrlPoint = this.previous.getControlPoint();
+        var diff = ctrlPoint.subtract(lastPoint);
+        point = lastPoint.subtract(diff);
+    } else {
+        point = lastPoint;
+    }
+    return point;
+};
+AbsoluteSmoothCurveto2.prototype.getIntersectionParams = function() {
+    return new IntersectionParams("Bezier2", [this.previous.getLastPoint(), this.getControlPoint(), this.points[0]]);
+};
+
+
+function AbsoluteSmoothCurveto3(params, previous) {
+    if (arguments.length > 0) {
+        this.init("S", params, previous);
+    }
+}
+AbsoluteSmoothCurveto3.prototype = new AbsolutePathSegment();
+AbsoluteSmoothCurveto3.prototype.constructor = AbsoluteSmoothCurveto3;
+AbsoluteSmoothCurveto3.superclass = AbsolutePathSegment.prototype;
+
+AbsoluteSmoothCurveto3.prototype.getFirstControlPoint = function() {
+    var lastPoint = this.previous.getLastPoint();
+    var point;
+    if (this.previous.command.match(/^[SsCc]$/)) {
+        var lastControl = this.previous.getLastControlPoint();
+        var diff = lastControl.subtract(lastPoint);
+        point = lastPoint.subtract(diff);
+    } else {
+        point = lastPoint;
+    }
+    return point;
+};
+AbsoluteSmoothCurveto3.prototype.getLastControlPoint = function() {
+    return this.points[0];
+};
+AbsoluteSmoothCurveto3.prototype.getIntersectionParams = function() {
+    return new IntersectionParams("Bezier3", [this.previous.getLastPoint(), this.getFirstControlPoint(), this.points[0], this.points[1]]);
+};
+
+
+function RelativePathSegment(command, params, previous) {
+    if (arguments.length > 0) this.init(command, params, previous);
+}
+RelativePathSegment.prototype = new AbsolutePathSegment();
+RelativePathSegment.prototype.constructor = RelativePathSegment;
+RelativePathSegment.superclass = AbsolutePathSegment.prototype;
+
+RelativePathSegment.prototype.init = function(command, params, previous) {
+    this.command = command;
+    this.previous = previous;
+    this.points = [];
+    var lastPoint;
+    if (this.previous) lastPoint = this.previous.getLastPoint();
+    else lastPoint = new Point2D(0, 0);
+    var index = 0;
+    while (index < params.length) {
+        var point = new Point2D(lastPoint.x + params[index], lastPoint.y + params[index + 1]);
+        this.points.push(point);
+        index += 2;
+    }
+};
+
+function RelativeClosePath(params, previous) {
+    if (arguments.length > 0) {
+        this.init("z", params, previous);
+    }
+}
+RelativeClosePath.prototype = new RelativePathSegment();
+RelativeClosePath.prototype.constructor = RelativeClosePath;
+RelativeClosePath.superclass = RelativePathSegment.prototype;
+RelativeClosePath.prototype.getLastPoint = function() {
+    var current = this.previous;
+    var point;
+    while (current) {
+        if (current.command.match(/^[mMzZ]$/)) {
+            point = current.getLastPoint();
+            break;
+        }
+        current = current.previous;
+    }
+    return point;
+};
+RelativeClosePath.prototype.getIntersectionParams = function() {
+    return new IntersectionParams("Line", [this.previous.getLastPoint(), this.getLastPoint()]);
+};
+
+
+function RelativeCurveto2(params, previous) {
+    if (arguments.length > 0) {
+        this.init("q", params, previous);
+    }
+}
+RelativeCurveto2.prototype = new RelativePathSegment();
+RelativeCurveto2.prototype.constructor = RelativeCurveto2;
+RelativeCurveto2.superclass = RelativePathSegment.prototype;
+
+RelativeCurveto2.prototype.getControlPoint = function() {
+    return this.points[0];
+};
+RelativeCurveto2.prototype.getIntersectionParams = function() {
+    return new IntersectionParams("Bezier2", [this.previous.getLastPoint(), this.points[0], this.points[1]]);
+};
+
+
+function RelativeCurveto3(params, previous) {
+    if (arguments.length > 0) {
+        this.init("c", params, previous);
+    }
+}
+RelativeCurveto3.prototype = new RelativePathSegment();
+RelativeCurveto3.prototype.constructor = RelativeCurveto3;
+RelativeCurveto3.superclass = RelativePathSegment.prototype;
+
+RelativeCurveto3.prototype.getLastControlPoint = function() {
+    return this.points[1];
+};
+RelativeCurveto3.prototype.getIntersectionParams = function() {
+    return new IntersectionParams("Bezier3", [this.previous.getLastPoint(), this.points[0], this.points[1], this.points[2]]);
+};
+
+
+function RelativeLineto(params, previous) {
+    if (arguments.length > 0) {
+        this.init("l", params, previous);
+    }
+}
+RelativeLineto.prototype = new RelativePathSegment();
+RelativeLineto.prototype.constructor = RelativeLineto;
+RelativeLineto.superclass = RelativePathSegment.prototype;
+
+RelativeLineto.prototype.toString = function() {
+    var points = new Array();
+    var command = "";
+    var lastPoint;
+    var point;
+    if (this.previous) lastPoint = this.previous.getLastPoint();
+    else lastPoint = new Point(0, 0);
+    point = this.points[0].subtract(lastPoint);
+    if (this.previous.constructor != this.constuctor)
+        if (this.previous.constructor != RelativeMoveto) cmd = this.command;
+    return cmd + point.toString();
+};
+RelativeLineto.prototype.getIntersectionParams = function() {
+    return new IntersectionParams("Line", [this.previous.getLastPoint(), this.points[0]]);
+};
+
+
+
+function RelativeMoveto(params, previous) {
+    if (arguments.length > 0) {
+        this.init("m", params, previous);
+    }
+}
+RelativeMoveto.prototype = new RelativePathSegment();
+RelativeMoveto.prototype.constructor = RelativeMoveto;
+RelativeMoveto.superclass = RelativePathSegment.prototype;
+
+
+
+function RelativeSmoothCurveto2(params, previous) {
+    if (arguments.length > 0) {
+        this.init("t", params, previous);
+    }
+}
+RelativeSmoothCurveto2.prototype = new RelativePathSegment();
+RelativeSmoothCurveto2.prototype.constructor = RelativeSmoothCurveto2;
+RelativeSmoothCurveto2.superclass = RelativePathSegment.prototype;
+
+RelativeSmoothCurveto2.prototype.getControlPoint = function() {
+    var lastPoint = this.previous.getLastPoint();
+    var point;
+    if (this.previous.command.match(/^[QqTt]$/)) {
+        var ctrlPoint = this.previous.getControlPoint();
+        var diff = ctrlPoint.subtract(lastPoint);
+        point = lastPoint.subtract(diff);
+    } else {
+        point = lastPoint;
+    }
+    return point;
+};
+RelativeSmoothCurveto2.prototype.getIntersectionParams = function() {
+    return new IntersectionParams("Bezier2", [this.previous.getLastPoint(), this.getControlPoint(), this.points[0]]);
+};
+
+
+
+function RelativeSmoothCurveto3(params, previous) {
+    if (arguments.length > 0) {
+        this.init("s", params, previous);
+    }
+}
+RelativeSmoothCurveto3.prototype = new RelativePathSegment();
+RelativeSmoothCurveto3.prototype.constructor = RelativeSmoothCurveto3;
+RelativeSmoothCurveto3.superclass = RelativePathSegment.prototype;
+
+RelativeSmoothCurveto3.prototype.getFirstControlPoint = function() {
+    var lastPoint = this.previous.getLastPoint();
+    var point;
+    if (this.previous.command.match(/^[SsCc]$/)) {
+        var lastControl = this.previous.getLastControlPoint();
+        var diff = lastControl.subtract(lastPoint);
+        point = lastPoint.subtract(diff);
+    } else {
+        point = lastPoint;
+    }
+    return point;
+};
+RelativeSmoothCurveto3.prototype.getLastControlPoint = function() {
+    return this.points[0];
+};
+RelativeSmoothCurveto3.prototype.getIntersectionParams = function() {
+    return new IntersectionParams("Bezier3", [this.previous.getLastPoint(), this.getFirstControlPoint(), this.points[0], this.points[1]]);
+};
+
+
+module.exports = IntersectionParams;
+
+},{"kld-affine":43}],42:[function(require,module,exports){
+/**
+ *
+ *  Intersection.js
+ *
+ *  copyright 2002, 2013 Kevin Lindsey
+ *
+ *  contribution {@link http://github.com/Quazistax/kld-intersections}
+ *      @copyright 2015 Robert Benko (Quazistax) <quazistax@gmail.com>
+ *      @license MIT
+ */
+ 
+var Point2D = require('kld-affine').Point2D;
+var Vector2D = require('kld-affine').Vector2D;
+var Matrix2D = require('kld-affine').Matrix2D;
+var Polynomial = require('kld-polynomial').Polynomial;
+var IntersectionParams = require('./IntersectionParams');
+var Intersection = require('./Intersection');
+
+var IPTYPE = IntersectionParams.TYPE;
+
+
+
+/**
+ *  bezout
+ *
+ *  This code is based on MgcIntr2DElpElp.cpp written by David Eberly.  His
+ *  code along with many other excellent examples are avaiable at his site:
+ *  http://www.geometrictools.com
+ *
+ *  @param {Array<Point2D>} e1
+ *  @param {Array<Point2D>} e2
+ *  @returns {Polynomial}
+ */
+function bezout(e1, e2) {
+    var AB    = e1[0]*e2[1] - e2[0]*e1[1];
+    var AC    = e1[0]*e2[2] - e2[0]*e1[2];
+    var AD    = e1[0]*e2[3] - e2[0]*e1[3];
+    var AE    = e1[0]*e2[4] - e2[0]*e1[4];
+    var AF    = e1[0]*e2[5] - e2[0]*e1[5];
+    var BC    = e1[1]*e2[2] - e2[1]*e1[2];
+    var BE    = e1[1]*e2[4] - e2[1]*e1[4];
+    var BF    = e1[1]*e2[5] - e2[1]*e1[5];
+    var CD    = e1[2]*e2[3] - e2[2]*e1[3];
+    var DE    = e1[3]*e2[4] - e2[3]*e1[4];
+    var DF    = e1[3]*e2[5] - e2[3]*e1[5];
+    var BFpDE = BF + DE;
+    var BEmCD = BE - CD;
+
+    return new Polynomial(
+        AB*BC - AC*AC,
+        AB*BEmCD + AD*BC - 2*AC*AE,
+        AB*BFpDE + AD*BEmCD - AE*AE - 2*AC*AF,
+        AB*DF + AD*BFpDE - 2*AE*AF,
+        AD*DF - AF*AF
+    );
+}
+
+/**
+    Removes from intersection points those points that are not between two rays determined by arc parameters.
+    Rays begin at ellipse center and go through arc startPoint/endPoint.
+
+    @param {Intersection} intersection - will be modified and returned
+    @param {Point2D} c - center of arc ellipse
+    @param {Number} rx
+    @param {Number} ry
+    @param {Number} phi - in radians
+    @param {Number} th1 - in radians
+    @param {Number} dth - in radians
+    @param {Matrix2D} [m] - arc transformation matrix
+    @returns {Intersection}
+*/
+function removePointsNotInArc(intersection, c, rx, ry, phi, th1, dth, m) {
+    if (intersection.points.length === 0) return intersection;
+    if (m && !m.isIdentity())
+        var mp = m.inverse();
+    var np = [];
+    var vx = new Vector2D(1, 0);
+    var pi2 = Math.PI * 2;
+    var wasNeg = dth < 0;
+    var wasBig = Math.abs(dth) > Math.PI;
+    var m1 = new Matrix2D().scaleNonUniform(1, ry / rx).rotate(th1);
+    var m2 = new Matrix2D().scaleNonUniform(1, ry / rx).rotate(th1 + dth);
+
+    th1 = (vx.angleBetween(vx.transform(m1)) + pi2) % pi2;
+    dth = vx.transform(m1).angleBetween(vx.transform(m2));
+    dth = (wasBig ? pi2 - Math.abs(dth) : Math.abs(dth)) * (wasNeg ? -1 : 1);
+    var m3 = new Matrix2D().rotate(phi).multiply(m1);
+
+    for (var i = 0, p, a; i < intersection.points.length; i++) {
+        p = intersection.points[i];
+        a = vx.transform(m3).angleBetween(Vector2D.fromPoints(c, (mp) ? p.transform(mp) : p));
+        if (dth >= 0) {
+            a = (a + 2 * pi2) % pi2;
+            if (a <= dth)
+                np.push(p);
+        } else {
+            a = (a - 2 * pi2) % pi2;
+            if (a >= dth)
+                np.push(p);
+        }
+    }
+    intersection.points = np;
+    return intersection;
+};
+
+/**
+    points1 will be modified, points close (almost identical) to any point in points2 will be removed
+
+    @param {Array<Point2D>} points1 - will be modified, points close to any point in points2 will be removed
+    @param {Array<Point2D>} points2
+*/
+function removeClosePoints(points1, points2) {
+    if (points1.length === 0 || points2.length === 0)
+        return;
+    var maxf = function (p, v) { if (p < v.x) p = v.x; if (p < v.y) p = v.y; return p; };
+    var max = points1.reduce(maxf, 0);
+    max = points2.reduce(maxf, max);
+    var ERRF = 1e-15;
+    var ZEROepsilon = 100 * max * ERRF * Math.SQRT2;
+    var j;
+    for (var i = 0; i < points1.length;) {
+        for (j = 0; j < points2.length; j++) {
+            if (points1[i].distanceFrom(points2[j]) <= ZEROepsilon) {
+                points1.splice(i, 1);
+                break;
+            }
+        }
+        if (j == points2.length)
+            i++;
+    }
+}
+
+// The basic intersection functions for all SVG shapes expect bezier curves
+// If you need to support bezier curves, plug in the functions/bezier module
+// like this: intersect.plugin( require('svg-intersections/lib/functions/bezier') )
+var intersectionFunctions = {
+            
+    /**
+        intersectPathShape
+
+        @param {IntersectionParams} path
+        @param {IntersectionParams} shape
+        @param {Matrix2D} [m1]
+        @param {Matrix2D} [m2]
+        @returns {Intersection}
+    */
+    intersectPathShape: function (path, shape, m1, m2) {
+        var result = new Intersection();
+        var pathParams = path.params[0];
+        var inter0;
+        var previnter;
+        for (var inter, i = 0; i < pathParams.length; i++) {
+            inter = intersect(pathParams[i], shape, m1, m2);
+            if (!inter0)
+                inter0 = inter;
+            if (previnter) {
+                removeClosePoints(previnter.points, inter.points);
+                result.appendPoints(previnter.points);
+            }
+            previnter = inter;
+        }
+        if (previnter) {
+            result.appendPoints(previnter.points);
+        }
+        return result;
+    },
+
+
+    /**
+        intersectLinesShape
+
+        @param {IntersectionParams} lines - IntersectionParams with points as first parameter (like types RECT, POLYLINE or POLYGON)
+        @param {IntersectionParams} shape - IntersectionParams of other shape
+        @param {Matrix2D} [m1]
+        @param {Matrix2D} [m2]
+        @param {Boolean} [closed] - if set, determines if line between first and last point will be taken into callculation too. If not set, it's true for RECT and POLYGON, false for other <b>lines</b> types.
+        @returns {Intersection}
+    */
+    intersectLinesShape: function (lines, shape, m1, m2, closed) {
+        var IPTYPE = IntersectionParams.TYPE;
+        var line_points = lines.params[0];
+        var ip = new IntersectionParams(IPTYPE.LINE, [0, 0]);
+        var result = new Intersection();
+        var inter, i;
+        var intersectLine = function (i1, i2) {
+            ip.params[0] = line_points[i1];
+            ip.params[1] = line_points[i2];
+            inter = intersect(ip, shape, m1, m2);
+            removeClosePoints(inter.points, [line_points[i2]]);
+            result.appendPoints(inter.points);
+        }
+        for (i = 0; i < line_points.length - 1; i++) {
+            intersectLine(i, i + 1);
+        }
+        if (typeof closed !== 'undefined' && closed || lines.type === IPTYPE.RECT || lines.type === IPTYPE.POLYGON) {
+            intersectLine(line_points.length - 1, 0);
+        }
+        return result;
+    },
+
+    ///////////////////////////////////////////////////////////////////
+    /**
+        intersectArcShape
+
+        @param {IntersectionParams} arc
+        @param {IntersectionParams} shape
+        @param {Matrix2D} [m1]
+        @param {Matrix2D} [m2]
+        @returns {Intersection}
+    */
+    intersectArcShape: function (arc, shape, m1, m2) {
+        m1 = m1 || Matrix2D.IDENTITY;
+        m2 = m2 || Matrix2D.IDENTITY;
+        var c1 = arc.params[0],
+            rx1 = arc.params[1],
+            ry1 = arc.params[2],
+            phi1 = arc.params[3],
+            th1 = arc.params[4],
+            dth1 = arc.params[5];
+
+        var res;
+        if (m1.isIdentity() && phi1 === 0) {
+            res = intersect(IntersectionParams.newEllipse(c1, rx1, ry1), shape, m1, m2);
+        }
+        else {
+            m1 = m1.multiply(Matrix2D.IDENTITY.translate(c1.x, c1.y).rotate(phi1));
+            c1 = new Point2D(0, 0);
+            phi1 = 0;
+            res = intersect(IntersectionParams.newEllipse(c1, rx1, ry1), shape, m1, m2);
+        }
+        res = removePointsNotInArc(res, c1, rx1, ry1, phi1, th1, dth1, m1);
+        return res;
+    },
+
+    /**
+     *  Finds intersection points of two ellipses. <br/>
+     *
+     *  This code is based on MgcIntr2DElpElp.cpp written by David Eberly. His
+     *  code along with many other excellent examples are avaiable at his site:
+     *  http://www.geometrictools.com
+     *
+     *  Changes - 2015 Robert Benko (Quazistax)
+     *
+     *  @param {Point2D} c1
+     *  @param {Number} rx1
+     *  @param {Number} ry1
+     *  @param {Point2D} c2
+     *  @param {Number} rx2
+     *  @param {Number} ry2
+     *  @returns {Intersection}
+     */
+    intersectEllipseEllipse: function (c1, rx1, ry1, c2, rx2, ry2) {
+        var a = [
+            ry1 * ry1, 0, rx1 * rx1, -2 * ry1 * ry1 * c1.x, -2 * rx1 * rx1 * c1.y,
+            ry1 * ry1 * c1.x * c1.x + rx1 * rx1 * c1.y * c1.y - rx1 * rx1 * ry1 * ry1
+        ];
+        var b = [
+            ry2 * ry2, 0, rx2 * rx2, -2 * ry2 * ry2 * c2.x, -2 * rx2 * rx2 * c2.y,
+            ry2 * ry2 * c2.x * c2.x + rx2 * rx2 * c2.y * c2.y - rx2 * rx2 * ry2 * ry2
+        ];
+
+        var yPoly = bezout(a, b);
+        var yRoots = yPoly.getRoots();
+        var epsilon = 1e-3;
+        var norm0 = (a[0] * a[0] + 2 * a[1] * a[1] + a[2] * a[2]) * epsilon;
+        var norm1 = (b[0] * b[0] + 2 * b[1] * b[1] + b[2] * b[2]) * epsilon;
+        var result = new Intersection();
+
+        var i;
+        //Handling root calculation error causing not detecting intersection
+        var clip = function (val, min, max) { return Math.max(min, Math.min(max, val)); };
+        for (i = 0 ; i < yRoots.length; i++) {
+            yRoots[i] = clip(yRoots[i], c1.y - ry1, c1.y + ry1);
+            yRoots[i] = clip(yRoots[i], c2.y - ry2, c2.y + ry2);
+        }
+
+        //For detection of multiplicated intersection points
+        yRoots.sort(function (a, b) { return a - b; });
+        var rootPointsN = [];
+
+        for (var y = 0; y < yRoots.length; y++) {
+            var xPoly = new Polynomial(
+                a[0],
+                a[3] + yRoots[y] * a[1],
+                a[5] + yRoots[y] * (a[4] + yRoots[y] * a[2])
+            );
+            var ERRF = 1e-15;
+            if (Math.abs(xPoly.coefs[0]) < 10 * ERRF * Math.abs(xPoly.coefs[2]))
+                xPoly.coefs[0] = 0;
+            var xRoots = xPoly.getRoots();
+
+            rootPointsN.push(0);
+            for (var x = 0; x < xRoots.length; x++) {
+                var test =
+                    (a[0] * xRoots[x] + a[1] * yRoots[y] + a[3]) * xRoots[x] +
+                    (a[2] * yRoots[y] + a[4]) * yRoots[y] + a[5];
+                if (Math.abs(test) < norm0) {
+                    test =
+                        (b[0] * xRoots[x] + b[1] * yRoots[y] + b[3]) * xRoots[x] +
+                        (b[2] * yRoots[y] + b[4]) * yRoots[y] + b[5];
+                    if (Math.abs(test) < norm1) {
+                        result.appendPoint(new Point2D(xRoots[x], yRoots[y]));
+                        rootPointsN[y] += 1;
+                    }
+                }
+            }
+        }
+
+        if (result.points.length <= 0)
+            return result;
+
+        //Removal of multiplicated intersection points
+        var pts = result.points;
+        if (pts.length == 8) {
+            pts = pts.splice(0, 6);
+            pts.splice(2, 2);
+        }
+        else if (pts.length == 7) {
+            pts = pts.splice(0, 6);
+            pts.splice(2, 2);
+            pts.splice(rootPointsN.indexOf(1), 1);
+        }
+        else if (pts.length == 6) {
+            pts.splice(2, 2);
+            //console.log('ElEl 6pts: N: ' + rootPointsN.toString());
+            if (rootPointsN.indexOf(0) > -1) {
+                if (pts[0].distanceFrom(pts[1]) < pts[2].distanceFrom(pts[3])) {
+                    pts.splice(0, 1);
+                }
+                else {
+                    pts.splice(2, 1);
+                }
+            }
+            else if (rootPointsN[0] == rootPointsN[3]) {
+                pts.splice(1, 2);
+            }
+        }
+        else if (pts.length == 4) {
+            if (
+                (yRoots.length == 2)
+            || (yRoots.length == 4 && (rootPointsN[0] == 2 && rootPointsN[1] == 2 || rootPointsN[2] == 2 && rootPointsN[3] == 2))
+            ) {
+                pts.splice(2, 2);
+            }
+        }
+        else if (pts.length == 3 || pts.length == 5) {
+            i = rootPointsN.indexOf(2);
+            if (i > -1) {
+                if (pts.length == 3)
+                    i = i % 2;
+                var ii = i + (i % 2 ? -1 : 2);
+                var d1, d2, d3;
+                d1 = pts[i].distanceFrom(pts[i + 1]);
+                d2 = pts[i].distanceFrom(pts[ii]);
+                d3 = pts[i + 1].distanceFrom(pts[ii]);
+                if (d1 < d2 && d1 < d3) {
+                    pts.splice(i, 1);
+                }
+                else {
+                    pts.splice(ii, 1);
+                }
+            }
+        }
+
+        var poly = yPoly;
+        var ZEROepsilon = yPoly.zeroErrorEstimate();
+        ZEROepsilon *= 100 * Math.SQRT2;
+        for (i = 0; i < pts.length - 1;) {
+            if (pts[i].distanceFrom(pts[i + 1]) < ZEROepsilon) {
+                pts.splice(i + 1, 1);
+                continue;
+            }
+            i++;
+        }
+
+        result.points = pts;
+        return result;
+    },
+
+
+    /**
+     *  intersectEllipseLine
+     *
+     *  NOTE: Rotation will need to be added to this function
+     *
+     *  @param {Point2D} c
+     *  @param {Number} rx
+     *  @param {Number} ry
+     *  @param {Point2D} a1
+     *  @param {Point2D} a2
+     *  @returns {Intersection}
+     */
+    intersectEllipseLine: function(c, rx, ry, a1, a2) {
+        var result;
+        var origin = new Vector2D(a1.x, a1.y);
+        var dir    = Vector2D.fromPoints(a1, a2);
+        var center = new Vector2D(c.x, c.y);
+        var diff   = origin.subtract(center);
+        var mDir   = new Vector2D( dir.x/(rx*rx),  dir.y/(ry*ry)  );
+        var mDiff  = new Vector2D( diff.x/(rx*rx), diff.y/(ry*ry) );
+
+        var a = dir.dot(mDir);
+        var b = dir.dot(mDiff);
+        var c = diff.dot(mDiff) - 1.0;
+        var d = b*b - a*c;
+
+        var ERRF = 1e-15;
+        var ZEROepsilon = 10 * Math.max(Math.abs(a), Math.abs(b), Math.abs(c)) * ERRF;
+        if (Math.abs(d) < ZEROepsilon) {
+            d = 0;
+        }
+
+        if ( d < 0 ) {
+            result = new Intersection("Outside");
+        } else if ( d > 0 ) {
+            var root = Math.sqrt(d);
+            var t_a  = (-b - root) / a;
+            var t_b  = (-b + root) / a;
+
+            t_b = (t_b > 1) ? t_b - ERRF : (t_b < 0) ? t_b + ERRF : t_b;
+            t_a = (t_a > 1) ? t_a - ERRF : (t_a < 0) ? t_a + ERRF : t_a;
+
+            if ( (t_a < 0 || 1 < t_a) && (t_b < 0 || 1 < t_b) ) {
+                if ( (t_a < 0 && t_b < 0) || (t_a > 1 && t_b > 1) )
+                    result = new Intersection("Outside");
+                else
+                    result = new Intersection("Inside");
+            } else {
+                result = new Intersection();
+                if ( 0 <= t_a && t_a <= 1 )
+                    result.appendPoint( a1.lerp(a2, t_a) );
+                if ( 0 <= t_b && t_b <= 1 )
+                    result.appendPoint( a1.lerp(a2, t_b) );
+            }
+        } else {
+            var t = -b/a;
+            if ( 0 <= t && t <= 1 ) {
+                result = new Intersection();
+                result.appendPoint( a1.lerp(a2, t) );
+            } else {
+                result = new Intersection("Outside");
+            }
+        }
+
+        return result;
+    },
+
+
+    /**
+     *  intersectLineLine
+     *
+     *  @param {Point2D} a1
+     *  @param {Point2D} a2
+     *  @param {Point2D} b1
+     *  @param {Point2D} b2
+     *  @returns {Intersection}
+     */
+    intersectLineLine: function(a1, a2, b1, b2) {
+        var result;
+        var ua_t = (b2.x - b1.x) * (a1.y - b1.y) - (b2.y - b1.y) * (a1.x - b1.x);
+        var ub_t = (a2.x - a1.x) * (a1.y - b1.y) - (a2.y - a1.y) * (a1.x - b1.x);
+        var u_b  = (b2.y - b1.y) * (a2.x - a1.x) - (b2.x - b1.x) * (a2.y - a1.y);
+
+        if ( u_b !== 0 ) {
+            var ua = ua_t / u_b;
+            var ub = ub_t / u_b;
+
+            if ( 0 <= ua && ua <= 1 && 0 <= ub && ub <= 1 ) {
+                result = new Intersection();
+                result.points.push(
+                    new Point2D(
+                        a1.x + ua * (a2.x - a1.x),
+                        a1.y + ua * (a2.y - a1.y)
+                    )
+                );
+            } else {
+                result = new Intersection();
+            }
+        } else {
+            if ( ua_t === 0 || ub_t === 0 ) {
+                result = new Intersection("Coincident");
+            } else {
+                result = new Intersection("Parallel");
+            }
+        }
+
+        return result;
+    },
+
+
+    /**
+     *  intersectRayRay
+     *
+     *  @param {Point2D} a1
+     *  @param {Point2D} a2
+     *  @param {Point2D} b1
+     *  @param {Point2D} b2
+     *  @returns {Intersection}
+     */
+    intersectRayRay: function(a1, a2, b1, b2) {
+        var result;
+
+        var ua_t = (b2.x - b1.x) * (a1.y - b1.y) - (b2.y - b1.y) * (a1.x - b1.x);
+        var ub_t = (a2.x - a1.x) * (a1.y - b1.y) - (a2.y - a1.y) * (a1.x - b1.x);
+        var u_b  = (b2.y - b1.y) * (a2.x - a1.x) - (b2.x - b1.x) * (a2.y - a1.y);
+
+        if ( u_b !== 0 ) {
+            var ua = ua_t / u_b;
+
+            result = new Intersection();
+            result.points.push(
+                new Point2D(
+                    a1.x + ua * (a2.x - a1.x),
+                    a1.y + ua * (a2.y - a1.y)
+                )
+            );
+        } else {
+            if ( ua_t === 0 || ub_t === 0 ) {
+                result = new Intersection("Coincident");
+            } else {
+                result = new Intersection("Parallel");
+            }
+        }
+
+        return result;
+    }
+};
+
+var composedShapeMethods = {};
+composedShapeMethods[IPTYPE.PATH] = intersectionFunctions.intersectPathShape;
+composedShapeMethods[IPTYPE.POLYLINE] = intersectionFunctions.intersectLinesShape;
+composedShapeMethods[IPTYPE.POLYGON] = intersectionFunctions.intersectLinesShape;
+composedShapeMethods[IPTYPE.RECT] = intersectionFunctions.intersectLinesShape;
+composedShapeMethods[IPTYPE.ROUNDRECT] = intersectionFunctions.intersectPathShape;
+composedShapeMethods[IPTYPE.ARC] = intersectionFunctions.intersectArcShape;
+
+
+
+function intersect(shape1, shape2, m1, m2) {
+    var ip1 = shape1;
+    var ip2 = shape2;
+    var result;
+
+    if (ip1 !== null && ip2 !== null) {
+        var method;
+        if (method = composedShapeMethods[ip1.type]) {
+            result = method(ip1, ip2, m1, m2);
+        }
+        else if (method = composedShapeMethods[ip2.type]) {
+            result = method(ip2, ip1, m2, m1);
+        }
+        else {
+            var params;
+
+            var params1, params2, type1, type2;
+
+            if (ip1.type === IPTYPE.CIRCLE) {
+                params1 = [ip1.params[0], ip1.params[1], ip1.params[1]];
+                type1 = IPTYPE.ELLIPSE;
+            }
+            else {
+                params1 = ip1.params.slice();
+                type1 = ip1.type;
+            }
+
+            if (ip2.type === IPTYPE.CIRCLE) {
+                params2 = [ip2.params[0], ip2.params[1], ip2.params[1]];
+                type2 = IPTYPE.ELLIPSE;
+            }
+            else {
+                params2 = ip2.params.slice();
+                type2 = ip2.type;
+            }
+
+            //var m1 = new Matrix2D(), m2 = new Matrix2D();
+            var SMF = 1;
+            var itm;
+            var useCTM = (m1 instanceof Matrix2D && m2 instanceof Matrix2D);// && (!m1.isIdentity() || !m2.isIdentity()));
+            if (useCTM) {
+                if (type1 === IPTYPE.ELLIPSE && type2 === IPTYPE.ELLIPSE) {
+                    var m1_, m2_;
+                    var d2;
+                    var c1 = params1[0], rx1 = params1[1], ry1 = params1[2];
+                    var c2 = params2[0], rx2 = params2[1], ry2 = params2[2];
+
+                    m1 = m1.multiply(Matrix2D.IDENTITY.translate(c1.x, c1.y).scaleNonUniform(rx1 / SMF, ry1 / SMF));
+                    c1 = new Point2D(0, 0);
+                    rx1 = ry1 = SMF;
+
+                    m2 = m2.multiply(Matrix2D.IDENTITY.translate(c2.x, c2.y).scaleNonUniform(rx2, ry2));
+                    c2 = new Point2D(0, 0);
+                    rx2 = ry2 = 1;
+
+                    d2 = m1.inverse().multiply(m2).getDecompositionTRSR();
+                    m1_ = d2.R.inverse().multiply(d2.T.inverse());
+                    m2_ = d2.S;
+
+                    rx2 = m2_.a;
+                    ry2 = m2_.d;
+                    c1 = c1.transform(m1_);
+                    itm = m1.multiply(m1_.inverse());
+
+                    params1[0] = c1;
+                    params1[1] = rx1;
+                    params1[2] = ry1;
+                    params2[0] = c2;
+                    params2[1] = rx2;
+                    params2[2] = ry2;
+                }
+                else {
+                    var transParams = function (type, params, m) {
+                        var transParam = function (i) {
+                            params[i] = params[i].transform(m);
+                        }
+
+                        if (type === IPTYPE.LINE) {
+                            transParam(0);
+                            transParam(1);
+                        }
+                        else if (type === IPTYPE.BEZIER2) {
+                            transParam(0);
+                            transParam(1);
+                            transParam(2);
+                        }
+                        else if (type === IPTYPE.BEZIER3) {
+                            transParam(0);
+                            transParam(1);
+                            transParam(2);
+                            transParam(3);
+                        }
+                        else {
+                            throw new Error('Unknown shape: ' + type);
+                        }
+                    }
+
+                    if (type2 === IPTYPE.ELLIPSE) {
+                        var tmp;
+                        tmp = params2; params2 = params1; params1 = tmp;
+                        tmp = type2; type2 = type1; type1 = tmp;
+                        tmp = m2; m2 = m1; m1 = tmp;
+                    }
+
+                    if (type1 === IPTYPE.ELLIPSE) {
+                        var c1 = params1[0], rx1 = params1[1], ry1 = params1[2];
+
+                        m1 = m1.multiply(Matrix2D.IDENTITY.translate(c1.x, c1.y).scaleNonUniform(rx1 / SMF, ry1 / SMF));
+                        c1 = new Point2D(0, 0);
+                        rx1 = ry1 = SMF;
+
+                        m2_ = m1.inverse().multiply(m2);
+                        transParams(type2, params2, m2_);
+
+                        itm = m1;
+
+                        params1[0] = c1;
+                        params1[1] = rx1;
+                        params1[2] = ry1;
+                    }
+                    else {
+                        transParams(type1, params1, m1);
+                        transParams(type2, params2, m2);
+                        itm = Matrix2D.IDENTITY;
+                    }
+                }
+            }
+
+            if (type1 < type2) {
+                method = "intersect" + type1 + type2;
+                params = params1.concat(params2);
+            } else {
+                method = "intersect" + type2 + type1;
+                params = params2.concat(params1);
+            }
+
+            result = intersectionFunctions[method].apply(null, params);
+
+            if (useCTM) {
+                for (var i = 0; i < result.points.length; i++) {
+                    result.points[i] = result.points[i].transform(itm);
+                }
+            }
+        }
+    } else {
+        result = new Intersection();
+    }
+
+    return result;
+}
+
+intersect.plugin = function() {
+    for(var i = 0; i < argLength; i++) {
+        var arg = arguments[i];
+        for(var key in arg) {
+            if(arg.hasOwnProperty(key)) {
+                intersectionFunctions[key] = arg[key];
+            }
+        }
+    }
+}
+
+module.exports = intersect;
+
+ 
+
+
+},{"./Intersection":40,"./IntersectionParams":41,"kld-affine":43,"kld-polynomial":47}],43:[function(require,module,exports){
+// expose classes
+
+exports.Point2D = require('./lib/Point2D');
+exports.Vector2D = require('./lib/Vector2D');
+exports.Matrix2D = require('./lib/Matrix2D');
+
+},{"./lib/Matrix2D":44,"./lib/Point2D":45,"./lib/Vector2D":46}],44:[function(require,module,exports){
+/**
+ *
+ *   Matrix2D.js
+ *
+ *   copyright 2001-2002, 2013 Kevin Lindsey
+ *
+ */
+
+/**
+ *  Matrix2D
+ *
+ *  @param {Number} a
+ *  @param {Number} b
+ *  @param {Number} c
+ *  @param {Number} d
+ *  @param {Number} e
+ *  @param {Number} f
+ *  @returns {Matrix2D}
+ */
+function Matrix2D(a, b, c, d, e, f) {
+    Object.defineProperties(this, {
+        "a": {
+            value: (a !== undefined) ? a : 1,
+            writable: false,
+            enumerable: true,
+            configurable: false
+        },
+        "b": {
+            value: (b !== undefined) ? b : 0,
+            writable: false,
+            enumerable: true,
+            configurable: false
+        },
+        "c": {
+            value: (c !== undefined) ? c : 0,
+            writable: false,
+            enumerable: true,
+            configurable: false
+        },
+        "d": {
+            value: (d !== undefined) ? d : 1,
+            writable: false,
+            enumerable: true,
+            configurable: false
+        },
+        "e": {
+            value: (e !== undefined) ? e : 0,
+            writable: false,
+            enumerable: true,
+            configurable: false
+        },
+        "f": {
+            value: (f !== undefined) ? f : 0,
+            writable: false,
+            enumerable: true,
+            configurable: false
+        }
+    });
+    // this.a = (a !== undefined) ? a : 1;
+    // this.b = (b !== undefined) ? b : 0;
+    // this.c = (c !== undefined) ? c : 0;
+    // this.d = (d !== undefined) ? d : 1;
+    // this.e = (e !== undefined) ? e : 0;
+    // this.f = (f !== undefined) ? f : 0;
+}
+
+/**
+ *  Identity matrix
+ *
+ *  @returns {Matrix2D}
+ */
+Matrix2D.IDENTITY = new Matrix2D(1, 0, 0, 1, 0, 0);
+
+// TODO: rotate, skew, etc. matrices as well?
+
+/**
+ *  multiply
+ *
+ *  @pararm {Matrix2D} that
+ *  @returns {Matrix2D}
+ */
+Matrix2D.prototype.multiply = function(that) {
+    return new Matrix2D(
+        this.a * that.a + this.c * that.b,
+        this.b * that.a + this.d * that.b,
+        this.a * that.c + this.c * that.d,
+        this.b * that.c + this.d * that.d,
+        this.a * that.e + this.c * that.f + this.e,
+        this.b * that.e + this.d * that.f + this.f
+    );
+};
+
+/**
+ *  inverse
+ *
+ *  @returns {Matrix2D}
+ */
+Matrix2D.prototype.inverse = function() {
+    var det1 = this.a * this.d - this.b * this.c;
+
+    if ( det1 == 0.0 )
+        throw("Matrix is not invertible");
+
+    var idet = 1.0 / det1;
+    var det2 = this.f * this.c - this.e * this.d;
+    var det3 = this.e * this.b - this.f * this.a;
+
+    return new Matrix2D(
+        this.d * idet,
+       -this.b * idet,
+       -this.c * idet,
+        this.a * idet,
+          det2 * idet,
+          det3 * idet
+    );
+};
+
+/**
+ *  translate
+ *
+ *  @param {Number} tx
+ *  @param {Number} ty
+ *  @returns {Matrix2D}
+ */
+Matrix2D.prototype.translate = function(tx, ty) {
+    return new Matrix2D(
+        this.a,
+        this.b,
+        this.c,
+        this.d,
+        this.a * tx + this.c * ty + this.e,
+        this.b * tx + this.d * ty + this.f
+    );
+};
+
+/**
+ *  scale
+ *
+ *  @param {Number} scale
+ *  @returns {Matrix2D}
+ */
+Matrix2D.prototype.scale = function(scale) {
+    return new Matrix2D(
+        this.a * scale,
+        this.b * scale,
+        this.c * scale,
+        this.d * scale,
+        this.e,
+        this.f
+    );
+};
+
+/**
+ *  scaleAt
+ *
+ *  @param {Number} scale
+ *  @param {Point2D} center
+ *  @returns {Matrix2D}
+ */
+Matrix2D.prototype.scaleAt = function(scale, center) {
+    var dx = center.x - scale * center.x;
+    var dy = center.y - scale * center.y;
+
+    return new Matrix2D(
+        this.a * scale,
+        this.b * scale,
+        this.c * scale,
+        this.d * scale,
+        this.a * dx + this.c * dy + this.e,
+        this.b * dx + this.d * dy + this.f
+    );
+};
+
+/**
+ *  scaleNonUniform
+ *
+ *  @param {Number} scaleX
+ *  @param {Number} scaleY
+ *  @returns {Matrix2D}
+ */
+Matrix2D.prototype.scaleNonUniform = function(scaleX, scaleY) {
+    return new Matrix2D(
+        this.a * scaleX,
+        this.b * scaleX,
+        this.c * scaleY,
+        this.d * scaleY,
+        this.e,
+        this.f
+    );
+};
+
+/**
+ *  scaleNonUniformAt
+ *
+ *  @param {Number} scaleX
+ *  @param {Number} scaleY
+ *  @param {Point2D} center
+ *  @returns {Matrix2D}
+ */
+Matrix2D.prototype.scaleNonUniformAt = function(scaleX, scaleY, center) {
+    var dx = center.x - scaleX * center.x;
+    var dy = center.y - scaleY * center.y;
+
+    return new Matrix2D(
+        this.a * scaleX,
+        this.b * scaleX,
+        this.c * scaleY,
+        this.d * scaleY,
+        this.a * dx + this.c * dy + this.e,
+        this.b * dx + this.d * dy + this.f
+    );
+};
+
+/**
+ *  rotate
+ *
+ *  @param {Number} radians
+ *  @returns {Matrix2D}
+ */
+Matrix2D.prototype.rotate = function(radians) {
+    var c = Math.cos(radians);
+    var s = Math.sin(radians);
+
+    return new Matrix2D(
+        this.a *  c + this.c * s,
+        this.b *  c + this.d * s,
+        this.a * -s + this.c * c,
+        this.b * -s + this.d * c,
+        this.e,
+        this.f
+    );
+};
+
+/**
+ *  rotateAt
+ *
+ *  @param {Number} radians
+ *  @param {Point2D} center
+ *  @result {Matrix2D}
+ */
+Matrix2D.prototype.rotateAt = function(radians, center) {
+    var c = Math.cos(radians);
+    var s = Math.sin(radians);
+    var t1 = -center.x + center.x * c - center.y * s;
+    var t2 = -center.y + center.y * c + center.x * s;
+
+    return new Matrix2D(
+        this.a *  c + this.c * s,
+        this.b *  c + this.d * s,
+        this.a * -s + this.c * c,
+        this.b * -s + this.d * c,
+        this.a * t1 + this.c * t2 + this.e,
+        this.b * t1 + this.d * t2 + this.f
+    );
+};
+
+/**
+ *  rotateFromVector
+ *
+ *  @param {Vector2D}
+ *  @returns {Matrix2D}
+ */
+Matrix2D.prototype.rotateFromVector = function(vector) {
+    var unit = vector.unit();
+    var c = unit.x; // cos
+    var s = unit.y; // sin
+
+    return new Matrix2D(
+        this.a *  c + this.c * s,
+        this.b *  c + this.d * s,
+        this.a * -s + this.c * c,
+        this.b * -s + this.d * c,
+        this.e,
+        this.f
+    );
+};
+
+/**
+ *  flipX
+ *
+ *  @returns {Matrix2D}
+ */
+Matrix2D.prototype.flipX = function() {
+    return new Matrix2D(
+        -this.a,
+        -this.b,
+         this.c,
+         this.d,
+         this.e,
+         this.f
+    );
+};
+
+/**
+ *  flipY
+ *
+ *  @returns {Matrix2D}
+ */
+Matrix2D.prototype.flipY = function() {
+    return new Matrix2D(
+         this.a,
+         this.b,
+        -this.c,
+        -this.d,
+         this.e,
+         this.f
+    );
+};
+
+/**
+ *  skewX
+ *
+ *  @pararm {Number} radians
+ *  @returns {Matrix2D}
+ */
+Matrix2D.prototype.skewX = function(radians) {
+    var t = Math.tan(radians);
+
+    return new Matrix2D(
+        this.a,
+        this.b,
+        this.a * t + this.c,
+        this.b * t + this.d,
+        this.e,
+        this.f
+    );
+};
+
+// TODO: skewXAt
+
+/**
+ *  skewY
+ *
+ *  @pararm {Number} radians
+ *  @returns {Matrix2D}
+ */
+Matrix2D.prototype.skewY = function(radians) {
+    var t = Math.tan(angle);
+
+    return matrix_new(
+        this.a + this.c * t,
+        this.b + this.d * t,
+        this.c,
+        this.d,
+        this.e,
+        this.f
+    );
+};
+
+// TODO: skewYAt
+
+/**
+ *  isIdentity
+ *
+ *  @returns {Boolean}
+ */
+Matrix2D.prototype.isIdentity = function() {
+    return (
+        this.a === 1.0 &&
+        this.b === 0.0 &&
+        this.c === 0.0 &&
+        this.d === 1.0 &&
+        this.e === 0.0 &&
+        this.f === 0.0
+    );
+};
+
+/**
+ *  isInvertible
+ *
+ *  @returns {Boolean}
+ */
+Matrix2D.prototype.isInvertible = function() {
+    this.a * this.d - this.b * this.c !== 0.0;
+};
+
+/**
+ *  getScale
+ *
+ *  @returns {scaleX: Number, scaleY: Number}
+ */
+Matrix2D.prototype.getScale = function() {
+    return {
+        scaleX: Math.sqrt(this.a * this.a + this.c * this.c),
+        scaleY: Math.sqrt(this.b * this.b + this.d * this.d)
+    };
+};
+
+/**
+ *  equals
+ *
+ *  @param {Matrix2D} that
+ *  @returns {Boolean}
+ */
+Matrix2D.prototype.equals = function(that) {
+    return (
+        this.a === that.a &&
+        this.b === that.b &&
+        this.c === that.c &&
+        this.d === that.d &&
+        this.e === that.e &&
+        this.f === that.f
+    );
+};
+
+/**
+ *  toString
+ *
+ *  @returns {String}
+ */
+Matrix2D.prototype.toString = function() {
+    return (
+        "matrix(" +
+        this.a + "," +
+        this.b + "," +
+        this.c + "," +
+        this.d + "," +
+        this.e + "," +
+        this.f + ")"
+    );
+}
+
+if (typeof module !== "undefined") {
+    module.exports = Matrix2D;
+}
+},{}],45:[function(require,module,exports){
+/**
+ *
+ *   Point2D.js
+ *
+ *   copyright 2001-2002, 2013 Kevin Lindsey
+ *
+ */
+
+/**
+ *  Point2D
+ *
+ *  @param {Number} x
+ *  @param {Number} y
+ *  @returns {Point2D}
+ */
+function Point2D(x, y) {
+    Object.defineProperties(this, {
+        "x": {
+            value: x,
+            writable: false,
+            enumerable: true,
+            configurable: false
+        },
+        "y": {
+            value: y,
+            writable: false,
+            enumerable: true,
+            configurable: false
+        }
+    });
+    // this.x = x;
+    // this.y = y;
+}
+
+/**
+ *  clone
+ *
+ *  @returns {Point2D}
+ */
+Point2D.prototype.clone = function() {
+    return new Point2D(this.x, this.y);
+};
+
+/**
+ *  add
+ *
+ *  @param {Point2D|Vector2D} that
+ *  @returns {Point2D}
+ */
+Point2D.prototype.add = function(that) {
+    return new Point2D(this.x+that.x, this.y+that.y);
+};
+
+/**
+ *  subtract
+ *
+ *  @param { Vector2D | Point2D } that
+ *  @returns {Point2D}
+ */
+Point2D.prototype.subtract = function(that) {
+    return new Point2D(this.x-that.x, this.y-that.y);
+};
+
+/**
+ *  multiply
+ *
+ *  @param {Number} scalar
+ *  @returns {Point2D}
+ */
+Point2D.prototype.multiply = function(scalar) {
+    return new Point2D(this.x*scalar, this.y*scalar);
+};
+
+/**
+ *  divide
+ *
+ *  @param {Number} scalar
+ *  @returns {Point2D}
+ */
+Point2D.prototype.divide = function(scalar) {
+    return new Point2D(this.x/scalar, this.y/scalar);
+};
+
+/**
+ *  equals
+ *
+ *  @param {Point2D} that
+ *  @returns {Boolean}
+ */
+Point2D.prototype.equals = function(that) {
+    return ( this.x == that.x && this.y == that.y );
+};
+
+// utility methods
+
+/**
+ *  lerp
+ *
+ *  @param { Vector2D | Point2D } that
+ *  @param {Number} t
+ @  @returns {Point2D}
+ */
+Point2D.prototype.lerp = function(that, t) {
+    var omt = 1.0 - t;
+
+    return new Point2D(
+        this.x * omt + that.x * t,
+        this.y * omt + that.y * t
+    );
+};
+
+/**
+ *  distanceFrom
+ *
+ *  @param {Point2D} that
+ *  @returns {Number}
+ */
+Point2D.prototype.distanceFrom = function(that) {
+    var dx = this.x - that.x;
+    var dy = this.y - that.y;
+
+    return Math.sqrt(dx*dx + dy*dy);
+};
+
+/**
+ *  min
+ *
+ *  @param {Point2D} that
+ *  @returns {Number}
+ */
+Point2D.prototype.min = function(that) {
+    return new Point2D(
+        Math.min( this.x, that.x ),
+        Math.min( this.y, that.y )
+    );
+};
+
+/**
+ *  max
+ *
+ *  @param {Point2D} that
+ *  @returns {Number}
+ */
+Point2D.prototype.max = function(that) {
+    return new Point2D(
+        Math.max( this.x, that.x ),
+        Math.max( this.y, that.y )
+    );
+};
+
+/**
+ *  transform
+ *
+ *  @param {Matrix2D}
+ *  @result {Point2D}
+ */
+Point2D.prototype.transform = function(matrix) {
+    return new Point2D(
+        matrix.a * this.x + matrix.c * this.y + matrix.e,
+        matrix.b * this.x + matrix.d * this.y + matrix.f
+    );
+};
+
+/**
+ *  toString
+ *
+ *  @returns {String}
+ */
+Point2D.prototype.toString = function() {
+    return "point(" + this.x + "," + this.y + ")";
+};
+
+if (typeof module !== "undefined") {
+    module.exports = Point2D;
+}
+
+},{}],46:[function(require,module,exports){
+/**
+ *
+ *   Vector2D.js
+ *
+ *   copyright 2001-2002, 2013 Kevin Lindsey
+ *
+ */
+
+/**
+ *  Vector2D
+ *
+ *  @param {Number} x
+ *  @param {Number} y
+ *  @returns {Vector2D}
+ */
+function Vector2D(x, y) {
+    Object.defineProperties(this, {
+        "x": {
+            value: x,
+            writable: false,
+            enumerable: true,
+            configurable: false
+        },
+        "y": {
+            value: y,
+            writable: false,
+            enumerable: true,
+            configurable: false
+        }
+    });
+    // this.x = x;
+    // this.y = y;
+}
+
+/**
+ *  fromPoints
+ *
+ *  @param {Point2D} p1
+ *  @param {Point2D} p2
+ *  @returns {Vector2D}
+ */
+Vector2D.fromPoints = function(p1, p2) {
+    return new Vector2D(
+        p2.x - p1.x,
+        p2.y - p1.y
+    );
+};
+
+/**
+ *  length
+ *
+ *  @returns {Number}
+ */
+Vector2D.prototype.length = function() {
+    return Math.sqrt(this.x*this.x + this.y*this.y);
+};
+
+/**
+ *  magnitude
+ *
+ *  @returns {Number}
+ */
+Vector2D.prototype.magnitude = function() {
+    return this.x*this.x + this.y*this.y;
+};
+
+/**
+ *  dot
+ *
+ *  @param {Vector2D} that
+ *  @returns {Number}
+ */
+Vector2D.prototype.dot = function(that) {
+    return this.x*that.x + this.y*that.y;
+};
+
+/**
+ *  cross
+ *
+ *  @param {Vector2D} that
+ *  @returns {Number}
+ */
+Vector2D.prototype.cross = function(that) {
+    return this.x*that.y - this.y*that.x;
+}
+
+/**
+ *  determinant
+ *
+ *  @param {Vector2D} that
+ *  @returns {Number}
+ */
+Vector2D.prototype.determinant = function(that) {
+    return this.x*that.y - this.y*that.x;
+};
+
+/**
+ *  unit
+ *
+ *  @returns {Vector2D}
+ */
+Vector2D.prototype.unit = function() {
+    return this.divide( this.length() );
+};
+
+/**
+ *  add
+ *
+ *  @param {Vector2D} that
+ *  @returns {Vector2D}
+ */
+Vector2D.prototype.add = function(that) {
+    return new Vector2D(this.x + that.x, this.y + that.y);
+};
+
+/**
+ *  subtract
+ *
+ *  @param {Vector2D} that
+ *  @returns {Vector2D}
+ */
+Vector2D.prototype.subtract = function(that) {
+    return new Vector2D(this.x - that.x, this.y - that.y);
+};
+
+/**
+ *  multiply
+ *
+ *  @param {Number} scalar
+ *  @returns {Vector2D}
+ */
+Vector2D.prototype.multiply = function(scalar) {
+    return new Vector2D(this.x * scalar, this.y * scalar);
+};
+
+/**
+ *  divide
+ *
+ *  @param {Number} scalar
+ *  @returns {Vector2D}
+ */
+Vector2D.prototype.divide = function(scalar) {
+    return new Vector2D(this.x / scalar, this.y / scalar);
+};
+
+/**
+ *  angleBetween
+ *
+ *  @param {Vector2D} that
+ *  @returns {Number}
+ */
+Vector2D.prototype.angleBetween = function(that) {
+    var cos = this.dot(that) / (this.length() * that.length());
+    if (cos < -1) {
+        cos = -1;
+    }
+    else if (cos > 1) {
+        cos = 1;
+    }
+    var radians = Math.acos(cos);
+
+    return (this.cross(that) < 0.0) ? -radians : radians;
+};
+
+/**
+ *  Find a vector is that is perpendicular to this vector
+ *
+ *  @returns {Vector2D}
+ */
+Vector2D.prototype.perp = function() {
+    return new Vector2D(-this.y, this.x);
+};
+
+/**
+ *  Find the component of the specified vector that is perpendicular to
+ *  this vector
+ *
+ *  @param {Vector2D} that
+ *  @returns {Vector2D}
+ */
+Vector2D.prototype.perpendicular = function(that) {
+    return this.subtract(this.project(that));
+};
+
+/**
+ *  project
+ *
+ *  @param {Vector2D} that
+ *  @returns {Vector2D}
+ */
+Vector2D.prototype.project = function(that) {
+    var percent = this.dot(that) / that.dot(that);
+
+    return that.multiply(percent);
+};
+
+/**
+ *  transform
+ *
+ *  @param {Matrix2D}
+ *  @returns {Vector2D}
+ */
+Vector2D.prototype.transform = function(matrix) {
+    return new Vector2D(
+        matrix.a * this.x + matrix.c * this.y,
+        matrix.b * this.x + matrix.d * this.y
+    );
+};
+
+/**
+ *  equals
+ *
+ *  @param {Vector2D} that
+ *  @returns {Boolean}
+ */
+Vector2D.prototype.equals = function(that) {
+    return (
+        this.x === that.x &&
+        this.y === that.y
+    );
+};
+
+/**
+ *  toString
+ *
+ *  @returns {String}
+ */
+Vector2D.prototype.toString = function() {
+    return "vector(" + this.x + "," + this.y + ")";
+};
+
+if (typeof module !== "undefined") {
+    module.exports = Vector2D;
+}
+
+},{}],47:[function(require,module,exports){
+// expose classes
+
+exports.Polynomial = require('./lib/Polynomial');
+exports.SqrtPolynomial = require('./lib/SqrtPolynomial');
+
+},{"./lib/Polynomial":48,"./lib/SqrtPolynomial":49}],48:[function(require,module,exports){
+/**
+ *
+ *   Polynomial.js
+ *
+ *   copyright 2002, 2103 Kevin Lindsey
+ *
+ */
+
+Polynomial.TOLERANCE = 1e-6;
+Polynomial.ACCURACY  = 15;
+
+
+/**
+ *  interpolate
+ *
+ *  @param {Array<Number>} xs
+ *  @param {Array<Number>} ys
+ *  @param {Number} n
+ *  @param {Number} offset
+ *  @param {Number} x
+ *
+ *  @returns {y:Number, dy:Number}
+ */
+Polynomial.interpolate = function(xs, ys, n, offset, x) {
+    if ( xs.constructor !== Array || ys.constructor !== Array )
+        throw new Error("Polynomial.interpolate: xs and ys must be arrays");
+    if ( isNaN(n) || isNaN(offset) || isNaN(x) )
+        throw new Error("Polynomial.interpolate: n, offset, and x must be numbers");
+
+    var y  = 0;
+    var dy = 0;
+    var c = new Array(n);
+    var d = new Array(n);
+    var ns = 0;
+    var result;
+
+    var diff = Math.abs(x - xs[offset]);
+    for ( var i = 0; i < n; i++ ) {
+        var dift = Math.abs(x - xs[offset+i]);
+
+        if ( dift < diff ) {
+            ns = i;
+            diff = dift;
+        }
+        c[i] = d[i] = ys[offset+i];
+    }
+    y = ys[offset+ns];
+    ns--;
+
+    for ( var m = 1; m < n; m++ ) {
+        for ( var i = 0; i < n-m; i++ ) {
+            var ho = xs[offset+i] - x;
+            var hp = xs[offset+i+m] - x;
+            var w = c[i+1]-d[i];
+            var den = ho - hp;
+
+            if ( den == 0.0 ) {
+                result = { y: 0, dy: 0};
+                break;
+            }
+
+            den = w / den;
+            d[i] = hp*den;
+            c[i] = ho*den;
+        }
+        dy = (2*(ns+1) < (n-m)) ? c[ns+1] : d[ns--];
+        y += dy;
+    }
+
+    return { y: y, dy: dy };
+};
+
+
+/**
+ *  Polynomial
+ *
+ *  @returns {Polynomial}
+ */
+function Polynomial() {
+    this.init( arguments );
+}
+
+
+/**
+ *  init
+ */
+Polynomial.prototype.init = function(coefs) {
+    this.coefs = new Array();
+
+    for ( var i = coefs.length - 1; i >= 0; i-- )
+        this.coefs.push( coefs[i] );
+
+    this._variable = "t";
+    this._s = 0;
+};
+
+
+/**
+ *  eval
+ */
+Polynomial.prototype.eval = function(x) {
+    if ( isNaN(x) )
+        throw new Error("Polynomial.eval: parameter must be a number");
+
+    var result = 0;
+
+    for ( var i = this.coefs.length - 1; i >= 0; i-- )
+        result = result * x + this.coefs[i];
+
+    return result;
+};
+
+
+/**
+ *  add
+ */
+Polynomial.prototype.add = function(that) {
+    var result = new Polynomial();
+    var d1 = this.getDegree();
+    var d2 = that.getDegree();
+    var dmax = Math.max(d1,d2);
+
+    for ( var i = 0; i <= dmax; i++ ) {
+        var v1 = (i <= d1) ? this.coefs[i] : 0;
+        var v2 = (i <= d2) ? that.coefs[i] : 0;
+
+        result.coefs[i] = v1 + v2;
+    }
+
+    return result;
+};
+
+
+/**
+ *  multiply
+ */
+Polynomial.prototype.multiply = function(that) {
+    var result = new Polynomial();
+
+    for ( var i = 0; i <= this.getDegree() + that.getDegree(); i++ )
+        result.coefs.push(0);
+
+    for ( var i = 0; i <= this.getDegree(); i++ )
+        for ( var j = 0; j <= that.getDegree(); j++ )
+            result.coefs[i+j] += this.coefs[i] * that.coefs[j];
+
+    return result;
+};
+
+
+/**
+ *  divide_scalar
+ */
+Polynomial.prototype.divide_scalar = function(scalar) {
+    for ( var i = 0; i < this.coefs.length; i++ )
+        this.coefs[i] /= scalar;
+};
+
+
+/**
+ *  simplify
+ */
+Polynomial.prototype.simplify = function() {
+    for ( var i = this.getDegree(); i >= 0; i-- ) {
+        if ( Math.abs( this.coefs[i] ) <= Polynomial.TOLERANCE )
+            this.coefs.pop();
+        else
+            break;
+    }
+};
+
+
+/**
+ *  bisection
+ */
+Polynomial.prototype.bisection = function(min, max) {
+    var minValue = this.eval(min);
+    var maxValue = this.eval(max);
+    var result;
+
+    if ( Math.abs(minValue) <= Polynomial.TOLERANCE )
+        result = min;
+    else if ( Math.abs(maxValue) <= Polynomial.TOLERANCE )
+        result = max;
+    else if ( minValue * maxValue <= 0 ) {
+        var tmp1  = Math.log(max - min);
+        var tmp2  = Math.LN10 * Polynomial.ACCURACY;
+        var iters = Math.ceil( (tmp1+tmp2) / Math.LN2 );
+
+        for ( var i = 0; i < iters; i++ ) {
+            result = 0.5 * (min + max);
+            var value = this.eval(result);
+
+            if ( Math.abs(value) <= Polynomial.TOLERANCE ) {
+                break;
+            }
+
+            if ( value * minValue < 0 ) {
+                max = result;
+                maxValue = value;
+            } else {
+                min = result;
+                minValue = value;
+            }
+        }
+    }
+
+    return result;
+};
+
+
+/**
+ *  toString
+ */
+Polynomial.prototype.toString = function() {
+    var coefs = new Array();
+    var signs = new Array();
+
+    for ( var i = this.coefs.length - 1; i >= 0; i-- ) {
+        var value = Math.round(this.coefs[i]*1000)/1000;
+        //var value = this.coefs[i];
+
+        if ( value != 0 ) {
+            var sign = ( value < 0 ) ? " - " : " + ";
+
+            value = Math.abs(value);
+            if ( i > 0 )
+                if ( value == 1 )
+                    value = this._variable;
+                else
+                    value += this._variable;
+            if ( i > 1 ) value += "^" + i;
+
+            signs.push( sign );
+            coefs.push( value );
+        }
+    }
+
+    signs[0] = ( signs[0] == " + " ) ? "" : "-";
+
+    var result = "";
+    for ( var i = 0; i < coefs.length; i++ )
+        result += signs[i] + coefs[i];
+
+    return result;
+};
+
+
+/**
+ *  trapezoid
+ *  Based on trapzd in "Numerical Recipes in C", page 137
+ */
+Polynomial.prototype.trapezoid = function(min, max, n) {
+    if ( isNaN(min) || isNaN(max) || isNaN(n) )
+        throw new Error("Polynomial.trapezoid: parameters must be numbers");
+
+    var range = max - min;
+    var TOLERANCE = 1e-7;
+
+    if ( n == 1 ) {
+        var minValue = this.eval(min);
+        var maxValue = this.eval(max);
+        this._s = 0.5*range*( minValue + maxValue );
+    } else {
+        var it = 1 << (n-2);
+        var delta = range / it;
+        var x = min + 0.5*delta;
+        var sum = 0;
+
+        for ( var i = 0; i < it; i++ ) {
+            sum += this.eval(x);
+            x += delta;
+        }
+        this._s = 0.5*(this._s + range*sum/it);
+    }
+
+    if ( isNaN(this._s) )
+        throw new Error("Polynomial.trapezoid: this._s is NaN");
+
+    return this._s;
+};
+
+
+/**
+ *  simpson
+ *  Based on trapzd in "Numerical Recipes in C", page 139
+ */
+Polynomial.prototype.simpson = function(min, max) {
+    if ( isNaN(min) || isNaN(max) )
+        throw new Error("Polynomial.simpson: parameters must be numbers");
+
+    var range = max - min;
+    var st = 0.5 * range * ( this.eval(min) + this.eval(max) );
+    var t = st;
+    var s = 4.0*st/3.0;
+    var os = s;
+    var ost = st;
+    var TOLERANCE = 1e-7;
+
+    var it = 1;
+    for ( var n = 2; n <= 20; n++ ) {
+        var delta = range / it;
+        var x     = min + 0.5*delta;
+        var sum   = 0;
+
+        for ( var i = 1; i <= it; i++ ) {
+            sum += this.eval(x);
+            x += delta;
+        }
+
+        t = 0.5 * (t + range * sum / it);
+        st = t;
+        s = (4.0*st - ost)/3.0;
+
+        if ( Math.abs(s-os) < TOLERANCE*Math.abs(os) )
+            break;
+
+        os = s;
+        ost = st;
+        it <<= 1;
+    }
+
+    return s;
+};
+
+
+/**
+ *  romberg
+ */
+Polynomial.prototype.romberg = function(min, max) {
+    if ( isNaN(min) || isNaN(max) )
+        throw new Error("Polynomial.romberg: parameters must be numbers");
+
+    var MAX = 20;
+    var K = 3;
+    var TOLERANCE = 1e-6;
+    var s = new Array(MAX+1);
+    var h = new Array(MAX+1);
+    var result = { y: 0, dy: 0 };
+
+    h[0] = 1.0;
+    for ( var j = 1; j <= MAX; j++ ) {
+        s[j-1] = this.trapezoid(min, max, j);
+        if ( j >= K ) {
+            result = Polynomial.interpolate(h, s, K, j-K, 0.0);
+            if ( Math.abs(result.dy) <= TOLERANCE*result.y) break;
+        }
+        s[j] = s[j-1];
+        h[j] = 0.25 * h[j-1];
+    }
+
+    return result.y;
+};
+
+// getters and setters
+
+/**
+ *  get degree
+ */
+Polynomial.prototype.getDegree = function() {
+    return this.coefs.length - 1;
+};
+
+
+/**
+ *  getDerivative
+ */
+Polynomial.prototype.getDerivative = function() {
+    var derivative = new Polynomial();
+
+    for ( var i = 1; i < this.coefs.length; i++ ) {
+        derivative.coefs.push(i*this.coefs[i]);
+    }
+
+    return derivative;
+};
+
+
+/**
+ *  getRoots
+ */
+Polynomial.prototype.getRoots = function() {
+    var result;
+
+    this.simplify();
+    switch ( this.getDegree() ) {
+        case 0: result = new Array();              break;
+        case 1: result = this.getLinearRoot();     break;
+        case 2: result = this.getQuadraticRoots(); break;
+        case 3: result = this.getCubicRoots();     break;
+        case 4: result = this.getQuarticRoots();   break;
+        default:
+            result = new Array();
+            // should try Newton's method and/or bisection
+    }
+
+    return result;
+};
+
+
+/**
+ *  getRootsInInterval
+ */
+Polynomial.prototype.getRootsInInterval = function(min, max) {
+    var roots = new Array();
+    var root;
+
+    if ( this.getDegree() == 1 ) {
+        root = this.bisection(min, max);
+        if ( root != null ) roots.push(root);
+    } else {
+        // get roots of derivative
+        var deriv  = this.getDerivative();
+        var droots = deriv.getRootsInInterval(min, max);
+
+        if ( droots.length > 0 ) {
+            // find root on [min, droots[0]]
+            root = this.bisection(min, droots[0]);
+            if ( root != null ) roots.push(root);
+
+            // find root on [droots[i],droots[i+1]] for 0 <= i <= count-2
+            for ( i = 0; i <= droots.length-2; i++ ) {
+                root = this.bisection(droots[i], droots[i+1]);
+                if ( root != null ) roots.push(root);
+            }
+
+            // find root on [droots[count-1],xmax]
+            root = this.bisection(droots[droots.length-1], max);
+            if ( root != null ) roots.push(root);
+        } else {
+            // polynomial is monotone on [min,max], has at most one root
+            root = this.bisection(min, max);
+            if ( root != null ) roots.push(root);
+        }
+    }
+
+    return roots;
+};
+
+
+/**
+ *  getLinearRoot
+ */
+Polynomial.prototype.getLinearRoot = function() {
+    var result = new Array();
+    var a = this.coefs[1];
+
+    if ( a != 0 )
+        result.push( -this.coefs[0] / a );
+
+    return result;
+};
+
+
+/**
+ *  getQuadraticRoots
+ */
+Polynomial.prototype.getQuadraticRoots = function() {
+    var results = new Array();
+
+    if ( this.getDegree() == 2 ) {
+        var a = this.coefs[2];
+        var b = this.coefs[1] / a;
+        var c = this.coefs[0] / a;
+        var d = b*b - 4*c;
+
+        if ( d > 0 ) {
+            var e = Math.sqrt(d);
+
+            results.push( 0.5 * (-b + e) );
+            results.push( 0.5 * (-b - e) );
+        } else if ( d == 0 ) {
+            // really two roots with same value, but we only return one
+            results.push( 0.5 * -b );
+        }
+    }
+
+    return results;
+};
+
+
+/**
+ *  getCubicRoots
+ *
+ *  This code is based on MgcPolynomial.cpp written by David Eberly.  His
+ *  code along with many other excellent examples are avaiable at his site:
+ *  http://www.magic-software.com
+ */
+Polynomial.prototype.getCubicRoots = function() {
+    var results = new Array();
+
+    if ( this.getDegree() == 3 ) {
+        var c3 = this.coefs[3];
+        var c2 = this.coefs[2] / c3;
+        var c1 = this.coefs[1] / c3;
+        var c0 = this.coefs[0] / c3;
+
+        var a       = (3*c1 - c2*c2) / 3;
+        var b       = (2*c2*c2*c2 - 9*c1*c2 + 27*c0) / 27;
+        var offset  = c2 / 3;
+        var discrim = b*b/4 + a*a*a/27;
+        var halfB   = b / 2;
+
+        if ( Math.abs(discrim) <= Polynomial.TOLERANCE ) discrim = 0;
+
+        if ( discrim > 0 ) {
+            var e = Math.sqrt(discrim);
+            var tmp;
+            var root;
+
+            tmp = -halfB + e;
+            if ( tmp >= 0 )
+                root = Math.pow(tmp, 1/3);
+            else
+                root = -Math.pow(-tmp, 1/3);
+
+            tmp = -halfB - e;
+            if ( tmp >= 0 )
+                root += Math.pow(tmp, 1/3);
+            else
+                root -= Math.pow(-tmp, 1/3);
+
+            results.push( root - offset );
+        } else if ( discrim < 0 ) {
+            var distance = Math.sqrt(-a/3);
+            var angle    = Math.atan2( Math.sqrt(-discrim), -halfB) / 3;
+            var cos      = Math.cos(angle);
+            var sin      = Math.sin(angle);
+            var sqrt3    = Math.sqrt(3);
+
+            results.push( 2*distance*cos - offset );
+            results.push( -distance * (cos + sqrt3 * sin) - offset);
+            results.push( -distance * (cos - sqrt3 * sin) - offset);
+        } else {
+            var tmp;
+
+            if ( halfB >= 0 )
+                tmp = -Math.pow(halfB, 1/3);
+            else
+                tmp = Math.pow(-halfB, 1/3);
+
+            results.push( 2*tmp - offset );
+            // really should return next root twice, but we return only one
+            results.push( -tmp - offset );
+        }
+    }
+
+    return results;
+};
+
+
+/**
+ *  getQuarticRoots
+ *
+ *  This code is based on MgcPolynomial.cpp written by David Eberly.  His
+ *  code along with many other excellent examples are avaiable at his site:
+ *  http://www.magic-software.com
+ */
+Polynomial.prototype.getQuarticRoots = function() {
+    var results = new Array();
+
+    if ( this.getDegree() == 4 ) {
+        var c4 = this.coefs[4];
+        var c3 = this.coefs[3] / c4;
+        var c2 = this.coefs[2] / c4;
+        var c1 = this.coefs[1] / c4;
+        var c0 = this.coefs[0] / c4;
+
+        var resolveRoots = new Polynomial(
+            1, -c2, c3*c1 - 4*c0, -c3*c3*c0 + 4*c2*c0 -c1*c1
+        ).getCubicRoots();
+        var y       = resolveRoots[0];
+        var discrim = c3*c3/4 - c2 + y;
+
+        if ( Math.abs(discrim) <= Polynomial.TOLERANCE ) discrim = 0;
+
+        if ( discrim > 0 ) {
+            var e     = Math.sqrt(discrim);
+            var t1    = 3*c3*c3/4 - e*e - 2*c2;
+            var t2    = ( 4*c3*c2 - 8*c1 - c3*c3*c3 ) / ( 4*e );
+            var plus  = t1+t2;
+            var minus = t1-t2;
+
+            if ( Math.abs(plus)  <= Polynomial.TOLERANCE ) plus  = 0;
+            if ( Math.abs(minus) <= Polynomial.TOLERANCE ) minus = 0;
+
+            if ( plus >= 0 ) {
+                var f = Math.sqrt(plus);
+
+                results.push( -c3/4 + (e+f)/2 );
+                results.push( -c3/4 + (e-f)/2 );
+            }
+            if ( minus >= 0 ) {
+                var f = Math.sqrt(minus);
+
+                results.push( -c3/4 + (f-e)/2 );
+                results.push( -c3/4 - (f+e)/2 );
+            }
+        } else if ( discrim < 0 ) {
+            // no roots
+        } else {
+            var t2 = y*y - 4*c0;
+
+            if ( t2 >= -Polynomial.TOLERANCE ) {
+                if ( t2 < 0 ) t2 = 0;
+
+                t2 = 2*Math.sqrt(t2);
+                t1 = 3*c3*c3/4 - 2*c2;
+                if ( t1+t2 >= Polynomial.TOLERANCE ) {
+                    var d = Math.sqrt(t1+t2);
+
+                    results.push( -c3/4 + d/2 );
+                    results.push( -c3/4 - d/2 );
+                }
+                if ( t1-t2 >= Polynomial.TOLERANCE ) {
+                    var d = Math.sqrt(t1-t2);
+
+                    results.push( -c3/4 + d/2 );
+                    results.push( -c3/4 - d/2 );
+                }
+            }
+        }
+    }
+
+    return results;
+};
+
+if (typeof module !== "undefined") {
+    module.exports = Polynomial;
+}
+
+},{}],49:[function(require,module,exports){
+/**
+ *
+ *   SqrtPolynomial.js
+ *
+ *   copyright 2003, 2013 Kevin Lindsey
+ *
+ */
+
+if (typeof module !== "undefined") {
+    var Polynomial = require("./Polynomial");
+}
+
+/**
+ *   class variables
+ */
+SqrtPolynomial.VERSION = 1.0;
+
+// setup inheritance
+SqrtPolynomial.prototype             = new Polynomial();
+SqrtPolynomial.prototype.constructor = SqrtPolynomial;
+SqrtPolynomial.superclass            = Polynomial.prototype;
+
+
+/**
+ *  SqrtPolynomial
+ */
+function SqrtPolynomial() {
+    this.init( arguments );
+}
+
+
+/**
+ *  eval
+ *
+ *  @param {Number} x
+ *  @returns {Number}
+ */
+SqrtPolynomial.prototype.eval = function(x) {
+    var TOLERANCE = 1e-7;
+    var result = SqrtPolynomial.superclass.eval.call(this, x);
+
+    // NOTE: May need to change the following.  I added these to capture
+    // some really small negative values that were being generated by one
+    // of my Bezier arcLength functions
+    if ( Math.abs(result) < TOLERANCE ) result = 0;
+    if ( result < 0 )
+        throw new Error("SqrtPolynomial.eval: cannot take square root of negative number");
+
+    return Math.sqrt(result);
+};
+
+SqrtPolynomial.prototype.toString = function() {
+    var result = SqrtPolynomial.superclass.toString.call(this);
+
+    return "sqrt(" + result + ")";
+};
+
+if (typeof module !== "undefined") {
+    module.exports = SqrtPolynomial;
+}
+
+},{"./Polynomial":48}],50:[function(require,module,exports){
 var parseSVG = require('parse-svg-path')
 var getContours = require('svg-path-contours')
 var cdt2d = require('cdt2d')
@@ -3104,7 +8846,7 @@ function denestPolyline (nested) {
   }
 }
 
-},{"bound-points":25,"cdt2d":26,"clean-pslg":44,"normalize-path-scale":90,"object-assign":92,"parse-svg-path":93,"random-float":94,"simplify-path":96,"svg-path-contours":98}],25:[function(require,module,exports){
+},{"bound-points":51,"cdt2d":52,"clean-pslg":70,"normalize-path-scale":116,"object-assign":118,"parse-svg-path":119,"random-float":120,"simplify-path":122,"svg-path-contours":124}],51:[function(require,module,exports){
 'use strict'
 
 module.exports = findBounds
@@ -3127,7 +8869,7 @@ function findBounds(points) {
   }
   return [lo, hi]
 }
-},{}],26:[function(require,module,exports){
+},{}],52:[function(require,module,exports){
 'use strict'
 
 var monotoneTriangulate = require('./lib/monotone')
@@ -3211,7 +8953,7 @@ function cdt2d(points, edges, options) {
   }
 }
 
-},{"./lib/delaunay":27,"./lib/filter":28,"./lib/monotone":29,"./lib/triangulation":30}],27:[function(require,module,exports){
+},{"./lib/delaunay":53,"./lib/filter":54,"./lib/monotone":55,"./lib/triangulation":56}],53:[function(require,module,exports){
 'use strict'
 
 var inCircle = require('robust-in-sphere')[4]
@@ -3328,7 +9070,7 @@ function delaunayRefine(points, triangulation) {
   }
 }
 
-},{"binary-search-bounds":31,"robust-in-sphere":32}],28:[function(require,module,exports){
+},{"binary-search-bounds":57,"robust-in-sphere":58}],54:[function(require,module,exports){
 'use strict'
 
 var bsearch = require('binary-search-bounds')
@@ -3510,7 +9252,7 @@ function classifyFaces(triangulation, target, infinity) {
   return result
 }
 
-},{"binary-search-bounds":31}],29:[function(require,module,exports){
+},{"binary-search-bounds":57}],55:[function(require,module,exports){
 'use strict'
 
 var bsearch = require('binary-search-bounds')
@@ -3699,7 +9441,7 @@ function monotoneTriangulate(points, edges) {
   return cells
 }
 
-},{"binary-search-bounds":31,"robust-orientation":43}],30:[function(require,module,exports){
+},{"binary-search-bounds":57,"robust-orientation":69}],56:[function(require,module,exports){
 'use strict'
 
 var bsearch = require('binary-search-bounds')
@@ -3805,7 +9547,7 @@ function createTriangulation(numVerts, edges) {
   return new Triangulation(stars, edges)
 }
 
-},{"binary-search-bounds":31}],31:[function(require,module,exports){
+},{"binary-search-bounds":57}],57:[function(require,module,exports){
 "use strict"
 
 function compileSearch(funcName, predicate, reversed, extraArgs, earlyOut) {
@@ -3859,7 +9601,7 @@ module.exports = {
   eq: compileBoundsSearch("-", true, "EQ", true)
 }
 
-},{}],32:[function(require,module,exports){
+},{}],58:[function(require,module,exports){
 "use strict"
 
 var twoProduct = require("two-product")
@@ -4027,625 +9769,29 @@ function generateInSphereTest() {
 }
 
 generateInSphereTest()
-},{"robust-scale":34,"robust-subtract":35,"robust-sum":36,"two-product":37}],33:[function(require,module,exports){
-"use strict"
-
-module.exports = fastTwoSum
-
-function fastTwoSum(a, b, result) {
-	var x = a + b
-	var bv = x - a
-	var av = x - bv
-	var br = b - bv
-	var ar = a - av
-	if(result) {
-		result[0] = ar + br
-		result[1] = x
-		return result
-	}
-	return [ar+br, x]
-}
-},{}],34:[function(require,module,exports){
-"use strict"
-
-var twoProduct = require("two-product")
-var twoSum = require("two-sum")
-
-module.exports = scaleLinearExpansion
-
-function scaleLinearExpansion(e, scale) {
-  var n = e.length
-  if(n === 1) {
-    var ts = twoProduct(e[0], scale)
-    if(ts[0]) {
-      return ts
-    }
-    return [ ts[1] ]
-  }
-  var g = new Array(2 * n)
-  var q = [0.1, 0.1]
-  var t = [0.1, 0.1]
-  var count = 0
-  twoProduct(e[0], scale, q)
-  if(q[0]) {
-    g[count++] = q[0]
-  }
-  for(var i=1; i<n; ++i) {
-    twoProduct(e[i], scale, t)
-    var pq = q[1]
-    twoSum(pq, t[0], q)
-    if(q[0]) {
-      g[count++] = q[0]
-    }
-    var a = t[1]
-    var b = q[1]
-    var x = a + b
-    var bv = x - a
-    var y = b - bv
-    q[1] = x
-    if(y) {
-      g[count++] = y
-    }
-  }
-  if(q[1]) {
-    g[count++] = q[1]
-  }
-  if(count === 0) {
-    g[count++] = 0.0
-  }
-  g.length = count
-  return g
-}
-},{"two-product":37,"two-sum":33}],35:[function(require,module,exports){
-"use strict"
-
-module.exports = robustSubtract
-
-//Easy case: Add two scalars
-function scalarScalar(a, b) {
-  var x = a + b
-  var bv = x - a
-  var av = x - bv
-  var br = b - bv
-  var ar = a - av
-  var y = ar + br
-  if(y) {
-    return [y, x]
-  }
-  return [x]
-}
-
-function robustSubtract(e, f) {
-  var ne = e.length|0
-  var nf = f.length|0
-  if(ne === 1 && nf === 1) {
-    return scalarScalar(e[0], -f[0])
-  }
-  var n = ne + nf
-  var g = new Array(n)
-  var count = 0
-  var eptr = 0
-  var fptr = 0
-  var abs = Math.abs
-  var ei = e[eptr]
-  var ea = abs(ei)
-  var fi = -f[fptr]
-  var fa = abs(fi)
-  var a, b
-  if(ea < fa) {
-    b = ei
-    eptr += 1
-    if(eptr < ne) {
-      ei = e[eptr]
-      ea = abs(ei)
-    }
-  } else {
-    b = fi
-    fptr += 1
-    if(fptr < nf) {
-      fi = -f[fptr]
-      fa = abs(fi)
-    }
-  }
-  if((eptr < ne && ea < fa) || (fptr >= nf)) {
-    a = ei
-    eptr += 1
-    if(eptr < ne) {
-      ei = e[eptr]
-      ea = abs(ei)
-    }
-  } else {
-    a = fi
-    fptr += 1
-    if(fptr < nf) {
-      fi = -f[fptr]
-      fa = abs(fi)
-    }
-  }
-  var x = a + b
-  var bv = x - a
-  var y = b - bv
-  var q0 = y
-  var q1 = x
-  var _x, _bv, _av, _br, _ar
-  while(eptr < ne && fptr < nf) {
-    if(ea < fa) {
-      a = ei
-      eptr += 1
-      if(eptr < ne) {
-        ei = e[eptr]
-        ea = abs(ei)
-      }
-    } else {
-      a = fi
-      fptr += 1
-      if(fptr < nf) {
-        fi = -f[fptr]
-        fa = abs(fi)
-      }
-    }
-    b = q0
-    x = a + b
-    bv = x - a
-    y = b - bv
-    if(y) {
-      g[count++] = y
-    }
-    _x = q1 + x
-    _bv = _x - q1
-    _av = _x - _bv
-    _br = x - _bv
-    _ar = q1 - _av
-    q0 = _ar + _br
-    q1 = _x
-  }
-  while(eptr < ne) {
-    a = ei
-    b = q0
-    x = a + b
-    bv = x - a
-    y = b - bv
-    if(y) {
-      g[count++] = y
-    }
-    _x = q1 + x
-    _bv = _x - q1
-    _av = _x - _bv
-    _br = x - _bv
-    _ar = q1 - _av
-    q0 = _ar + _br
-    q1 = _x
-    eptr += 1
-    if(eptr < ne) {
-      ei = e[eptr]
-    }
-  }
-  while(fptr < nf) {
-    a = fi
-    b = q0
-    x = a + b
-    bv = x - a
-    y = b - bv
-    if(y) {
-      g[count++] = y
-    } 
-    _x = q1 + x
-    _bv = _x - q1
-    _av = _x - _bv
-    _br = x - _bv
-    _ar = q1 - _av
-    q0 = _ar + _br
-    q1 = _x
-    fptr += 1
-    if(fptr < nf) {
-      fi = -f[fptr]
-    }
-  }
-  if(q0) {
-    g[count++] = q0
-  }
-  if(q1) {
-    g[count++] = q1
-  }
-  if(!count) {
-    g[count++] = 0.0  
-  }
-  g.length = count
-  return g
-}
-},{}],36:[function(require,module,exports){
-"use strict"
-
-module.exports = linearExpansionSum
-
-//Easy case: Add two scalars
-function scalarScalar(a, b) {
-  var x = a + b
-  var bv = x - a
-  var av = x - bv
-  var br = b - bv
-  var ar = a - av
-  var y = ar + br
-  if(y) {
-    return [y, x]
-  }
-  return [x]
-}
-
-function linearExpansionSum(e, f) {
-  var ne = e.length|0
-  var nf = f.length|0
-  if(ne === 1 && nf === 1) {
-    return scalarScalar(e[0], f[0])
-  }
-  var n = ne + nf
-  var g = new Array(n)
-  var count = 0
-  var eptr = 0
-  var fptr = 0
-  var abs = Math.abs
-  var ei = e[eptr]
-  var ea = abs(ei)
-  var fi = f[fptr]
-  var fa = abs(fi)
-  var a, b
-  if(ea < fa) {
-    b = ei
-    eptr += 1
-    if(eptr < ne) {
-      ei = e[eptr]
-      ea = abs(ei)
-    }
-  } else {
-    b = fi
-    fptr += 1
-    if(fptr < nf) {
-      fi = f[fptr]
-      fa = abs(fi)
-    }
-  }
-  if((eptr < ne && ea < fa) || (fptr >= nf)) {
-    a = ei
-    eptr += 1
-    if(eptr < ne) {
-      ei = e[eptr]
-      ea = abs(ei)
-    }
-  } else {
-    a = fi
-    fptr += 1
-    if(fptr < nf) {
-      fi = f[fptr]
-      fa = abs(fi)
-    }
-  }
-  var x = a + b
-  var bv = x - a
-  var y = b - bv
-  var q0 = y
-  var q1 = x
-  var _x, _bv, _av, _br, _ar
-  while(eptr < ne && fptr < nf) {
-    if(ea < fa) {
-      a = ei
-      eptr += 1
-      if(eptr < ne) {
-        ei = e[eptr]
-        ea = abs(ei)
-      }
-    } else {
-      a = fi
-      fptr += 1
-      if(fptr < nf) {
-        fi = f[fptr]
-        fa = abs(fi)
-      }
-    }
-    b = q0
-    x = a + b
-    bv = x - a
-    y = b - bv
-    if(y) {
-      g[count++] = y
-    }
-    _x = q1 + x
-    _bv = _x - q1
-    _av = _x - _bv
-    _br = x - _bv
-    _ar = q1 - _av
-    q0 = _ar + _br
-    q1 = _x
-  }
-  while(eptr < ne) {
-    a = ei
-    b = q0
-    x = a + b
-    bv = x - a
-    y = b - bv
-    if(y) {
-      g[count++] = y
-    }
-    _x = q1 + x
-    _bv = _x - q1
-    _av = _x - _bv
-    _br = x - _bv
-    _ar = q1 - _av
-    q0 = _ar + _br
-    q1 = _x
-    eptr += 1
-    if(eptr < ne) {
-      ei = e[eptr]
-    }
-  }
-  while(fptr < nf) {
-    a = fi
-    b = q0
-    x = a + b
-    bv = x - a
-    y = b - bv
-    if(y) {
-      g[count++] = y
-    } 
-    _x = q1 + x
-    _bv = _x - q1
-    _av = _x - _bv
-    _br = x - _bv
-    _ar = q1 - _av
-    q0 = _ar + _br
-    q1 = _x
-    fptr += 1
-    if(fptr < nf) {
-      fi = f[fptr]
-    }
-  }
-  if(q0) {
-    g[count++] = q0
-  }
-  if(q1) {
-    g[count++] = q1
-  }
-  if(!count) {
-    g[count++] = 0.0  
-  }
-  g.length = count
-  return g
-}
-},{}],37:[function(require,module,exports){
-"use strict"
-
-module.exports = twoProduct
-
-var SPLITTER = +(Math.pow(2, 27) + 1.0)
-
-function twoProduct(a, b, result) {
-  var x = a * b
-
-  var c = SPLITTER * a
-  var abig = c - a
-  var ahi = c - abig
-  var alo = a - ahi
-
-  var d = SPLITTER * b
-  var bbig = d - b
-  var bhi = d - bbig
-  var blo = b - bhi
-
-  var err1 = x - (ahi * bhi)
-  var err2 = err1 - (alo * bhi)
-  var err3 = err2 - (ahi * blo)
-
-  var y = alo * blo - err3
-
-  if(result) {
-    result[0] = y
-    result[1] = x
-    return result
-  }
-
-  return [ y, x ]
-}
-},{}],38:[function(require,module,exports){
-arguments[4][33][0].apply(exports,arguments)
-},{"dup":33}],39:[function(require,module,exports){
-arguments[4][34][0].apply(exports,arguments)
-},{"dup":34,"two-product":42,"two-sum":38}],40:[function(require,module,exports){
-arguments[4][35][0].apply(exports,arguments)
-},{"dup":35}],41:[function(require,module,exports){
-arguments[4][36][0].apply(exports,arguments)
-},{"dup":36}],42:[function(require,module,exports){
-arguments[4][37][0].apply(exports,arguments)
-},{"dup":37}],43:[function(require,module,exports){
-"use strict"
-
-var twoProduct = require("two-product")
-var robustSum = require("robust-sum")
-var robustScale = require("robust-scale")
-var robustSubtract = require("robust-subtract")
-
-var NUM_EXPAND = 5
-
-var EPSILON     = 1.1102230246251565e-16
-var ERRBOUND3   = (3.0 + 16.0 * EPSILON) * EPSILON
-var ERRBOUND4   = (7.0 + 56.0 * EPSILON) * EPSILON
-
-function cofactor(m, c) {
-  var result = new Array(m.length-1)
-  for(var i=1; i<m.length; ++i) {
-    var r = result[i-1] = new Array(m.length-1)
-    for(var j=0,k=0; j<m.length; ++j) {
-      if(j === c) {
-        continue
-      }
-      r[k++] = m[i][j]
-    }
-  }
-  return result
-}
-
-function matrix(n) {
-  var result = new Array(n)
-  for(var i=0; i<n; ++i) {
-    result[i] = new Array(n)
-    for(var j=0; j<n; ++j) {
-      result[i][j] = ["m", j, "[", (n-i-1), "]"].join("")
-    }
-  }
-  return result
-}
-
-function sign(n) {
-  if(n & 1) {
-    return "-"
-  }
-  return ""
-}
-
-function generateSum(expr) {
-  if(expr.length === 1) {
-    return expr[0]
-  } else if(expr.length === 2) {
-    return ["sum(", expr[0], ",", expr[1], ")"].join("")
-  } else {
-    var m = expr.length>>1
-    return ["sum(", generateSum(expr.slice(0, m)), ",", generateSum(expr.slice(m)), ")"].join("")
-  }
-}
-
-function determinant(m) {
-  if(m.length === 2) {
-    return [["sum(prod(", m[0][0], ",", m[1][1], "),prod(-", m[0][1], ",", m[1][0], "))"].join("")]
-  } else {
-    var expr = []
-    for(var i=0; i<m.length; ++i) {
-      expr.push(["scale(", generateSum(determinant(cofactor(m, i))), ",", sign(i), m[0][i], ")"].join(""))
-    }
-    return expr
-  }
-}
-
-function orientation(n) {
-  var pos = []
-  var neg = []
-  var m = matrix(n)
-  var args = []
-  for(var i=0; i<n; ++i) {
-    if((i&1)===0) {
-      pos.push.apply(pos, determinant(cofactor(m, i)))
-    } else {
-      neg.push.apply(neg, determinant(cofactor(m, i)))
-    }
-    args.push("m" + i)
-  }
-  var posExpr = generateSum(pos)
-  var negExpr = generateSum(neg)
-  var funcName = "orientation" + n + "Exact"
-  var code = ["function ", funcName, "(", args.join(), "){var p=", posExpr, ",n=", negExpr, ",d=sub(p,n);\
-return d[d.length-1];};return ", funcName].join("")
-  var proc = new Function("sum", "prod", "scale", "sub", code)
-  return proc(robustSum, twoProduct, robustScale, robustSubtract)
-}
-
-var orientation3Exact = orientation(3)
-var orientation4Exact = orientation(4)
-
-var CACHED = [
-  function orientation0() { return 0 },
-  function orientation1() { return 0 },
-  function orientation2(a, b) { 
-    return b[0] - a[0]
-  },
-  function orientation3(a, b, c) {
-    var l = (a[1] - c[1]) * (b[0] - c[0])
-    var r = (a[0] - c[0]) * (b[1] - c[1])
-    var det = l - r
-    var s
-    if(l > 0) {
-      if(r <= 0) {
-        return det
-      } else {
-        s = l + r
-      }
-    } else if(l < 0) {
-      if(r >= 0) {
-        return det
-      } else {
-        s = -(l + r)
-      }
-    } else {
-      return det
-    }
-    var tol = ERRBOUND3 * s
-    if(det >= tol || det <= -tol) {
-      return det
-    }
-    return orientation3Exact(a, b, c)
-  },
-  function orientation4(a,b,c,d) {
-    var adx = a[0] - d[0]
-    var bdx = b[0] - d[0]
-    var cdx = c[0] - d[0]
-    var ady = a[1] - d[1]
-    var bdy = b[1] - d[1]
-    var cdy = c[1] - d[1]
-    var adz = a[2] - d[2]
-    var bdz = b[2] - d[2]
-    var cdz = c[2] - d[2]
-    var bdxcdy = bdx * cdy
-    var cdxbdy = cdx * bdy
-    var cdxady = cdx * ady
-    var adxcdy = adx * cdy
-    var adxbdy = adx * bdy
-    var bdxady = bdx * ady
-    var det = adz * (bdxcdy - cdxbdy) 
-            + bdz * (cdxady - adxcdy)
-            + cdz * (adxbdy - bdxady)
-    var permanent = (Math.abs(bdxcdy) + Math.abs(cdxbdy)) * Math.abs(adz)
-                  + (Math.abs(cdxady) + Math.abs(adxcdy)) * Math.abs(bdz)
-                  + (Math.abs(adxbdy) + Math.abs(bdxady)) * Math.abs(cdz)
-    var tol = ERRBOUND4 * permanent
-    if ((det > tol) || (-det > tol)) {
-      return det
-    }
-    return orientation4Exact(a,b,c,d)
-  }
-]
-
-function slowOrient(args) {
-  var proc = CACHED[args.length]
-  if(!proc) {
-    proc = CACHED[args.length] = orientation(args.length)
-  }
-  return proc.apply(undefined, args)
-}
-
-function generateOrientationProc() {
-  while(CACHED.length <= NUM_EXPAND) {
-    CACHED.push(orientation(CACHED.length))
-  }
-  var args = []
-  var procArgs = ["slow"]
-  for(var i=0; i<=NUM_EXPAND; ++i) {
-    args.push("a" + i)
-    procArgs.push("o" + i)
-  }
-  var code = [
-    "function getOrientation(", args.join(), "){switch(arguments.length){case 0:case 1:return 0;"
-  ]
-  for(var i=2; i<=NUM_EXPAND; ++i) {
-    code.push("case ", i, ":return o", i, "(", args.slice(0, i).join(), ");")
-  }
-  code.push("}var s=new Array(arguments.length);for(var i=0;i<arguments.length;++i){s[i]=arguments[i]};return slow(s);}return getOrientation")
-  procArgs.push(code.join(""))
-
-  var proc = Function.apply(undefined, procArgs)
-  module.exports = proc.apply(undefined, [slowOrient].concat(CACHED))
-  for(var i=0; i<=NUM_EXPAND; ++i) {
-    module.exports[i] = CACHED[i]
-  }
-}
-
-generateOrientationProc()
-},{"robust-scale":39,"robust-subtract":40,"robust-sum":41,"two-product":42}],44:[function(require,module,exports){
+},{"robust-scale":60,"robust-subtract":61,"robust-sum":62,"two-product":63}],59:[function(require,module,exports){
+arguments[4][7][0].apply(exports,arguments)
+},{"dup":7}],60:[function(require,module,exports){
+arguments[4][8][0].apply(exports,arguments)
+},{"dup":8,"two-product":63,"two-sum":59}],61:[function(require,module,exports){
+arguments[4][9][0].apply(exports,arguments)
+},{"dup":9}],62:[function(require,module,exports){
+arguments[4][10][0].apply(exports,arguments)
+},{"dup":10}],63:[function(require,module,exports){
+arguments[4][11][0].apply(exports,arguments)
+},{"dup":11}],64:[function(require,module,exports){
+arguments[4][7][0].apply(exports,arguments)
+},{"dup":7}],65:[function(require,module,exports){
+arguments[4][8][0].apply(exports,arguments)
+},{"dup":8,"two-product":68,"two-sum":64}],66:[function(require,module,exports){
+arguments[4][9][0].apply(exports,arguments)
+},{"dup":9}],67:[function(require,module,exports){
+arguments[4][10][0].apply(exports,arguments)
+},{"dup":10}],68:[function(require,module,exports){
+arguments[4][11][0].apply(exports,arguments)
+},{"dup":11}],69:[function(require,module,exports){
+arguments[4][12][0].apply(exports,arguments)
+},{"dup":12,"robust-scale":65,"robust-subtract":66,"robust-sum":67,"two-product":68}],70:[function(require,module,exports){
 'use strict'
 
 module.exports = cleanPSLG
@@ -5007,7 +10153,7 @@ function cleanPSLG(points, edges, colors) {
   return modified
 }
 
-},{"./lib/rat-seg-intersect":45,"big-rat":49,"big-rat/cmp":47,"big-rat/to-float":64,"box-intersect":65,"compare-cell":75,"nextafter":76,"rat-vec":79,"robust-segment-intersect":88,"union-find":89}],45:[function(require,module,exports){
+},{"./lib/rat-seg-intersect":71,"big-rat":75,"big-rat/cmp":73,"big-rat/to-float":90,"box-intersect":91,"compare-cell":101,"nextafter":102,"rat-vec":105,"robust-segment-intersect":114,"union-find":115}],71:[function(require,module,exports){
 'use strict'
 
 //TODO: Move this to a separate module
@@ -5053,7 +10199,7 @@ function solveIntersection(a, b, c, d) {
   return rvAdd(a, rvMuls(ba, t))
 }
 
-},{"big-rat/div":48,"big-rat/mul":58,"big-rat/sign":62,"big-rat/sub":63,"big-rat/to-float":64,"rat-vec/add":78,"rat-vec/muls":80,"rat-vec/sub":81}],46:[function(require,module,exports){
+},{"big-rat/div":74,"big-rat/mul":84,"big-rat/sign":88,"big-rat/sub":89,"big-rat/to-float":90,"rat-vec/add":104,"rat-vec/muls":106,"rat-vec/sub":107}],72:[function(require,module,exports){
 'use strict'
 
 var rationalize = require('./lib/rationalize')
@@ -5066,7 +10212,7 @@ function add(a, b) {
     a[1].mul(b[1]))
 }
 
-},{"./lib/rationalize":56}],47:[function(require,module,exports){
+},{"./lib/rationalize":82}],73:[function(require,module,exports){
 'use strict'
 
 module.exports = cmp
@@ -5075,7 +10221,7 @@ function cmp(a, b) {
     return a[0].mul(b[1]).cmp(b[0].mul(a[1]))
 }
 
-},{}],48:[function(require,module,exports){
+},{}],74:[function(require,module,exports){
 'use strict'
 
 var rationalize = require('./lib/rationalize')
@@ -5086,7 +10232,7 @@ function div(a, b) {
   return rationalize(a[0].mul(b[1]), a[1].mul(b[0]))
 }
 
-},{"./lib/rationalize":56}],49:[function(require,module,exports){
+},{"./lib/rationalize":82}],75:[function(require,module,exports){
 'use strict'
 
 var isRat = require('./is-rat')
@@ -5148,7 +10294,7 @@ function makeRational(numer, denom) {
   return rationalize(a, b)
 }
 
-},{"./div":48,"./is-rat":50,"./lib/is-bn":54,"./lib/num-to-bn":55,"./lib/rationalize":56,"./lib/str-to-bn":57}],50:[function(require,module,exports){
+},{"./div":74,"./is-rat":76,"./lib/is-bn":80,"./lib/num-to-bn":81,"./lib/rationalize":82,"./lib/str-to-bn":83}],76:[function(require,module,exports){
 'use strict'
 
 var isBN = require('./lib/is-bn')
@@ -5159,7 +10305,7 @@ function isRat(x) {
   return Array.isArray(x) && x.length === 2 && isBN(x[0]) && isBN(x[1])
 }
 
-},{"./lib/is-bn":54}],51:[function(require,module,exports){
+},{"./lib/is-bn":80}],77:[function(require,module,exports){
 'use strict'
 
 var bn = require('bn.js')
@@ -5170,7 +10316,7 @@ function sign(x) {
   return x.cmp(new bn(0))
 }
 
-},{"bn.js":60}],52:[function(require,module,exports){
+},{"bn.js":86}],78:[function(require,module,exports){
 'use strict'
 
 module.exports = bn2num
@@ -5194,7 +10340,7 @@ function bn2num(b) {
   return b.sign ? -out : out
 }
 
-},{}],53:[function(require,module,exports){
+},{}],79:[function(require,module,exports){
 'use strict'
 
 var db = require('double-bits')
@@ -5215,7 +10361,7 @@ function ctzNumber(x) {
   return h + 32
 }
 
-},{"bit-twiddle":59,"double-bits":61}],54:[function(require,module,exports){
+},{"bit-twiddle":85,"double-bits":87}],80:[function(require,module,exports){
 'use strict'
 
 var BN = require('bn.js')
@@ -5228,7 +10374,7 @@ function isBN(x) {
   return x && typeof x === 'object' && Boolean(x.words)
 }
 
-},{"bn.js":60}],55:[function(require,module,exports){
+},{"bn.js":86}],81:[function(require,module,exports){
 'use strict'
 
 var BN = require('bn.js')
@@ -5245,7 +10391,7 @@ function num2bn(x) {
   }
 }
 
-},{"bn.js":60,"double-bits":61}],56:[function(require,module,exports){
+},{"bn.js":86,"double-bits":87}],82:[function(require,module,exports){
 'use strict'
 
 var num2bn = require('./num-to-bn')
@@ -5273,7 +10419,7 @@ function rationalize(numer, denom) {
   return [ numer, denom ]
 }
 
-},{"./bn-sign":51,"./num-to-bn":55}],57:[function(require,module,exports){
+},{"./bn-sign":77,"./num-to-bn":81}],83:[function(require,module,exports){
 'use strict'
 
 var BN = require('bn.js')
@@ -5284,7 +10430,7 @@ function str2BN(x) {
   return new BN(x)
 }
 
-},{"bn.js":60}],58:[function(require,module,exports){
+},{"bn.js":86}],84:[function(require,module,exports){
 'use strict'
 
 var rationalize = require('./lib/rationalize')
@@ -5295,9 +10441,9 @@ function mul(a, b) {
   return rationalize(a[0].mul(b[0]), a[1].mul(b[1]))
 }
 
-},{"./lib/rationalize":56}],59:[function(require,module,exports){
-arguments[4][20][0].apply(exports,arguments)
-},{"dup":20}],60:[function(require,module,exports){
+},{"./lib/rationalize":82}],85:[function(require,module,exports){
+arguments[4][35][0].apply(exports,arguments)
+},{"dup":35}],86:[function(require,module,exports){
 (function (module, exports) {
 
 'use strict';
@@ -7617,7 +12763,7 @@ Mont.prototype.invm = function invm(a) {
 
 })(typeof module === 'undefined' || module, this);
 
-},{}],61:[function(require,module,exports){
+},{}],87:[function(require,module,exports){
 (function (Buffer){
 var hasTypedArrays = false
 if(typeof Float64Array !== "undefined") {
@@ -7721,7 +12867,7 @@ module.exports.denormalized = function(n) {
   return !(hi & 0x7ff00000)
 }
 }).call(this,require("buffer").Buffer)
-},{"buffer":1}],62:[function(require,module,exports){
+},{"buffer":1}],88:[function(require,module,exports){
 'use strict'
 
 var bnsign = require('./lib/bn-sign')
@@ -7732,7 +12878,7 @@ function sign(x) {
   return bnsign(x[0]) * bnsign(x[1])
 }
 
-},{"./lib/bn-sign":51}],63:[function(require,module,exports){
+},{"./lib/bn-sign":77}],89:[function(require,module,exports){
 'use strict'
 
 var rationalize = require('./lib/rationalize')
@@ -7743,7 +12889,7 @@ function sub(a, b) {
   return rationalize(a[0].mul(b[1]).sub(a[1].mul(b[0])), a[1].mul(b[1]))
 }
 
-},{"./lib/rationalize":56}],64:[function(require,module,exports){
+},{"./lib/rationalize":82}],90:[function(require,module,exports){
 'use strict'
 
 var bn2num = require('./lib/bn-to-num')
@@ -7786,7 +12932,7 @@ function roundRat(f) {
   }
 }
 
-},{"./lib/bn-to-num":52,"./lib/ctz":53}],65:[function(require,module,exports){
+},{"./lib/bn-to-num":78,"./lib/ctz":79}],91:[function(require,module,exports){
 'use strict'
 
 module.exports = boxIntersectWrapper
@@ -7925,7 +13071,7 @@ function boxIntersectWrapper(arg0, arg1, arg2) {
       throw new Error('box-intersect: Invalid arguments')
   }
 }
-},{"./lib/intersect":67,"./lib/sweep":71,"typedarray-pool":74}],66:[function(require,module,exports){
+},{"./lib/intersect":93,"./lib/sweep":97,"typedarray-pool":100}],92:[function(require,module,exports){
 'use strict'
 
 var DIMENSION   = 'd'
@@ -8070,7 +13216,7 @@ function bruteForcePlanner(full) {
 
 exports.partial = bruteForcePlanner(false)
 exports.full    = bruteForcePlanner(true)
-},{}],67:[function(require,module,exports){
+},{}],93:[function(require,module,exports){
 'use strict'
 
 module.exports = boxIntersectIter
@@ -8565,7 +13711,7 @@ function boxIntersectIter(
     }
   }
 }
-},{"./brute":66,"./median":68,"./partition":69,"./sweep":71,"bit-twiddle":72,"typedarray-pool":74}],68:[function(require,module,exports){
+},{"./brute":92,"./median":94,"./partition":95,"./sweep":97,"bit-twiddle":98,"typedarray-pool":100}],94:[function(require,module,exports){
 'use strict'
 
 module.exports = findMedian
@@ -8708,7 +13854,7 @@ function findMedian(d, axis, start, end, boxes, ids) {
     start, mid, boxes, ids,
     boxes[elemSize*mid+axis])
 }
-},{"./partition":69}],69:[function(require,module,exports){
+},{"./partition":95}],95:[function(require,module,exports){
 'use strict'
 
 module.exports = genPartition
@@ -8729,7 +13875,7 @@ function genPartition(predicate, args) {
         .replace('$', predicate))
   return Function.apply(void 0, fargs)
 }
-},{}],70:[function(require,module,exports){
+},{}],96:[function(require,module,exports){
 'use strict';
 
 //This code is extracted from ndarray-sort
@@ -8966,7 +14112,7 @@ function quickSort(left, right, data) {
     quickSort(less, great, data);
   }
 }
-},{}],71:[function(require,module,exports){
+},{}],97:[function(require,module,exports){
 'use strict'
 
 module.exports = {
@@ -9401,13 +14547,13 @@ red_loop:
     }
   }
 }
-},{"./sort":70,"bit-twiddle":72,"typedarray-pool":74}],72:[function(require,module,exports){
-arguments[4][20][0].apply(exports,arguments)
-},{"dup":20}],73:[function(require,module,exports){
-arguments[4][7][0].apply(exports,arguments)
-},{"dup":7}],74:[function(require,module,exports){
+},{"./sort":96,"bit-twiddle":98,"typedarray-pool":100}],98:[function(require,module,exports){
+arguments[4][35][0].apply(exports,arguments)
+},{"dup":35}],99:[function(require,module,exports){
 arguments[4][22][0].apply(exports,arguments)
-},{"bit-twiddle":72,"buffer":1,"dup":22}],75:[function(require,module,exports){
+},{"dup":22}],100:[function(require,module,exports){
+arguments[4][37][0].apply(exports,arguments)
+},{"bit-twiddle":98,"buffer":1,"dup":37}],101:[function(require,module,exports){
 module.exports = compareCells
 
 var min = Math.min
@@ -9463,7 +14609,7 @@ function compareCells(a, b) {
   }
 }
 
-},{}],76:[function(require,module,exports){
+},{}],102:[function(require,module,exports){
 "use strict"
 
 var doubleBits = require("double-bits")
@@ -9506,9 +14652,9 @@ function nextafter(x, y) {
   }
   return doubleBits.pack(lo, hi)
 }
-},{"double-bits":77}],77:[function(require,module,exports){
-arguments[4][61][0].apply(exports,arguments)
-},{"buffer":1,"dup":61}],78:[function(require,module,exports){
+},{"double-bits":103}],103:[function(require,module,exports){
+arguments[4][87][0].apply(exports,arguments)
+},{"buffer":1,"dup":87}],104:[function(require,module,exports){
 'use strict'
 
 var bnadd = require('big-rat/add')
@@ -9524,7 +14670,7 @@ function add(a, b) {
   return r
 }
 
-},{"big-rat/add":46}],79:[function(require,module,exports){
+},{"big-rat/add":72}],105:[function(require,module,exports){
 'use strict'
 
 module.exports = float2rat
@@ -9539,7 +14685,7 @@ function float2rat(v) {
   return result
 }
 
-},{"big-rat":49}],80:[function(require,module,exports){
+},{"big-rat":75}],106:[function(require,module,exports){
 'use strict'
 
 var rat = require('big-rat')
@@ -9557,7 +14703,7 @@ function muls(a, x) {
   return r
 }
 
-},{"big-rat":49,"big-rat/mul":58}],81:[function(require,module,exports){
+},{"big-rat":75,"big-rat/mul":84}],107:[function(require,module,exports){
 'use strict'
 
 var bnsub = require('big-rat/sub')
@@ -9573,19 +14719,19 @@ function sub(a, b) {
   return r
 }
 
-},{"big-rat/sub":63}],82:[function(require,module,exports){
-arguments[4][33][0].apply(exports,arguments)
-},{"dup":33}],83:[function(require,module,exports){
-arguments[4][34][0].apply(exports,arguments)
-},{"dup":34,"two-product":86,"two-sum":82}],84:[function(require,module,exports){
-arguments[4][35][0].apply(exports,arguments)
-},{"dup":35}],85:[function(require,module,exports){
-arguments[4][36][0].apply(exports,arguments)
-},{"dup":36}],86:[function(require,module,exports){
-arguments[4][37][0].apply(exports,arguments)
-},{"dup":37}],87:[function(require,module,exports){
-arguments[4][43][0].apply(exports,arguments)
-},{"dup":43,"robust-scale":83,"robust-subtract":84,"robust-sum":85,"two-product":86}],88:[function(require,module,exports){
+},{"big-rat/sub":89}],108:[function(require,module,exports){
+arguments[4][7][0].apply(exports,arguments)
+},{"dup":7}],109:[function(require,module,exports){
+arguments[4][8][0].apply(exports,arguments)
+},{"dup":8,"two-product":112,"two-sum":108}],110:[function(require,module,exports){
+arguments[4][9][0].apply(exports,arguments)
+},{"dup":9}],111:[function(require,module,exports){
+arguments[4][10][0].apply(exports,arguments)
+},{"dup":10}],112:[function(require,module,exports){
+arguments[4][11][0].apply(exports,arguments)
+},{"dup":11}],113:[function(require,module,exports){
+arguments[4][12][0].apply(exports,arguments)
+},{"dup":12,"robust-scale":109,"robust-subtract":110,"robust-sum":111,"two-product":112}],114:[function(require,module,exports){
 "use strict"
 
 module.exports = segmentsIntersect
@@ -9633,7 +14779,7 @@ function segmentsIntersect(a0, a1, b0, b1) {
 
   return true
 }
-},{"robust-orientation":87}],89:[function(require,module,exports){
+},{"robust-orientation":113}],115:[function(require,module,exports){
 "use strict"; "use restrict";
 
 module.exports = UnionFind;
@@ -9696,7 +14842,7 @@ proto.link = function(x, y) {
     ++ranks[xr];
   }
 }
-},{}],90:[function(require,module,exports){
+},{}],116:[function(require,module,exports){
 var getBounds = require('bound-points')
 var unlerp = require('unlerp')
 
@@ -9729,11 +14875,11 @@ function normalizePathScale (positions, bounds) {
   }
   return positions
 }
-},{"bound-points":25,"unlerp":91}],91:[function(require,module,exports){
+},{"bound-points":51,"unlerp":117}],117:[function(require,module,exports){
 module.exports = function range(min, max, value) {
   return (value - min) / (max - min)
 }
-},{}],92:[function(require,module,exports){
+},{}],118:[function(require,module,exports){
 /* eslint-disable no-unused-vars */
 'use strict';
 var hasOwnProperty = Object.prototype.hasOwnProperty;
@@ -9774,7 +14920,7 @@ module.exports = Object.assign || function (target, source) {
 	return to;
 };
 
-},{}],93:[function(require,module,exports){
+},{}],119:[function(require,module,exports){
 
 module.exports = parse
 
@@ -9831,7 +14977,7 @@ function parseValues(args){
 	return args ? args.map(Number) : []
 }
 
-},{}],94:[function(require,module,exports){
+},{}],120:[function(require,module,exports){
 'use strict';
 module.exports = function (min, max) {
 	if (max === undefined) {
@@ -9846,7 +14992,7 @@ module.exports = function (min, max) {
 	return Math.random() * (max - min) + min;
 };
 
-},{}],95:[function(require,module,exports){
+},{}],121:[function(require,module,exports){
 // square distance from a point to a segment
 function getSqSegDist(p, p1, p2) {
     var x = p1[0],
@@ -9910,7 +15056,7 @@ module.exports = function simplifyDouglasPeucker(points, tolerance) {
     return simplified;
 }
 
-},{}],96:[function(require,module,exports){
+},{}],122:[function(require,module,exports){
 var simplifyRadialDist = require('./radial-distance')
 var simplifyDouglasPeucker = require('./douglas-peucker')
 
@@ -9923,7 +15069,7 @@ module.exports = function simplify(points, tolerance) {
 
 module.exports.radialDistance = simplifyRadialDist;
 module.exports.douglasPeucker = simplifyDouglasPeucker;
-},{"./douglas-peucker":95,"./radial-distance":97}],97:[function(require,module,exports){
+},{"./douglas-peucker":121,"./radial-distance":123}],123:[function(require,module,exports){
 function getSqDist(p1, p2) {
     var dx = p1[0] - p2[0],
         dy = p1[1] - p2[1];
@@ -9955,7 +15101,7 @@ module.exports = function simplifyRadialDist(points, tolerance) {
 
     return newPoints;
 }
-},{}],98:[function(require,module,exports){
+},{}],124:[function(require,module,exports){
 var bezier = require('adaptive-bezier-curve')
 var abs = require('abs-svg-path')
 var norm = require('normalize-svg-path')
@@ -10001,7 +15147,7 @@ module.exports = function contours(svg, scale) {
         paths.push(points)
     return paths
 }
-},{"abs-svg-path":99,"adaptive-bezier-curve":101,"normalize-svg-path":102,"vec2-copy":103}],99:[function(require,module,exports){
+},{"abs-svg-path":125,"adaptive-bezier-curve":127,"normalize-svg-path":128,"vec2-copy":129}],125:[function(require,module,exports){
 
 module.exports = absolutize
 
@@ -10070,7 +15216,7 @@ function absolutize(path){
 	})
 }
 
-},{}],100:[function(require,module,exports){
+},{}],126:[function(require,module,exports){
 function clone(point) { //TODO: use gl-vec2 for this
     return [point[0], point[1]]
 }
@@ -10269,9 +15415,9 @@ module.exports = function createBezierBuilder(opt) {
     }
 }
 
-},{}],101:[function(require,module,exports){
+},{}],127:[function(require,module,exports){
 module.exports = require('./function')()
-},{"./function":100}],102:[function(require,module,exports){
+},{"./function":126}],128:[function(require,module,exports){
 
 var π = Math.PI
 var _120 = radians(120)
@@ -10473,13 +15619,13 @@ function radians(degress){
 	return degress * (π / 180)
 }
 
-},{}],103:[function(require,module,exports){
+},{}],129:[function(require,module,exports){
 module.exports = function vec2Copy(out, a) {
     out[0] = a[0]
     out[1] = a[1]
     return out
 }
-},{}],104:[function(require,module,exports){
+},{}],130:[function(require,module,exports){
 var inherits = require('inherits')
 
 module.exports = function(THREE) {
@@ -10533,7 +15679,7 @@ module.exports = function(THREE) {
 
     return Complex
 }
-},{"inherits":105}],105:[function(require,module,exports){
+},{"inherits":131}],131:[function(require,module,exports){
 if (typeof Object.create === 'function') {
   // implementation from standard node.js 'util' module
   module.exports = function inherits(ctor, superCtor) {
@@ -10558,7 +15704,7 @@ if (typeof Object.create === 'function') {
   }
 }
 
-},{}],106:[function(require,module,exports){
+},{}],132:[function(require,module,exports){
 module.exports = unindex
 
 function unindex(positions, cells, out) {
@@ -10612,7 +15758,7 @@ function unindex(positions, cells, out) {
   return out
 }
 
-},{}],107:[function(require,module,exports){
+},{}],133:[function(require,module,exports){
 window.loadSvg = require('load-svg')
 window.parsePath = require('extract-svg-path').parse
 window.svgMesh3d = require('svg-mesh-3d')
@@ -10622,4 +15768,8 @@ window.createGeom = require('three-simplicial-complex')(THREE)
 window.meshLaplacian = require('mesh-laplacian')
 window.csrMatrix = require('csr-matrix')
 window.drawTriangles = require('draw-triangles-2d')
-},{"csr-matrix":5,"draw-triangles-2d":8,"extract-svg-path":9,"load-svg":11,"mesh-laplacian":19,"mesh-reindex":23,"svg-mesh-3d":24,"three-simplicial-complex":104,"unindex-mesh":106}]},{},[107]);
+window.svgIntersections = require('svg-intersections');
+window.polygonBoolean = require('2d-polygon-boolean');
+
+
+},{"2d-polygon-boolean":5,"csr-matrix":20,"draw-triangles-2d":23,"extract-svg-path":24,"load-svg":26,"mesh-laplacian":34,"mesh-reindex":38,"svg-intersections":39,"svg-mesh-3d":50,"three-simplicial-complex":130,"unindex-mesh":132}]},{},[133]);

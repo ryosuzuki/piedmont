@@ -27,6 +27,7 @@
   },
   "homepage": "https://github.com/ryosuzuki/piedmont",
   "dependencies": {
+    "2d-polygon-boolean": "^1.0.1",
     "browserify": "^11.1.0",
     "bunny": "^1.0.1",
     "co-views": "^2.1.0",
@@ -53,6 +54,7 @@
     "ref-array": "^1.1.2",
     "ref-struct": "^1.0.2",
     "spatial-grid": "^0.1.1",
+    "svg-intersections": "git://github.com/effektif/svg-intersections.git",
     "svg-mesh-3d": "^1.0.1",
     "swig": "^1.4.2",
     "three": "^0.74.0",

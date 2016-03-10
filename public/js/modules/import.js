@@ -7,3 +7,6 @@ window.createGeom = require('three-simplicial-complex')(THREE)
 window.meshLaplacian = require('mesh-laplacian')
 window.csrMatrix = require('csr-matrix')
 window.drawTriangles = require('draw-triangles-2d')
+window.svgIntersections = require('svg-intersections');
+window.polygonBoolean = require('2d-polygon-boolean');
+
