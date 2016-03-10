@@ -5525,3351 +5525,79 @@ function reindex(array) {
 }
 
 },{}],39:[function(require,module,exports){
-// expose module classes
-
-exports.intersect = require('./lib/intersect');
-exports.shape = require('./lib/IntersectionParams').newShape;
-},{"./lib/IntersectionParams":41,"./lib/intersect":42}],40:[function(require,module,exports){
-/**
- *  Intersection
- */
-function Intersection(status) {
-    this.init(status);
-}
-
-/**
- *  init
- *
- *  @param {String} status
- *  @returns {Intersection}
- */
-Intersection.prototype.init = function(status) {
-    this.status = status;
-    this.points = [];
-};
-
-/**
- *  appendPoint
- *
- *  @param {Point2D} point
- */
-Intersection.prototype.appendPoint = function(point) {
-    this.points.push(point);
-};
-
-/**
- *  appendPoints
- *
- *  @param {Array<Point2D>} points
- */
-Intersection.prototype.appendPoints = function(points) {
-    this.points = this.points.concat(points);
-};
-
-module.exports = Intersection;
-
-},{}],41:[function(require,module,exports){
-var Point2D = require('kld-affine').Point2D;
-
-
-/**
-    getArcParameters
-
-    @param {Point2D} startPoint
-    @param {Point2D} endPoint
-    @param {Number} rx
-    @param {Number} ry
-    @param {Number} angle - in degrees
-    @param {Boolean} arcFlag
-    @param {Boolean} sweepFlag
-    @returns {{ center: Point2D, rx: Number, ry: Number, theta1: Number, deltaTheta: Number }}
-*/
-function getArcParameters(startPoint, endPoint, rx, ry, angle, arcFlag, sweepFlag) {
-    function radian(ux, uy, vx, vy) {
-        var dot = ux * vx + uy * vy;
-        var mod = Math.sqrt((ux * ux + uy * uy) * (vx * vx + vy * vy));
-        var rad = Math.acos(dot / mod);
-        if (ux * vy - uy * vx < 0.0) rad = -rad;
-        return rad;
-    }
-    angle = angle * Math.PI / 180;
-    var c = Math.cos(angle);
-    var s = Math.sin(angle);
-    var TOLERANCE = 1e-6;
-    var halfDiff = startPoint.subtract(endPoint).divide(2);
-    var x1p = halfDiff.x * c + halfDiff.y * s;
-    var y1p = halfDiff.x * -s + halfDiff.y * c;
-    var x1px1p = x1p * x1p;
-    var y1py1p = y1p * y1p;
-    var lambda = (x1px1p / (rx * rx)) + (y1py1p / (ry * ry));
-    var factor;
-    if (lambda > 1) {
-        factor = Math.sqrt(lambda);
-        rx *= factor;
-        ry *= factor;
-    }
-    var rxrx = rx * rx;
-    var ryry = ry * ry;
-    var rxy1 = rxrx * y1py1p;
-    var ryx1 = ryry * x1px1p;
-    factor = (rxrx * ryry - rxy1 - ryx1) / (rxy1 + ryx1);
-    if (Math.abs(factor) < TOLERANCE) factor = 0;
-    var sq = Math.sqrt(factor);
-    if (arcFlag == sweepFlag) sq = -sq;
-    var mid = startPoint.add(endPoint).divide(2);
-    var cxp = sq * rx * y1p / ry;
-    var cyp = sq * -ry * x1p / rx;
-    //return new Point2D(cxp * c - cyp * s + mid.x, cxp * s + cyp * c + mid.y);
-
-    var xcr1 = (x1p - cxp) / rx;
-    var xcr2 = (x1p + cxp) / rx;
-    var ycr1 = (y1p - cyp) / ry;
-    var ycr2 = (y1p + cyp) / ry;
-
-    var vcr1 = new Vector2D(1, 0);
-    var theta1 = radian(1.0, 0.0, xcr1, ycr1);
-
-    var deltaTheta = radian(xcr1, ycr1, -xcr2, -ycr2);
-    var PIx2 = Math.PI * 2.0;
-    while (deltaTheta > PIx2) deltaTheta -= PIx2;
-    while (deltaTheta < 0.0) deltaTheta += PIx2;
-    if (sweepFlag == false) deltaTheta -= PIx2;
-
-    return {
-        center: new Point2D(cxp * c - cyp * s + mid.x, cxp * s + cyp * c + mid.y),
-        rx: rx,
-        ry: ry,
-        theta1: theta1,
-        deltaTheta: deltaTheta
-    };
-}
-
-
-/**
- *  IntersectionParams
- *
- *  @param {String} name
- *  @param {Array<Point2D} params
- *  @returns {IntersectionParams}
- */
-function IntersectionParams(name, params) {
-    this.init(name, params);
-}
-
-/** 
- *  init
- *
- *  @param {String} type
- *  @param {Array<Point2D>} params
- */
-IntersectionParams.prototype.init = function (type, params) {
-    this.type = type;
-    this.params = params;
-    this.meta = {};
-};
-
-IntersectionParams.TYPE = {};
-var IPTYPE = IntersectionParams.TYPE;
-IPTYPE.LINE = 'Line';
-IPTYPE.RECT = 'Rectangle';
-IPTYPE.ROUNDRECT = 'RoundRectangle';
-IPTYPE.CIRCLE = 'Circle';
-IPTYPE.ELLIPSE = 'Ellipse';
-IPTYPE.POLYGON = 'Polygon';
-IPTYPE.POLYLINE = 'Polyline';
-IPTYPE.PATH = 'Path';
-IPTYPE.ARC = 'Arc';
-IPTYPE.BEZIER2 = 'Bezier2';
-IPTYPE.BEZIER3 = 'Bezier3';
-
-
-function parsePointsString(points) {
-    return points.split(" ").map(function(point) {
-        point = point.split(",");
-        return new Point2D(point[0], point[1]);
-    });
-}
-
-IntersectionParams.newShape = function(svgElementName, props) {
-    svgElementName = svgElementName.toLowerCase();
-
-    if(svgElementName === "line") {
-        return IntersectionParams.newLine(
-            new Point2D(props.x1, props.y1),
-            new Point2D(props.x2, props.y2)
-        );
-    }
-
-    if(svgElementName === "rect") {
-        if(props.rx > 0 || props.ry > 0) {
-            return IntersectionParams.newRoundRect(
-                props.x, props.y,
-                props.width, props.height,
-                props.rx, props.ry
-            );
-        } else {
-            return IntersectionParams.newRect(
-                props.x, props.y,
-                props.width, props.height
-            );
-        }
-    }
-
-    if(svgElementName === "circle") {
-        return IntersectionParams.newCircle(
-            new Point2D(props.cx, props.cy),
-            props.r
-        );
-    }
-
-    if(svgElementName === "ellipse") {
-        return IntersectionParams.newEllipse(
-            new Point2D(props.cx, props.cy),
-            props.rx, props.ry
-        );
-    }
-
-    if(svgElementName === "polygon") {
-        return IntersectionParams.newPolygon(
-            parsePointsString(props.points)
-        );
-    }
-
-    if(svgElementName === "polyline") {
-        return IntersectionParams.newPolyline(
-            parsePointsString(props.points)
-        );
-    }
-
-    if(svgElementName === "path") {
-        return IntersectionParams.newPath(
-            props.d
-        );
-    }
-
-}
-
-
-///////////////////////////////////////////////////////////////////
-/**
-    Creates IntersectionParams for arc.
-
-    @param {Point2D} startPoint - arc start point
-    @param {Point2D} endPoint - arc end point
-    @param {Number} rx - arc ellipse x radius
-    @param {Number} ry - arc ellipse y radius
-    @param {Number} angle - arc ellipse rotation in degrees
-    @param {Boolean} largeArcFlag
-    @param {Boolean} sweepFlag
-    @returns {IntersectionParams}
-*/
-IntersectionParams.newArc = function (startPoint, endPoint, rx, ry, angle, largeArcFlag, sweepFlag) {
-    var p = getArcParameters(startPoint, endPoint, rx, ry, angle, largeArcFlag, sweepFlag);
-    return new IntersectionParams(IPTYPE.ARC, [p.center, p.rx, p.ry, (angle * Math.PI / 180), p.theta1, p.deltaTheta]);
-};
-
-///////////////////////////////////////////////////////////////////
-/**
-    Creates IntersectionParams for bezier2.
-
-    @param {Point2D} p1
-    @param {Point2D} p2
-    @param {Point2D} p3
-    @returns {IntersectionParams}
-*/
-IntersectionParams.newBezier2 = function (p1, p2, p3) {
-    return new IntersectionParams(IPTYPE.BEZIER2, [p1, p2, p3]);
-};
-
-///////////////////////////////////////////////////////////////////
-/**
-    Creates IntersectionParams for bezier3.
-
-    @param {Point2D} p1
-    @param {Point2D} p2
-    @param {Point2D} p3
-    @param {Point2D} p4
-    @returns {IntersectionParams}
-*/
-IntersectionParams.newBezier3 = function (p1, p2, p3, p4) {
-    return new IntersectionParams(IPTYPE.BEZIER3, [p1, p2, p3, p4]);
-};
-
-///////////////////////////////////////////////////////////////////
-/**
-    Creates IntersectionParams for circle.
-
-    @param {Point2D} c
-    @param {Number} r
-    @returns {IntersectionParams}
-*/
-IntersectionParams.newCircle = function (c, r) {
-    return new IntersectionParams(IPTYPE.CIRCLE, [c, r]);
-};
-
-///////////////////////////////////////////////////////////////////
-/**
-    Creates IntersectionParams for ellipse.
-
-    @param {Point2D} c
-    @param {Number} rx
-    @param {Number} ry
-    @returns {IntersectionParams}
-*/
-IntersectionParams.newEllipse = function (c, rx, ry) {
-    return new IntersectionParams(IPTYPE.ELLIPSE, [c, rx, ry]);
-};
-
-///////////////////////////////////////////////////////////////////
-/**
-    Creates IntersectionParams for line.
-
-    @param {Point2D} a1
-    @param {Point2D} a2
-    @returns {IntersectionParams}
-*/
-IntersectionParams.newLine = function (a1, a2) {
-    return new IntersectionParams(IPTYPE.LINE, [a1, a2]);
-};
-
-///////////////////////////////////////////////////////////////////
-/**
-    Creates IntersectionParams for polygon.
-
-    @param {Array<Point2D>} points
-    @returns {IntersectionParams}
-*/
-IntersectionParams.newPolygon = function (points) {
-    return new IntersectionParams(IPTYPE.POLYGON, [points]);
-};
-
-///////////////////////////////////////////////////////////////////
-/**
-    Creates IntersectionParams for polyline.
-
-     @param {Array<Point2D>} points
-    @returns {IntersectionParams}
-*/
-IntersectionParams.newPolyline = function (points) {
-    return new IntersectionParams(IPTYPE.POLYLINE, [points]);
-};
-
-
-///////////////////////////////////////////////////////////////////
-/**
-    Creates IntersectionParams for rectangle.
-
-    @param {Number} x
-    @param {Number} y
-    @param {Number} width
-    @param {Number} height
-    @returns {IntersectionParams}
-*/
-IntersectionParams.newRect = function (x, y, width, height) {
-    var points = [];
-    points.push(new Point2D(x, y));
-    points.push(new Point2D(x + width, y));
-    points.push(new Point2D(x + width, y + height));
-    points.push(new Point2D(x, y + height));
-    return new IntersectionParams(IPTYPE.RECT, [points]);
-};
-
-var degreesToRadians = function (angle) {
-    return angle * Math.PI / 180;
-};
-///////////////////////////////////////////////////////////////////
-/**
-    Creates IntersectionParams for round rectangle, or for rectangle if rx and ry are 0.
-
-    @param {Number} x
-    @param {Number} y
-    @param {Number} width
-    @param {Number} height
-    @param {Number} rx
-    @param {Number} ry
-    @returns {IntersectionParams}
-*/
-IntersectionParams.newRoundRect = function (x, y, width, height, rx, ry) {
-    if (rx === 0 && ry === 0)
-        return IntersectionParams.newRect(x, y, width, height);
-    if (rx === 0)
-        rx = ry;
-    if (ry === 0)
-        ry = rx;
-    if (rx > width / 2)
-        rx = width / 2;
-    if (ry > height / 2)
-        rx = height / 2;
-    var shape = [];
-    var x0 = x, x1 = x + rx, x2 = x + width - rx, x3 = x + width;
-    var y0 = y, y1 = y + ry, y2 = y + height - ry, y3 = y + height;
-    shape.push(new IntersectionParams(IPTYPE.ARC, [new Point2D(x1, y1), rx, ry, 0, degreesToRadians(180), degreesToRadians(90)]));
-    shape.push(new IntersectionParams(IPTYPE.LINE, [new Point2D(x1, y0), new Point2D(x2, y0)]));
-    shape.push(new IntersectionParams(IPTYPE.ARC, [new Point2D(x2, y1), rx, ry, 0, degreesToRadians(-90), degreesToRadians(90)]));
-    shape.push(new IntersectionParams(IPTYPE.LINE, [new Point2D(x3, y1), new Point2D(x3, y2)]));
-    shape.push(new IntersectionParams(IPTYPE.ARC, [new Point2D(x2, y2), rx, ry, 0, degreesToRadians(0), degreesToRadians(90)]));
-    shape.push(new IntersectionParams(IPTYPE.LINE, [new Point2D(x2, y3), new Point2D(x1, y3)]));
-    shape.push(new IntersectionParams(IPTYPE.ARC, [new Point2D(x1, y2), rx, ry, 0, degreesToRadians(90), degreesToRadians(90)]));
-    shape.push(new IntersectionParams(IPTYPE.LINE, [new Point2D(x0, y2), new Point2D(x0, y1)]));
-    shape[shape.length - 1].meta.closePath = true;
-    return new IntersectionParams(IPTYPE.ROUNDRECT, [shape]);
-};
-
-
-
-
-function Token(type, text) {
-    if (arguments.length > 0) {
-        this.init(type, text);
-    }
-}
-Token.prototype.init = function(type, text) {
-    this.type = type;
-    this.text = text;
-};
-Token.prototype.typeis = function(type) {
-    return this.type == type;
-}
-var Path = {};
-Path.COMMAND = 0;
-Path.NUMBER = 1;
-Path.EOD = 2;
-Path.PARAMS = {
-    A: ["rx", "ry", "x-axis-rotation", "large-arc-flag", "sweep-flag", "x", "y"],
-    a: ["rx", "ry", "x-axis-rotation", "large-arc-flag", "sweep-flag", "x", "y"],
-    C: ["x1", "y1", "x2", "y2", "x", "y"],
-    c: ["x1", "y1", "x2", "y2", "x", "y"],
-    H: ["x"],
-    h: ["x"],
-    L: ["x", "y"],
-    l: ["x", "y"],
-    M: ["x", "y"],
-    m: ["x", "y"],
-    Q: ["x1", "y1", "x", "y"],
-    q: ["x1", "y1", "x", "y"],
-    S: ["x2", "y2", "x", "y"],
-    s: ["x2", "y2", "x", "y"],
-    T: ["x", "y"],
-    t: ["x", "y"],
-    V: ["y"],
-    v: ["y"],
-    Z: [],
-    z: []
-};
-
-function tokenize(d) {
-    var tokens = new Array();
-    while (d != "") {
-        if (d.match(/^([ \t\r\n,]+)/)) {
-            d = d.substr(RegExp.$1.length);
-        } else if (d.match(/^([aAcChHlLmMqQsStTvVzZ])/)) {
-            tokens[tokens.length] = new Token(Path.COMMAND, RegExp.$1);
-            d = d.substr(RegExp.$1.length);
-        } else if (d.match(/^(([-+]?[0-9]+(\.[0-9]*)?|[-+]?\.[0-9]+)([eE][-+]?[0-9]+)?)/)) {
-            tokens[tokens.length] = new Token(Path.NUMBER, parseFloat(RegExp.$1));
-            d = d.substr(RegExp.$1.length);
-        } else {
-            throw new Error("Unrecognized segment command: " + d);
-        }
-    }
-    tokens[tokens.length] = new Token(Path.EOD, null);
-    return tokens;
-}
-
-IntersectionParams.newPath = function(d) {
-    var tokens = tokenize(d);
-    var index = 0;
-    var token = tokens[index];
-    var mode = "BOD";
-    var segments = [];
-
-    while (!token.typeis(Path.EOD)) {
-        var param_length;
-        var params = new Array();
-        if (mode == "BOD") {
-            if (token.text == "M" || token.text == "m") {
-                index++;
-                param_length = Path.PARAMS[token.text].length;
-                mode = token.text;
-            } else {
-                throw new Error("Path data must begin with a moveto command");
-            }
-        } else {
-            if (token.typeis(Path.NUMBER)) {
-                param_length = Path.PARAMS[mode].length;
-            } else {
-                index++;
-                param_length = Path.PARAMS[token.text].length;
-                mode = token.text;
-            }
-        }
-        if ((index + param_length) < tokens.length) {
-            for (var i = index; i < index + param_length; i++) {
-                var number = tokens[i];
-                if (number.typeis(Path.NUMBER)) params[params.length] = number.text;
-                else throw new Error("Parameter type is not a number: " + mode + "," + number.text);
-            }
-            var segment;
-            var length = segments.length;
-            var previous = (length == 0) ? null : segments[length - 1];
-            switch (mode) {
-                case "A":
-                    segment = new AbsoluteArcPath(params, previous);
-                    break;
-                case "C":
-                    segment = new AbsoluteCurveto3(params, previous);
-                    break;
-                case "c":
-                    segment = new RelativeCurveto3(params, previous);
-                    break;
-                case "H":
-                    segment = new AbsoluteHLineto(params, previous);
-                    break;
-                case "L":
-                    segment = new AbsoluteLineto(params, previous);
-                    break;
-                case "l":
-                    segment = new RelativeLineto(params, previous);
-                    break;
-                case "M":
-                    segment = new AbsoluteMoveto(params, previous);
-                    break;
-                case "m":
-                    segment = new RelativeMoveto(params, previous);
-                    break;
-                case "Q":
-                    segment = new AbsoluteCurveto2(params, previous);
-                    break;
-                case "q":
-                    segment = new RelativeCurveto2(params, previous);
-                    break;
-                case "S":
-                    segment = new AbsoluteSmoothCurveto3(params, previous);
-                    break;
-                case "s":
-                    segment = new RelativeSmoothCurveto3(params, previous);
-                    break;
-                case "T":
-                    segment = new AbsoluteSmoothCurveto2(params, previous);
-                    break;
-                case "t":
-                    segment = new RelativeSmoothCurveto2(params, previous);
-                    break;
-                case "Z":
-                    segment = new RelativeClosePath(params, previous);
-                    break;
-                case "z":
-                    segment = new RelativeClosePath(params, previous);
-                    break;
-                default:
-                    throw new Error("Unsupported segment type: " + mode);
-            };
-            segments.push(segment);
-            index += param_length;
-            token = tokens[index];
-            if (mode == "M") mode = "L";
-            if (mode == "m") mode = "l";
-        } else {
-            throw new Error("Path data ended before all parameters were found");
-        }
-    }
-
-    var segmentParams = [];
-    for(i=0; i<segments.length; i++) {
-        var ip = segments[i].getIntersectionParams();
-        if(ip) {
-            segmentParams.push(ip);
-        }
-    }
-
-    return new IntersectionParams(IPTYPE.PATH, [segmentParams]);
-}
-
-
-function AbsolutePathSegment(command, params, previous) {
-    if (arguments.length > 0) this.init(command, params, previous);
-};
-AbsolutePathSegment.prototype.init = function(command, params, previous) {
-    this.command = command;
-    this.previous = previous;
-    this.points = [];
-    var index = 0;
-    while (index < params.length) {
-        this.points.push(new Point2D(params[index], params[index + 1]));
-        index += 2;
-    }
-};
-AbsolutePathSegment.prototype.getLastPoint = function() {
-    return this.points[this.points.length - 1];
-};
-AbsolutePathSegment.prototype.getIntersectionParams = function() {
-    return null;
-};
-
-
-
-function AbsoluteArcPath(params, previous) {
-    if (arguments.length > 0) {
-        this.init("A", params, previous);
-    }
-}
-AbsoluteArcPath.prototype.init = function(command, params, previous) {
-    var point = new Array();
-    var y = params.pop();
-    var x = params.pop();
-    point.push(x, y);
-    AbsoluteArcPath.superclass.init.call(this, command, point, previous);
-    this.rx = parseFloat(params.shift());
-    this.ry = parseFloat(params.shift());
-    this.angle = parseFloat(params.shift());
-    this.arcFlag = parseFloat(params.shift());
-    this.sweepFlag = parseFloat(params.shift());
-};
-AbsoluteArcPath.prototype.getIntersectionParams = function() {
-    return new IntersectionParams("Ellipse", [this.getCenter(), this.rx, this.ry]);
-};
-AbsoluteArcPath.prototype.getCenter = function() {
-    var startPoint = this.previous.getLastPoint();
-    var endPoint = this.points[0];
-    var rx = this.rx;
-    var ry = this.ry;
-    var angle = this.angle * Math.PI / 180;
-    var c = Math.cos(angle);
-    var s = Math.sin(angle);
-    var TOLERANCE = 1e-6;
-    var halfDiff = startPoint.subtract(endPoint).divide(2);
-    var x1p = halfDiff.x * c + halfDiff.y * s;
-    var y1p = halfDiff.x * -s + halfDiff.y * c;
-    var x1px1p = x1p * x1p;
-    var y1py1p = y1p * y1p;
-    var lambda = (x1px1p / (rx * rx)) + (y1py1p / (ry * ry));
-    if (lambda > 1) {
-        var factor = Math.sqrt(lambda);
-        rx *= factor;
-        ry *= factor;
-    }
-    var rxrx = rx * rx;
-    var ryry = ry * ry;
-    var rxy1 = rxrx * y1py1p;
-    var ryx1 = ryry * x1px1p;
-    var factor = (rxrx * ryry - rxy1 - ryx1) / (rxy1 + ryx1);
-    if (Math.abs(factor) < TOLERANCE) factor = 0;
-    var sq = Math.sqrt(factor);
-    if (this.arcFlag == this.sweepFlag) sq = -sq;
-    var mid = startPoint.add(endPoint).divide(2);
-    var cxp = sq * rx * y1p / ry;
-    var cyp = sq * -ry * x1p / rx;
-    return new Point2D(cxp * c - cyp * s + mid.x, cxp * s + cyp * c + mid.y);
-};
-
-
-
-function AbsoluteCurveto2(params, previous) {
-    if (arguments.length > 0) {
-        this.init("Q", params, previous);
-    }
-}
-AbsoluteCurveto2.prototype = new AbsolutePathSegment();
-AbsoluteCurveto2.prototype.constructor = AbsoluteCurveto2;
-AbsoluteCurveto2.superclass = AbsolutePathSegment.prototype;
-
-AbsoluteCurveto2.prototype.getIntersectionParams = function() {
-    return new IntersectionParams("Bezier2", [this.previous.getLastPoint(), this.points[0], this.points[1]]);
-};
-
-
-
-function AbsoluteCurveto3(params, previous) {
-    if (arguments.length > 0) {
-        this.init("C", params, previous);
-    }
-}
-AbsoluteCurveto3.prototype = new AbsolutePathSegment();
-AbsoluteCurveto3.prototype.constructor = AbsoluteCurveto3;
-AbsoluteCurveto3.superclass = AbsolutePathSegment.prototype;
-
-AbsoluteCurveto3.prototype.getLastControlPoint = function() {
-    return this.points[1];
-};
-AbsoluteCurveto3.prototype.getIntersectionParams = function() {
-    return new IntersectionParams("Bezier3", [this.previous.getLastPoint(), this.points[0], this.points[1], this.points[2]]);
-};
-
-
-function AbsoluteHLineto(params, previous) {
-    if (arguments.length > 0) {
-        this.init("H", params, previous);
-    }
-}
-AbsoluteHLineto.prototype = new AbsolutePathSegment();
-AbsoluteHLineto.prototype.constructor = AbsoluteHLineto;
-AbsoluteHLineto.superclass = AbsolutePathSegment.prototype;
-
-AbsoluteHLineto.prototype.init = function(command, params, previous) {
-    var prevPoint = previous.getLastPoint();
-    var point = new Array();
-    point.push(params.pop(), prevPoint.y);
-    AbsoluteHLineto.superclass.init.call(this, command, point, previous);
-};
-
-
-function AbsoluteLineto(params, previous) {
-    if (arguments.length > 0) {
-        this.init("L", params, previous);
-    }
-}
-AbsoluteLineto.prototype = new AbsolutePathSegment();
-AbsoluteLineto.prototype.constructor = AbsoluteLineto;
-AbsoluteLineto.superclass = AbsolutePathSegment.prototype;
-
-AbsoluteLineto.prototype.getIntersectionParams = function() {
-    return new IntersectionParams("Line", [this.previous.getLastPoint(), this.points[0]]);
-};
-
-
-
-function AbsoluteMoveto(params, previous) {
-    if (arguments.length > 0) {
-        this.init("M", params, previous);
-    }
-}
-AbsoluteMoveto.prototype = new AbsolutePathSegment();
-AbsoluteMoveto.prototype.constructor = AbsoluteMoveto;
-AbsoluteMoveto.superclass = AbsolutePathSegment.prototype;
-
-
-function AbsoluteSmoothCurveto2(params, previous) {
-    if (arguments.length > 0) {
-        this.init("T", params, previous);
-    }
-}
-AbsoluteSmoothCurveto2.prototype = new AbsolutePathSegment();
-AbsoluteSmoothCurveto2.prototype.constructor = AbsoluteSmoothCurveto2;
-AbsoluteSmoothCurveto2.superclass = AbsolutePathSegment.prototype;
-
-AbsoluteSmoothCurveto2.prototype.getControlPoint = function() {
-    var lastPoint = this.previous.getLastPoint();
-    var point;
-    if (this.previous.command.match(/^[QqTt]$/)) {
-        var ctrlPoint = this.previous.getControlPoint();
-        var diff = ctrlPoint.subtract(lastPoint);
-        point = lastPoint.subtract(diff);
-    } else {
-        point = lastPoint;
-    }
-    return point;
-};
-AbsoluteSmoothCurveto2.prototype.getIntersectionParams = function() {
-    return new IntersectionParams("Bezier2", [this.previous.getLastPoint(), this.getControlPoint(), this.points[0]]);
-};
-
-
-function AbsoluteSmoothCurveto3(params, previous) {
-    if (arguments.length > 0) {
-        this.init("S", params, previous);
-    }
-}
-AbsoluteSmoothCurveto3.prototype = new AbsolutePathSegment();
-AbsoluteSmoothCurveto3.prototype.constructor = AbsoluteSmoothCurveto3;
-AbsoluteSmoothCurveto3.superclass = AbsolutePathSegment.prototype;
-
-AbsoluteSmoothCurveto3.prototype.getFirstControlPoint = function() {
-    var lastPoint = this.previous.getLastPoint();
-    var point;
-    if (this.previous.command.match(/^[SsCc]$/)) {
-        var lastControl = this.previous.getLastControlPoint();
-        var diff = lastControl.subtract(lastPoint);
-        point = lastPoint.subtract(diff);
-    } else {
-        point = lastPoint;
-    }
-    return point;
-};
-AbsoluteSmoothCurveto3.prototype.getLastControlPoint = function() {
-    return this.points[0];
-};
-AbsoluteSmoothCurveto3.prototype.getIntersectionParams = function() {
-    return new IntersectionParams("Bezier3", [this.previous.getLastPoint(), this.getFirstControlPoint(), this.points[0], this.points[1]]);
-};
-
-
-function RelativePathSegment(command, params, previous) {
-    if (arguments.length > 0) this.init(command, params, previous);
-}
-RelativePathSegment.prototype = new AbsolutePathSegment();
-RelativePathSegment.prototype.constructor = RelativePathSegment;
-RelativePathSegment.superclass = AbsolutePathSegment.prototype;
-
-RelativePathSegment.prototype.init = function(command, params, previous) {
-    this.command = command;
-    this.previous = previous;
-    this.points = [];
-    var lastPoint;
-    if (this.previous) lastPoint = this.previous.getLastPoint();
-    else lastPoint = new Point2D(0, 0);
-    var index = 0;
-    while (index < params.length) {
-        var point = new Point2D(lastPoint.x + params[index], lastPoint.y + params[index + 1]);
-        this.points.push(point);
-        index += 2;
-    }
-};
-
-function RelativeClosePath(params, previous) {
-    if (arguments.length > 0) {
-        this.init("z", params, previous);
-    }
-}
-RelativeClosePath.prototype = new RelativePathSegment();
-RelativeClosePath.prototype.constructor = RelativeClosePath;
-RelativeClosePath.superclass = RelativePathSegment.prototype;
-RelativeClosePath.prototype.getLastPoint = function() {
-    var current = this.previous;
-    var point;
-    while (current) {
-        if (current.command.match(/^[mMzZ]$/)) {
-            point = current.getLastPoint();
-            break;
-        }
-        current = current.previous;
-    }
-    return point;
-};
-RelativeClosePath.prototype.getIntersectionParams = function() {
-    return new IntersectionParams("Line", [this.previous.getLastPoint(), this.getLastPoint()]);
-};
-
-
-function RelativeCurveto2(params, previous) {
-    if (arguments.length > 0) {
-        this.init("q", params, previous);
-    }
-}
-RelativeCurveto2.prototype = new RelativePathSegment();
-RelativeCurveto2.prototype.constructor = RelativeCurveto2;
-RelativeCurveto2.superclass = RelativePathSegment.prototype;
-
-RelativeCurveto2.prototype.getControlPoint = function() {
-    return this.points[0];
-};
-RelativeCurveto2.prototype.getIntersectionParams = function() {
-    return new IntersectionParams("Bezier2", [this.previous.getLastPoint(), this.points[0], this.points[1]]);
-};
-
-
-function RelativeCurveto3(params, previous) {
-    if (arguments.length > 0) {
-        this.init("c", params, previous);
-    }
-}
-RelativeCurveto3.prototype = new RelativePathSegment();
-RelativeCurveto3.prototype.constructor = RelativeCurveto3;
-RelativeCurveto3.superclass = RelativePathSegment.prototype;
-
-RelativeCurveto3.prototype.getLastControlPoint = function() {
-    return this.points[1];
-};
-RelativeCurveto3.prototype.getIntersectionParams = function() {
-    return new IntersectionParams("Bezier3", [this.previous.getLastPoint(), this.points[0], this.points[1], this.points[2]]);
-};
-
-
-function RelativeLineto(params, previous) {
-    if (arguments.length > 0) {
-        this.init("l", params, previous);
-    }
-}
-RelativeLineto.prototype = new RelativePathSegment();
-RelativeLineto.prototype.constructor = RelativeLineto;
-RelativeLineto.superclass = RelativePathSegment.prototype;
-
-RelativeLineto.prototype.toString = function() {
-    var points = new Array();
-    var command = "";
-    var lastPoint;
-    var point;
-    if (this.previous) lastPoint = this.previous.getLastPoint();
-    else lastPoint = new Point(0, 0);
-    point = this.points[0].subtract(lastPoint);
-    if (this.previous.constructor != this.constuctor)
-        if (this.previous.constructor != RelativeMoveto) cmd = this.command;
-    return cmd + point.toString();
-};
-RelativeLineto.prototype.getIntersectionParams = function() {
-    return new IntersectionParams("Line", [this.previous.getLastPoint(), this.points[0]]);
-};
-
-
-
-function RelativeMoveto(params, previous) {
-    if (arguments.length > 0) {
-        this.init("m", params, previous);
-    }
-}
-RelativeMoveto.prototype = new RelativePathSegment();
-RelativeMoveto.prototype.constructor = RelativeMoveto;
-RelativeMoveto.superclass = RelativePathSegment.prototype;
-
-
-
-function RelativeSmoothCurveto2(params, previous) {
-    if (arguments.length > 0) {
-        this.init("t", params, previous);
-    }
-}
-RelativeSmoothCurveto2.prototype = new RelativePathSegment();
-RelativeSmoothCurveto2.prototype.constructor = RelativeSmoothCurveto2;
-RelativeSmoothCurveto2.superclass = RelativePathSegment.prototype;
-
-RelativeSmoothCurveto2.prototype.getControlPoint = function() {
-    var lastPoint = this.previous.getLastPoint();
-    var point;
-    if (this.previous.command.match(/^[QqTt]$/)) {
-        var ctrlPoint = this.previous.getControlPoint();
-        var diff = ctrlPoint.subtract(lastPoint);
-        point = lastPoint.subtract(diff);
-    } else {
-        point = lastPoint;
-    }
-    return point;
-};
-RelativeSmoothCurveto2.prototype.getIntersectionParams = function() {
-    return new IntersectionParams("Bezier2", [this.previous.getLastPoint(), this.getControlPoint(), this.points[0]]);
-};
-
-
-
-function RelativeSmoothCurveto3(params, previous) {
-    if (arguments.length > 0) {
-        this.init("s", params, previous);
-    }
-}
-RelativeSmoothCurveto3.prototype = new RelativePathSegment();
-RelativeSmoothCurveto3.prototype.constructor = RelativeSmoothCurveto3;
-RelativeSmoothCurveto3.superclass = RelativePathSegment.prototype;
-
-RelativeSmoothCurveto3.prototype.getFirstControlPoint = function() {
-    var lastPoint = this.previous.getLastPoint();
-    var point;
-    if (this.previous.command.match(/^[SsCc]$/)) {
-        var lastControl = this.previous.getLastControlPoint();
-        var diff = lastControl.subtract(lastPoint);
-        point = lastPoint.subtract(diff);
-    } else {
-        point = lastPoint;
-    }
-    return point;
-};
-RelativeSmoothCurveto3.prototype.getLastControlPoint = function() {
-    return this.points[0];
-};
-RelativeSmoothCurveto3.prototype.getIntersectionParams = function() {
-    return new IntersectionParams("Bezier3", [this.previous.getLastPoint(), this.getFirstControlPoint(), this.points[0], this.points[1]]);
-};
-
-
-module.exports = IntersectionParams;
-
-},{"kld-affine":43}],42:[function(require,module,exports){
-/**
- *
- *  Intersection.js
- *
- *  copyright 2002, 2013 Kevin Lindsey
- *
- *  contribution {@link http://github.com/Quazistax/kld-intersections}
- *      @copyright 2015 Robert Benko (Quazistax) <quazistax@gmail.com>
- *      @license MIT
- */
- 
-var Point2D = require('kld-affine').Point2D;
-var Vector2D = require('kld-affine').Vector2D;
-var Matrix2D = require('kld-affine').Matrix2D;
-var Polynomial = require('kld-polynomial').Polynomial;
-var IntersectionParams = require('./IntersectionParams');
-var Intersection = require('./Intersection');
-
-var IPTYPE = IntersectionParams.TYPE;
-
-
-
-/**
- *  bezout
- *
- *  This code is based on MgcIntr2DElpElp.cpp written by David Eberly.  His
- *  code along with many other excellent examples are avaiable at his site:
- *  http://www.geometrictools.com
- *
- *  @param {Array<Point2D>} e1
- *  @param {Array<Point2D>} e2
- *  @returns {Polynomial}
- */
-function bezout(e1, e2) {
-    var AB    = e1[0]*e2[1] - e2[0]*e1[1];
-    var AC    = e1[0]*e2[2] - e2[0]*e1[2];
-    var AD    = e1[0]*e2[3] - e2[0]*e1[3];
-    var AE    = e1[0]*e2[4] - e2[0]*e1[4];
-    var AF    = e1[0]*e2[5] - e2[0]*e1[5];
-    var BC    = e1[1]*e2[2] - e2[1]*e1[2];
-    var BE    = e1[1]*e2[4] - e2[1]*e1[4];
-    var BF    = e1[1]*e2[5] - e2[1]*e1[5];
-    var CD    = e1[2]*e2[3] - e2[2]*e1[3];
-    var DE    = e1[3]*e2[4] - e2[3]*e1[4];
-    var DF    = e1[3]*e2[5] - e2[3]*e1[5];
-    var BFpDE = BF + DE;
-    var BEmCD = BE - CD;
-
-    return new Polynomial(
-        AB*BC - AC*AC,
-        AB*BEmCD + AD*BC - 2*AC*AE,
-        AB*BFpDE + AD*BEmCD - AE*AE - 2*AC*AF,
-        AB*DF + AD*BFpDE - 2*AE*AF,
-        AD*DF - AF*AF
-    );
-}
-
-/**
-    Removes from intersection points those points that are not between two rays determined by arc parameters.
-    Rays begin at ellipse center and go through arc startPoint/endPoint.
-
-    @param {Intersection} intersection - will be modified and returned
-    @param {Point2D} c - center of arc ellipse
-    @param {Number} rx
-    @param {Number} ry
-    @param {Number} phi - in radians
-    @param {Number} th1 - in radians
-    @param {Number} dth - in radians
-    @param {Matrix2D} [m] - arc transformation matrix
-    @returns {Intersection}
-*/
-function removePointsNotInArc(intersection, c, rx, ry, phi, th1, dth, m) {
-    if (intersection.points.length === 0) return intersection;
-    if (m && !m.isIdentity())
-        var mp = m.inverse();
-    var np = [];
-    var vx = new Vector2D(1, 0);
-    var pi2 = Math.PI * 2;
-    var wasNeg = dth < 0;
-    var wasBig = Math.abs(dth) > Math.PI;
-    var m1 = new Matrix2D().scaleNonUniform(1, ry / rx).rotate(th1);
-    var m2 = new Matrix2D().scaleNonUniform(1, ry / rx).rotate(th1 + dth);
-
-    th1 = (vx.angleBetween(vx.transform(m1)) + pi2) % pi2;
-    dth = vx.transform(m1).angleBetween(vx.transform(m2));
-    dth = (wasBig ? pi2 - Math.abs(dth) : Math.abs(dth)) * (wasNeg ? -1 : 1);
-    var m3 = new Matrix2D().rotate(phi).multiply(m1);
-
-    for (var i = 0, p, a; i < intersection.points.length; i++) {
-        p = intersection.points[i];
-        a = vx.transform(m3).angleBetween(Vector2D.fromPoints(c, (mp) ? p.transform(mp) : p));
-        if (dth >= 0) {
-            a = (a + 2 * pi2) % pi2;
-            if (a <= dth)
-                np.push(p);
-        } else {
-            a = (a - 2 * pi2) % pi2;
-            if (a >= dth)
-                np.push(p);
-        }
-    }
-    intersection.points = np;
-    return intersection;
-};
-
-/**
-    points1 will be modified, points close (almost identical) to any point in points2 will be removed
-
-    @param {Array<Point2D>} points1 - will be modified, points close to any point in points2 will be removed
-    @param {Array<Point2D>} points2
-*/
-function removeClosePoints(points1, points2) {
-    if (points1.length === 0 || points2.length === 0)
-        return;
-    var maxf = function (p, v) { if (p < v.x) p = v.x; if (p < v.y) p = v.y; return p; };
-    var max = points1.reduce(maxf, 0);
-    max = points2.reduce(maxf, max);
-    var ERRF = 1e-15;
-    var ZEROepsilon = 100 * max * ERRF * Math.SQRT2;
-    var j;
-    for (var i = 0; i < points1.length;) {
-        for (j = 0; j < points2.length; j++) {
-            if (points1[i].distanceFrom(points2[j]) <= ZEROepsilon) {
-                points1.splice(i, 1);
-                break;
-            }
-        }
-        if (j == points2.length)
-            i++;
-    }
-}
-
-// The basic intersection functions for all SVG shapes expect bezier curves
-// If you need to support bezier curves, plug in the functions/bezier module
-// like this: intersect.plugin( require('svg-intersections/lib/functions/bezier') )
-var intersectionFunctions = {
-            
-    /**
-        intersectPathShape
-
-        @param {IntersectionParams} path
-        @param {IntersectionParams} shape
-        @param {Matrix2D} [m1]
-        @param {Matrix2D} [m2]
-        @returns {Intersection}
-    */
-    intersectPathShape: function (path, shape, m1, m2) {
-        var result = new Intersection();
-        var pathParams = path.params[0];
-        var inter0;
-        var previnter;
-        for (var inter, i = 0; i < pathParams.length; i++) {
-            inter = intersect(pathParams[i], shape, m1, m2);
-            if (!inter0)
-                inter0 = inter;
-            if (previnter) {
-                removeClosePoints(previnter.points, inter.points);
-                result.appendPoints(previnter.points);
-            }
-            previnter = inter;
-        }
-        if (previnter) {
-            result.appendPoints(previnter.points);
-        }
-        return result;
-    },
-
-
-    /**
-        intersectLinesShape
-
-        @param {IntersectionParams} lines - IntersectionParams with points as first parameter (like types RECT, POLYLINE or POLYGON)
-        @param {IntersectionParams} shape - IntersectionParams of other shape
-        @param {Matrix2D} [m1]
-        @param {Matrix2D} [m2]
-        @param {Boolean} [closed] - if set, determines if line between first and last point will be taken into callculation too. If not set, it's true for RECT and POLYGON, false for other <b>lines</b> types.
-        @returns {Intersection}
-    */
-    intersectLinesShape: function (lines, shape, m1, m2, closed) {
-        var IPTYPE = IntersectionParams.TYPE;
-        var line_points = lines.params[0];
-        var ip = new IntersectionParams(IPTYPE.LINE, [0, 0]);
-        var result = new Intersection();
-        var inter, i;
-        var intersectLine = function (i1, i2) {
-            ip.params[0] = line_points[i1];
-            ip.params[1] = line_points[i2];
-            inter = intersect(ip, shape, m1, m2);
-            removeClosePoints(inter.points, [line_points[i2]]);
-            result.appendPoints(inter.points);
-        }
-        for (i = 0; i < line_points.length - 1; i++) {
-            intersectLine(i, i + 1);
-        }
-        if (typeof closed !== 'undefined' && closed || lines.type === IPTYPE.RECT || lines.type === IPTYPE.POLYGON) {
-            intersectLine(line_points.length - 1, 0);
-        }
-        return result;
-    },
-
-    ///////////////////////////////////////////////////////////////////
-    /**
-        intersectArcShape
-
-        @param {IntersectionParams} arc
-        @param {IntersectionParams} shape
-        @param {Matrix2D} [m1]
-        @param {Matrix2D} [m2]
-        @returns {Intersection}
-    */
-    intersectArcShape: function (arc, shape, m1, m2) {
-        m1 = m1 || Matrix2D.IDENTITY;
-        m2 = m2 || Matrix2D.IDENTITY;
-        var c1 = arc.params[0],
-            rx1 = arc.params[1],
-            ry1 = arc.params[2],
-            phi1 = arc.params[3],
-            th1 = arc.params[4],
-            dth1 = arc.params[5];
-
-        var res;
-        if (m1.isIdentity() && phi1 === 0) {
-            res = intersect(IntersectionParams.newEllipse(c1, rx1, ry1), shape, m1, m2);
-        }
-        else {
-            m1 = m1.multiply(Matrix2D.IDENTITY.translate(c1.x, c1.y).rotate(phi1));
-            c1 = new Point2D(0, 0);
-            phi1 = 0;
-            res = intersect(IntersectionParams.newEllipse(c1, rx1, ry1), shape, m1, m2);
-        }
-        res = removePointsNotInArc(res, c1, rx1, ry1, phi1, th1, dth1, m1);
-        return res;
-    },
-
-    /**
-     *  Finds intersection points of two ellipses. <br/>
-     *
-     *  This code is based on MgcIntr2DElpElp.cpp written by David Eberly. His
-     *  code along with many other excellent examples are avaiable at his site:
-     *  http://www.geometrictools.com
-     *
-     *  Changes - 2015 Robert Benko (Quazistax)
-     *
-     *  @param {Point2D} c1
-     *  @param {Number} rx1
-     *  @param {Number} ry1
-     *  @param {Point2D} c2
-     *  @param {Number} rx2
-     *  @param {Number} ry2
-     *  @returns {Intersection}
-     */
-    intersectEllipseEllipse: function (c1, rx1, ry1, c2, rx2, ry2) {
-        var a = [
-            ry1 * ry1, 0, rx1 * rx1, -2 * ry1 * ry1 * c1.x, -2 * rx1 * rx1 * c1.y,
-            ry1 * ry1 * c1.x * c1.x + rx1 * rx1 * c1.y * c1.y - rx1 * rx1 * ry1 * ry1
-        ];
-        var b = [
-            ry2 * ry2, 0, rx2 * rx2, -2 * ry2 * ry2 * c2.x, -2 * rx2 * rx2 * c2.y,
-            ry2 * ry2 * c2.x * c2.x + rx2 * rx2 * c2.y * c2.y - rx2 * rx2 * ry2 * ry2
-        ];
-
-        var yPoly = bezout(a, b);
-        var yRoots = yPoly.getRoots();
-        var epsilon = 1e-3;
-        var norm0 = (a[0] * a[0] + 2 * a[1] * a[1] + a[2] * a[2]) * epsilon;
-        var norm1 = (b[0] * b[0] + 2 * b[1] * b[1] + b[2] * b[2]) * epsilon;
-        var result = new Intersection();
-
-        var i;
-        //Handling root calculation error causing not detecting intersection
-        var clip = function (val, min, max) { return Math.max(min, Math.min(max, val)); };
-        for (i = 0 ; i < yRoots.length; i++) {
-            yRoots[i] = clip(yRoots[i], c1.y - ry1, c1.y + ry1);
-            yRoots[i] = clip(yRoots[i], c2.y - ry2, c2.y + ry2);
-        }
-
-        //For detection of multiplicated intersection points
-        yRoots.sort(function (a, b) { return a - b; });
-        var rootPointsN = [];
-
-        for (var y = 0; y < yRoots.length; y++) {
-            var xPoly = new Polynomial(
-                a[0],
-                a[3] + yRoots[y] * a[1],
-                a[5] + yRoots[y] * (a[4] + yRoots[y] * a[2])
-            );
-            var ERRF = 1e-15;
-            if (Math.abs(xPoly.coefs[0]) < 10 * ERRF * Math.abs(xPoly.coefs[2]))
-                xPoly.coefs[0] = 0;
-            var xRoots = xPoly.getRoots();
-
-            rootPointsN.push(0);
-            for (var x = 0; x < xRoots.length; x++) {
-                var test =
-                    (a[0] * xRoots[x] + a[1] * yRoots[y] + a[3]) * xRoots[x] +
-                    (a[2] * yRoots[y] + a[4]) * yRoots[y] + a[5];
-                if (Math.abs(test) < norm0) {
-                    test =
-                        (b[0] * xRoots[x] + b[1] * yRoots[y] + b[3]) * xRoots[x] +
-                        (b[2] * yRoots[y] + b[4]) * yRoots[y] + b[5];
-                    if (Math.abs(test) < norm1) {
-                        result.appendPoint(new Point2D(xRoots[x], yRoots[y]));
-                        rootPointsN[y] += 1;
-                    }
-                }
-            }
-        }
-
-        if (result.points.length <= 0)
-            return result;
-
-        //Removal of multiplicated intersection points
-        var pts = result.points;
-        if (pts.length == 8) {
-            pts = pts.splice(0, 6);
-            pts.splice(2, 2);
-        }
-        else if (pts.length == 7) {
-            pts = pts.splice(0, 6);
-            pts.splice(2, 2);
-            pts.splice(rootPointsN.indexOf(1), 1);
-        }
-        else if (pts.length == 6) {
-            pts.splice(2, 2);
-            //console.log('ElEl 6pts: N: ' + rootPointsN.toString());
-            if (rootPointsN.indexOf(0) > -1) {
-                if (pts[0].distanceFrom(pts[1]) < pts[2].distanceFrom(pts[3])) {
-                    pts.splice(0, 1);
-                }
-                else {
-                    pts.splice(2, 1);
-                }
-            }
-            else if (rootPointsN[0] == rootPointsN[3]) {
-                pts.splice(1, 2);
-            }
-        }
-        else if (pts.length == 4) {
-            if (
-                (yRoots.length == 2)
-            || (yRoots.length == 4 && (rootPointsN[0] == 2 && rootPointsN[1] == 2 || rootPointsN[2] == 2 && rootPointsN[3] == 2))
-            ) {
-                pts.splice(2, 2);
-            }
-        }
-        else if (pts.length == 3 || pts.length == 5) {
-            i = rootPointsN.indexOf(2);
-            if (i > -1) {
-                if (pts.length == 3)
-                    i = i % 2;
-                var ii = i + (i % 2 ? -1 : 2);
-                var d1, d2, d3;
-                d1 = pts[i].distanceFrom(pts[i + 1]);
-                d2 = pts[i].distanceFrom(pts[ii]);
-                d3 = pts[i + 1].distanceFrom(pts[ii]);
-                if (d1 < d2 && d1 < d3) {
-                    pts.splice(i, 1);
-                }
-                else {
-                    pts.splice(ii, 1);
-                }
-            }
-        }
-
-        var poly = yPoly;
-        var ZEROepsilon = yPoly.zeroErrorEstimate();
-        ZEROepsilon *= 100 * Math.SQRT2;
-        for (i = 0; i < pts.length - 1;) {
-            if (pts[i].distanceFrom(pts[i + 1]) < ZEROepsilon) {
-                pts.splice(i + 1, 1);
-                continue;
-            }
-            i++;
-        }
-
-        result.points = pts;
-        return result;
-    },
-
-
-    /**
-     *  intersectEllipseLine
-     *
-     *  NOTE: Rotation will need to be added to this function
-     *
-     *  @param {Point2D} c
-     *  @param {Number} rx
-     *  @param {Number} ry
-     *  @param {Point2D} a1
-     *  @param {Point2D} a2
-     *  @returns {Intersection}
-     */
-    intersectEllipseLine: function(c, rx, ry, a1, a2) {
-        var result;
-        var origin = new Vector2D(a1.x, a1.y);
-        var dir    = Vector2D.fromPoints(a1, a2);
-        var center = new Vector2D(c.x, c.y);
-        var diff   = origin.subtract(center);
-        var mDir   = new Vector2D( dir.x/(rx*rx),  dir.y/(ry*ry)  );
-        var mDiff  = new Vector2D( diff.x/(rx*rx), diff.y/(ry*ry) );
-
-        var a = dir.dot(mDir);
-        var b = dir.dot(mDiff);
-        var c = diff.dot(mDiff) - 1.0;
-        var d = b*b - a*c;
-
-        var ERRF = 1e-15;
-        var ZEROepsilon = 10 * Math.max(Math.abs(a), Math.abs(b), Math.abs(c)) * ERRF;
-        if (Math.abs(d) < ZEROepsilon) {
-            d = 0;
-        }
-
-        if ( d < 0 ) {
-            result = new Intersection("Outside");
-        } else if ( d > 0 ) {
-            var root = Math.sqrt(d);
-            var t_a  = (-b - root) / a;
-            var t_b  = (-b + root) / a;
-
-            t_b = (t_b > 1) ? t_b - ERRF : (t_b < 0) ? t_b + ERRF : t_b;
-            t_a = (t_a > 1) ? t_a - ERRF : (t_a < 0) ? t_a + ERRF : t_a;
-
-            if ( (t_a < 0 || 1 < t_a) && (t_b < 0 || 1 < t_b) ) {
-                if ( (t_a < 0 && t_b < 0) || (t_a > 1 && t_b > 1) )
-                    result = new Intersection("Outside");
-                else
-                    result = new Intersection("Inside");
-            } else {
-                result = new Intersection();
-                if ( 0 <= t_a && t_a <= 1 )
-                    result.appendPoint( a1.lerp(a2, t_a) );
-                if ( 0 <= t_b && t_b <= 1 )
-                    result.appendPoint( a1.lerp(a2, t_b) );
-            }
-        } else {
-            var t = -b/a;
-            if ( 0 <= t && t <= 1 ) {
-                result = new Intersection();
-                result.appendPoint( a1.lerp(a2, t) );
-            } else {
-                result = new Intersection("Outside");
-            }
-        }
-
-        return result;
-    },
-
-
-    /**
-     *  intersectLineLine
-     *
-     *  @param {Point2D} a1
-     *  @param {Point2D} a2
-     *  @param {Point2D} b1
-     *  @param {Point2D} b2
-     *  @returns {Intersection}
-     */
-    intersectLineLine: function(a1, a2, b1, b2) {
-        var result;
-        var ua_t = (b2.x - b1.x) * (a1.y - b1.y) - (b2.y - b1.y) * (a1.x - b1.x);
-        var ub_t = (a2.x - a1.x) * (a1.y - b1.y) - (a2.y - a1.y) * (a1.x - b1.x);
-        var u_b  = (b2.y - b1.y) * (a2.x - a1.x) - (b2.x - b1.x) * (a2.y - a1.y);
-
-        if ( u_b !== 0 ) {
-            var ua = ua_t / u_b;
-            var ub = ub_t / u_b;
-
-            if ( 0 <= ua && ua <= 1 && 0 <= ub && ub <= 1 ) {
-                result = new Intersection();
-                result.points.push(
-                    new Point2D(
-                        a1.x + ua * (a2.x - a1.x),
-                        a1.y + ua * (a2.y - a1.y)
-                    )
-                );
-            } else {
-                result = new Intersection();
-            }
-        } else {
-            if ( ua_t === 0 || ub_t === 0 ) {
-                result = new Intersection("Coincident");
-            } else {
-                result = new Intersection("Parallel");
-            }
-        }
-
-        return result;
-    },
-
-
-    /**
-     *  intersectRayRay
-     *
-     *  @param {Point2D} a1
-     *  @param {Point2D} a2
-     *  @param {Point2D} b1
-     *  @param {Point2D} b2
-     *  @returns {Intersection}
-     */
-    intersectRayRay: function(a1, a2, b1, b2) {
-        var result;
-
-        var ua_t = (b2.x - b1.x) * (a1.y - b1.y) - (b2.y - b1.y) * (a1.x - b1.x);
-        var ub_t = (a2.x - a1.x) * (a1.y - b1.y) - (a2.y - a1.y) * (a1.x - b1.x);
-        var u_b  = (b2.y - b1.y) * (a2.x - a1.x) - (b2.x - b1.x) * (a2.y - a1.y);
-
-        if ( u_b !== 0 ) {
-            var ua = ua_t / u_b;
-
-            result = new Intersection();
-            result.points.push(
-                new Point2D(
-                    a1.x + ua * (a2.x - a1.x),
-                    a1.y + ua * (a2.y - a1.y)
-                )
-            );
-        } else {
-            if ( ua_t === 0 || ub_t === 0 ) {
-                result = new Intersection("Coincident");
-            } else {
-                result = new Intersection("Parallel");
-            }
-        }
-
-        return result;
-    }
-};
-
-var composedShapeMethods = {};
-composedShapeMethods[IPTYPE.PATH] = intersectionFunctions.intersectPathShape;
-composedShapeMethods[IPTYPE.POLYLINE] = intersectionFunctions.intersectLinesShape;
-composedShapeMethods[IPTYPE.POLYGON] = intersectionFunctions.intersectLinesShape;
-composedShapeMethods[IPTYPE.RECT] = intersectionFunctions.intersectLinesShape;
-composedShapeMethods[IPTYPE.ROUNDRECT] = intersectionFunctions.intersectPathShape;
-composedShapeMethods[IPTYPE.ARC] = intersectionFunctions.intersectArcShape;
-
-
-
-function intersect(shape1, shape2, m1, m2) {
-    var ip1 = shape1;
-    var ip2 = shape2;
-    var result;
-
-    if (ip1 !== null && ip2 !== null) {
-        var method;
-        if (method = composedShapeMethods[ip1.type]) {
-            result = method(ip1, ip2, m1, m2);
-        }
-        else if (method = composedShapeMethods[ip2.type]) {
-            result = method(ip2, ip1, m2, m1);
-        }
-        else {
-            var params;
-
-            var params1, params2, type1, type2;
-
-            if (ip1.type === IPTYPE.CIRCLE) {
-                params1 = [ip1.params[0], ip1.params[1], ip1.params[1]];
-                type1 = IPTYPE.ELLIPSE;
-            }
-            else {
-                params1 = ip1.params.slice();
-                type1 = ip1.type;
-            }
-
-            if (ip2.type === IPTYPE.CIRCLE) {
-                params2 = [ip2.params[0], ip2.params[1], ip2.params[1]];
-                type2 = IPTYPE.ELLIPSE;
-            }
-            else {
-                params2 = ip2.params.slice();
-                type2 = ip2.type;
-            }
-
-            //var m1 = new Matrix2D(), m2 = new Matrix2D();
-            var SMF = 1;
-            var itm;
-            var useCTM = (m1 instanceof Matrix2D && m2 instanceof Matrix2D);// && (!m1.isIdentity() || !m2.isIdentity()));
-            if (useCTM) {
-                if (type1 === IPTYPE.ELLIPSE && type2 === IPTYPE.ELLIPSE) {
-                    var m1_, m2_;
-                    var d2;
-                    var c1 = params1[0], rx1 = params1[1], ry1 = params1[2];
-                    var c2 = params2[0], rx2 = params2[1], ry2 = params2[2];
-
-                    m1 = m1.multiply(Matrix2D.IDENTITY.translate(c1.x, c1.y).scaleNonUniform(rx1 / SMF, ry1 / SMF));
-                    c1 = new Point2D(0, 0);
-                    rx1 = ry1 = SMF;
-
-                    m2 = m2.multiply(Matrix2D.IDENTITY.translate(c2.x, c2.y).scaleNonUniform(rx2, ry2));
-                    c2 = new Point2D(0, 0);
-                    rx2 = ry2 = 1;
-
-                    d2 = m1.inverse().multiply(m2).getDecompositionTRSR();
-                    m1_ = d2.R.inverse().multiply(d2.T.inverse());
-                    m2_ = d2.S;
-
-                    rx2 = m2_.a;
-                    ry2 = m2_.d;
-                    c1 = c1.transform(m1_);
-                    itm = m1.multiply(m1_.inverse());
-
-                    params1[0] = c1;
-                    params1[1] = rx1;
-                    params1[2] = ry1;
-                    params2[0] = c2;
-                    params2[1] = rx2;
-                    params2[2] = ry2;
-                }
-                else {
-                    var transParams = function (type, params, m) {
-                        var transParam = function (i) {
-                            params[i] = params[i].transform(m);
-                        }
-
-                        if (type === IPTYPE.LINE) {
-                            transParam(0);
-                            transParam(1);
-                        }
-                        else if (type === IPTYPE.BEZIER2) {
-                            transParam(0);
-                            transParam(1);
-                            transParam(2);
-                        }
-                        else if (type === IPTYPE.BEZIER3) {
-                            transParam(0);
-                            transParam(1);
-                            transParam(2);
-                            transParam(3);
-                        }
-                        else {
-                            throw new Error('Unknown shape: ' + type);
-                        }
-                    }
-
-                    if (type2 === IPTYPE.ELLIPSE) {
-                        var tmp;
-                        tmp = params2; params2 = params1; params1 = tmp;
-                        tmp = type2; type2 = type1; type1 = tmp;
-                        tmp = m2; m2 = m1; m1 = tmp;
-                    }
-
-                    if (type1 === IPTYPE.ELLIPSE) {
-                        var c1 = params1[0], rx1 = params1[1], ry1 = params1[2];
-
-                        m1 = m1.multiply(Matrix2D.IDENTITY.translate(c1.x, c1.y).scaleNonUniform(rx1 / SMF, ry1 / SMF));
-                        c1 = new Point2D(0, 0);
-                        rx1 = ry1 = SMF;
-
-                        m2_ = m1.inverse().multiply(m2);
-                        transParams(type2, params2, m2_);
-
-                        itm = m1;
-
-                        params1[0] = c1;
-                        params1[1] = rx1;
-                        params1[2] = ry1;
-                    }
-                    else {
-                        transParams(type1, params1, m1);
-                        transParams(type2, params2, m2);
-                        itm = Matrix2D.IDENTITY;
-                    }
-                }
-            }
-
-            if (type1 < type2) {
-                method = "intersect" + type1 + type2;
-                params = params1.concat(params2);
-            } else {
-                method = "intersect" + type2 + type1;
-                params = params2.concat(params1);
-            }
-
-            result = intersectionFunctions[method].apply(null, params);
-
-            if (useCTM) {
-                for (var i = 0; i < result.points.length; i++) {
-                    result.points[i] = result.points[i].transform(itm);
-                }
-            }
-        }
-    } else {
-        result = new Intersection();
-    }
-
-    return result;
-}
-
-intersect.plugin = function() {
-    for(var i = 0; i < argLength; i++) {
-        var arg = arguments[i];
-        for(var key in arg) {
-            if(arg.hasOwnProperty(key)) {
-                intersectionFunctions[key] = arg[key];
-            }
-        }
-    }
-}
-
-module.exports = intersect;
-
- 
-
-
-},{"./Intersection":40,"./IntersectionParams":41,"kld-affine":43,"kld-polynomial":47}],43:[function(require,module,exports){
-// expose classes
-
-exports.Point2D = require('./lib/Point2D');
-exports.Vector2D = require('./lib/Vector2D');
-exports.Matrix2D = require('./lib/Matrix2D');
-
-},{"./lib/Matrix2D":44,"./lib/Point2D":45,"./lib/Vector2D":46}],44:[function(require,module,exports){
-/**
- *
- *   Matrix2D.js
- *
- *   copyright 2001-2002, 2013 Kevin Lindsey
- *
- */
-
-/**
- *  Matrix2D
- *
- *  @param {Number} a
- *  @param {Number} b
- *  @param {Number} c
- *  @param {Number} d
- *  @param {Number} e
- *  @param {Number} f
- *  @returns {Matrix2D}
- */
-function Matrix2D(a, b, c, d, e, f) {
-    Object.defineProperties(this, {
-        "a": {
-            value: (a !== undefined) ? a : 1,
-            writable: false,
-            enumerable: true,
-            configurable: false
-        },
-        "b": {
-            value: (b !== undefined) ? b : 0,
-            writable: false,
-            enumerable: true,
-            configurable: false
-        },
-        "c": {
-            value: (c !== undefined) ? c : 0,
-            writable: false,
-            enumerable: true,
-            configurable: false
-        },
-        "d": {
-            value: (d !== undefined) ? d : 1,
-            writable: false,
-            enumerable: true,
-            configurable: false
-        },
-        "e": {
-            value: (e !== undefined) ? e : 0,
-            writable: false,
-            enumerable: true,
-            configurable: false
-        },
-        "f": {
-            value: (f !== undefined) ? f : 0,
-            writable: false,
-            enumerable: true,
-            configurable: false
-        }
-    });
-    // this.a = (a !== undefined) ? a : 1;
-    // this.b = (b !== undefined) ? b : 0;
-    // this.c = (c !== undefined) ? c : 0;
-    // this.d = (d !== undefined) ? d : 1;
-    // this.e = (e !== undefined) ? e : 0;
-    // this.f = (f !== undefined) ? f : 0;
-}
-
-/**
- *  Identity matrix
- *
- *  @returns {Matrix2D}
- */
-Matrix2D.IDENTITY = new Matrix2D(1, 0, 0, 1, 0, 0);
-
-// TODO: rotate, skew, etc. matrices as well?
-
-/**
- *  multiply
- *
- *  @pararm {Matrix2D} that
- *  @returns {Matrix2D}
- */
-Matrix2D.prototype.multiply = function(that) {
-    return new Matrix2D(
-        this.a * that.a + this.c * that.b,
-        this.b * that.a + this.d * that.b,
-        this.a * that.c + this.c * that.d,
-        this.b * that.c + this.d * that.d,
-        this.a * that.e + this.c * that.f + this.e,
-        this.b * that.e + this.d * that.f + this.f
-    );
-};
-
-/**
- *  inverse
- *
- *  @returns {Matrix2D}
- */
-Matrix2D.prototype.inverse = function() {
-    var det1 = this.a * this.d - this.b * this.c;
-
-    if ( det1 == 0.0 )
-        throw("Matrix is not invertible");
-
-    var idet = 1.0 / det1;
-    var det2 = this.f * this.c - this.e * this.d;
-    var det3 = this.e * this.b - this.f * this.a;
-
-    return new Matrix2D(
-        this.d * idet,
-       -this.b * idet,
-       -this.c * idet,
-        this.a * idet,
-          det2 * idet,
-          det3 * idet
-    );
-};
-
-/**
- *  translate
- *
- *  @param {Number} tx
- *  @param {Number} ty
- *  @returns {Matrix2D}
- */
-Matrix2D.prototype.translate = function(tx, ty) {
-    return new Matrix2D(
-        this.a,
-        this.b,
-        this.c,
-        this.d,
-        this.a * tx + this.c * ty + this.e,
-        this.b * tx + this.d * ty + this.f
-    );
-};
-
-/**
- *  scale
- *
- *  @param {Number} scale
- *  @returns {Matrix2D}
- */
-Matrix2D.prototype.scale = function(scale) {
-    return new Matrix2D(
-        this.a * scale,
-        this.b * scale,
-        this.c * scale,
-        this.d * scale,
-        this.e,
-        this.f
-    );
-};
-
-/**
- *  scaleAt
- *
- *  @param {Number} scale
- *  @param {Point2D} center
- *  @returns {Matrix2D}
- */
-Matrix2D.prototype.scaleAt = function(scale, center) {
-    var dx = center.x - scale * center.x;
-    var dy = center.y - scale * center.y;
-
-    return new Matrix2D(
-        this.a * scale,
-        this.b * scale,
-        this.c * scale,
-        this.d * scale,
-        this.a * dx + this.c * dy + this.e,
-        this.b * dx + this.d * dy + this.f
-    );
-};
-
-/**
- *  scaleNonUniform
- *
- *  @param {Number} scaleX
- *  @param {Number} scaleY
- *  @returns {Matrix2D}
- */
-Matrix2D.prototype.scaleNonUniform = function(scaleX, scaleY) {
-    return new Matrix2D(
-        this.a * scaleX,
-        this.b * scaleX,
-        this.c * scaleY,
-        this.d * scaleY,
-        this.e,
-        this.f
-    );
-};
-
-/**
- *  scaleNonUniformAt
- *
- *  @param {Number} scaleX
- *  @param {Number} scaleY
- *  @param {Point2D} center
- *  @returns {Matrix2D}
- */
-Matrix2D.prototype.scaleNonUniformAt = function(scaleX, scaleY, center) {
-    var dx = center.x - scaleX * center.x;
-    var dy = center.y - scaleY * center.y;
-
-    return new Matrix2D(
-        this.a * scaleX,
-        this.b * scaleX,
-        this.c * scaleY,
-        this.d * scaleY,
-        this.a * dx + this.c * dy + this.e,
-        this.b * dx + this.d * dy + this.f
-    );
-};
-
-/**
- *  rotate
- *
- *  @param {Number} radians
- *  @returns {Matrix2D}
- */
-Matrix2D.prototype.rotate = function(radians) {
-    var c = Math.cos(radians);
-    var s = Math.sin(radians);
-
-    return new Matrix2D(
-        this.a *  c + this.c * s,
-        this.b *  c + this.d * s,
-        this.a * -s + this.c * c,
-        this.b * -s + this.d * c,
-        this.e,
-        this.f
-    );
-};
-
-/**
- *  rotateAt
- *
- *  @param {Number} radians
- *  @param {Point2D} center
- *  @result {Matrix2D}
- */
-Matrix2D.prototype.rotateAt = function(radians, center) {
-    var c = Math.cos(radians);
-    var s = Math.sin(radians);
-    var t1 = -center.x + center.x * c - center.y * s;
-    var t2 = -center.y + center.y * c + center.x * s;
-
-    return new Matrix2D(
-        this.a *  c + this.c * s,
-        this.b *  c + this.d * s,
-        this.a * -s + this.c * c,
-        this.b * -s + this.d * c,
-        this.a * t1 + this.c * t2 + this.e,
-        this.b * t1 + this.d * t2 + this.f
-    );
-};
-
-/**
- *  rotateFromVector
- *
- *  @param {Vector2D}
- *  @returns {Matrix2D}
- */
-Matrix2D.prototype.rotateFromVector = function(vector) {
-    var unit = vector.unit();
-    var c = unit.x; // cos
-    var s = unit.y; // sin
-
-    return new Matrix2D(
-        this.a *  c + this.c * s,
-        this.b *  c + this.d * s,
-        this.a * -s + this.c * c,
-        this.b * -s + this.d * c,
-        this.e,
-        this.f
-    );
-};
-
-/**
- *  flipX
- *
- *  @returns {Matrix2D}
- */
-Matrix2D.prototype.flipX = function() {
-    return new Matrix2D(
-        -this.a,
-        -this.b,
-         this.c,
-         this.d,
-         this.e,
-         this.f
-    );
-};
-
-/**
- *  flipY
- *
- *  @returns {Matrix2D}
- */
-Matrix2D.prototype.flipY = function() {
-    return new Matrix2D(
-         this.a,
-         this.b,
-        -this.c,
-        -this.d,
-         this.e,
-         this.f
-    );
-};
-
-/**
- *  skewX
- *
- *  @pararm {Number} radians
- *  @returns {Matrix2D}
- */
-Matrix2D.prototype.skewX = function(radians) {
-    var t = Math.tan(radians);
-
-    return new Matrix2D(
-        this.a,
-        this.b,
-        this.a * t + this.c,
-        this.b * t + this.d,
-        this.e,
-        this.f
-    );
-};
-
-// TODO: skewXAt
-
-/**
- *  skewY
- *
- *  @pararm {Number} radians
- *  @returns {Matrix2D}
- */
-Matrix2D.prototype.skewY = function(radians) {
-    var t = Math.tan(angle);
-
-    return matrix_new(
-        this.a + this.c * t,
-        this.b + this.d * t,
-        this.c,
-        this.d,
-        this.e,
-        this.f
-    );
-};
-
-// TODO: skewYAt
-
-/**
- *  isIdentity
- *
- *  @returns {Boolean}
- */
-Matrix2D.prototype.isIdentity = function() {
-    return (
-        this.a === 1.0 &&
-        this.b === 0.0 &&
-        this.c === 0.0 &&
-        this.d === 1.0 &&
-        this.e === 0.0 &&
-        this.f === 0.0
-    );
-};
-
-/**
- *  isInvertible
- *
- *  @returns {Boolean}
- */
-Matrix2D.prototype.isInvertible = function() {
-    this.a * this.d - this.b * this.c !== 0.0;
-};
-
-/**
- *  getScale
- *
- *  @returns {scaleX: Number, scaleY: Number}
- */
-Matrix2D.prototype.getScale = function() {
-    return {
-        scaleX: Math.sqrt(this.a * this.a + this.c * this.c),
-        scaleY: Math.sqrt(this.b * this.b + this.d * this.d)
-    };
-};
-
-/**
- *  equals
- *
- *  @param {Matrix2D} that
- *  @returns {Boolean}
- */
-Matrix2D.prototype.equals = function(that) {
-    return (
-        this.a === that.a &&
-        this.b === that.b &&
-        this.c === that.c &&
-        this.d === that.d &&
-        this.e === that.e &&
-        this.f === that.f
-    );
-};
-
-/**
- *  toString
- *
- *  @returns {String}
- */
-Matrix2D.prototype.toString = function() {
-    return (
-        "matrix(" +
-        this.a + "," +
-        this.b + "," +
-        this.c + "," +
-        this.d + "," +
-        this.e + "," +
-        this.f + ")"
-    );
-}
-
-if (typeof module !== "undefined") {
-    module.exports = Matrix2D;
-}
-},{}],45:[function(require,module,exports){
-/**
- *
- *   Point2D.js
- *
- *   copyright 2001-2002, 2013 Kevin Lindsey
- *
- */
-
-/**
- *  Point2D
- *
- *  @param {Number} x
- *  @param {Number} y
- *  @returns {Point2D}
- */
-function Point2D(x, y) {
-    Object.defineProperties(this, {
-        "x": {
-            value: x,
-            writable: false,
-            enumerable: true,
-            configurable: false
-        },
-        "y": {
-            value: y,
-            writable: false,
-            enumerable: true,
-            configurable: false
-        }
-    });
-    // this.x = x;
-    // this.y = y;
-}
-
-/**
- *  clone
- *
- *  @returns {Point2D}
- */
-Point2D.prototype.clone = function() {
-    return new Point2D(this.x, this.y);
-};
-
-/**
- *  add
- *
- *  @param {Point2D|Vector2D} that
- *  @returns {Point2D}
- */
-Point2D.prototype.add = function(that) {
-    return new Point2D(this.x+that.x, this.y+that.y);
-};
-
-/**
- *  subtract
- *
- *  @param { Vector2D | Point2D } that
- *  @returns {Point2D}
- */
-Point2D.prototype.subtract = function(that) {
-    return new Point2D(this.x-that.x, this.y-that.y);
-};
-
-/**
- *  multiply
- *
- *  @param {Number} scalar
- *  @returns {Point2D}
- */
-Point2D.prototype.multiply = function(scalar) {
-    return new Point2D(this.x*scalar, this.y*scalar);
-};
-
-/**
- *  divide
- *
- *  @param {Number} scalar
- *  @returns {Point2D}
- */
-Point2D.prototype.divide = function(scalar) {
-    return new Point2D(this.x/scalar, this.y/scalar);
-};
-
-/**
- *  equals
- *
- *  @param {Point2D} that
- *  @returns {Boolean}
- */
-Point2D.prototype.equals = function(that) {
-    return ( this.x == that.x && this.y == that.y );
-};
-
-// utility methods
-
-/**
- *  lerp
- *
- *  @param { Vector2D | Point2D } that
- *  @param {Number} t
- @  @returns {Point2D}
- */
-Point2D.prototype.lerp = function(that, t) {
-    var omt = 1.0 - t;
-
-    return new Point2D(
-        this.x * omt + that.x * t,
-        this.y * omt + that.y * t
-    );
-};
-
-/**
- *  distanceFrom
- *
- *  @param {Point2D} that
- *  @returns {Number}
- */
-Point2D.prototype.distanceFrom = function(that) {
-    var dx = this.x - that.x;
-    var dy = this.y - that.y;
-
-    return Math.sqrt(dx*dx + dy*dy);
-};
-
-/**
- *  min
- *
- *  @param {Point2D} that
- *  @returns {Number}
- */
-Point2D.prototype.min = function(that) {
-    return new Point2D(
-        Math.min( this.x, that.x ),
-        Math.min( this.y, that.y )
-    );
-};
-
-/**
- *  max
- *
- *  @param {Point2D} that
- *  @returns {Number}
- */
-Point2D.prototype.max = function(that) {
-    return new Point2D(
-        Math.max( this.x, that.x ),
-        Math.max( this.y, that.y )
-    );
-};
-
-/**
- *  transform
- *
- *  @param {Matrix2D}
- *  @result {Point2D}
- */
-Point2D.prototype.transform = function(matrix) {
-    return new Point2D(
-        matrix.a * this.x + matrix.c * this.y + matrix.e,
-        matrix.b * this.x + matrix.d * this.y + matrix.f
-    );
-};
-
-/**
- *  toString
- *
- *  @returns {String}
- */
-Point2D.prototype.toString = function() {
-    return "point(" + this.x + "," + this.y + ")";
-};
-
-if (typeof module !== "undefined") {
-    module.exports = Point2D;
-}
-
-},{}],46:[function(require,module,exports){
-/**
- *
- *   Vector2D.js
- *
- *   copyright 2001-2002, 2013 Kevin Lindsey
- *
- */
-
-/**
- *  Vector2D
- *
- *  @param {Number} x
- *  @param {Number} y
- *  @returns {Vector2D}
- */
-function Vector2D(x, y) {
-    Object.defineProperties(this, {
-        "x": {
-            value: x,
-            writable: false,
-            enumerable: true,
-            configurable: false
-        },
-        "y": {
-            value: y,
-            writable: false,
-            enumerable: true,
-            configurable: false
-        }
-    });
-    // this.x = x;
-    // this.y = y;
-}
-
-/**
- *  fromPoints
- *
- *  @param {Point2D} p1
- *  @param {Point2D} p2
- *  @returns {Vector2D}
- */
-Vector2D.fromPoints = function(p1, p2) {
-    return new Vector2D(
-        p2.x - p1.x,
-        p2.y - p1.y
-    );
-};
-
-/**
- *  length
- *
- *  @returns {Number}
- */
-Vector2D.prototype.length = function() {
-    return Math.sqrt(this.x*this.x + this.y*this.y);
-};
-
-/**
- *  magnitude
- *
- *  @returns {Number}
- */
-Vector2D.prototype.magnitude = function() {
-    return this.x*this.x + this.y*this.y;
-};
-
-/**
- *  dot
- *
- *  @param {Vector2D} that
- *  @returns {Number}
- */
-Vector2D.prototype.dot = function(that) {
-    return this.x*that.x + this.y*that.y;
-};
-
-/**
- *  cross
- *
- *  @param {Vector2D} that
- *  @returns {Number}
- */
-Vector2D.prototype.cross = function(that) {
-    return this.x*that.y - this.y*that.x;
-}
-
-/**
- *  determinant
- *
- *  @param {Vector2D} that
- *  @returns {Number}
- */
-Vector2D.prototype.determinant = function(that) {
-    return this.x*that.y - this.y*that.x;
-};
-
-/**
- *  unit
- *
- *  @returns {Vector2D}
- */
-Vector2D.prototype.unit = function() {
-    return this.divide( this.length() );
-};
-
-/**
- *  add
- *
- *  @param {Vector2D} that
- *  @returns {Vector2D}
- */
-Vector2D.prototype.add = function(that) {
-    return new Vector2D(this.x + that.x, this.y + that.y);
-};
-
-/**
- *  subtract
- *
- *  @param {Vector2D} that
- *  @returns {Vector2D}
- */
-Vector2D.prototype.subtract = function(that) {
-    return new Vector2D(this.x - that.x, this.y - that.y);
-};
-
-/**
- *  multiply
- *
- *  @param {Number} scalar
- *  @returns {Vector2D}
- */
-Vector2D.prototype.multiply = function(scalar) {
-    return new Vector2D(this.x * scalar, this.y * scalar);
-};
-
-/**
- *  divide
- *
- *  @param {Number} scalar
- *  @returns {Vector2D}
- */
-Vector2D.prototype.divide = function(scalar) {
-    return new Vector2D(this.x / scalar, this.y / scalar);
-};
-
-/**
- *  angleBetween
- *
- *  @param {Vector2D} that
- *  @returns {Number}
- */
-Vector2D.prototype.angleBetween = function(that) {
-    var cos = this.dot(that) / (this.length() * that.length());
-    if (cos < -1) {
-        cos = -1;
-    }
-    else if (cos > 1) {
-        cos = 1;
-    }
-    var radians = Math.acos(cos);
-
-    return (this.cross(that) < 0.0) ? -radians : radians;
-};
-
-/**
- *  Find a vector is that is perpendicular to this vector
- *
- *  @returns {Vector2D}
- */
-Vector2D.prototype.perp = function() {
-    return new Vector2D(-this.y, this.x);
-};
-
-/**
- *  Find the component of the specified vector that is perpendicular to
- *  this vector
- *
- *  @param {Vector2D} that
- *  @returns {Vector2D}
- */
-Vector2D.prototype.perpendicular = function(that) {
-    return this.subtract(this.project(that));
-};
-
-/**
- *  project
- *
- *  @param {Vector2D} that
- *  @returns {Vector2D}
- */
-Vector2D.prototype.project = function(that) {
-    var percent = this.dot(that) / that.dot(that);
-
-    return that.multiply(percent);
-};
-
-/**
- *  transform
- *
- *  @param {Matrix2D}
- *  @returns {Vector2D}
- */
-Vector2D.prototype.transform = function(matrix) {
-    return new Vector2D(
-        matrix.a * this.x + matrix.c * this.y,
-        matrix.b * this.x + matrix.d * this.y
-    );
-};
-
-/**
- *  equals
- *
- *  @param {Vector2D} that
- *  @returns {Boolean}
- */
-Vector2D.prototype.equals = function(that) {
-    return (
-        this.x === that.x &&
-        this.y === that.y
-    );
-};
-
-/**
- *  toString
- *
- *  @returns {String}
- */
-Vector2D.prototype.toString = function() {
-    return "vector(" + this.x + "," + this.y + ")";
-};
-
-if (typeof module !== "undefined") {
-    module.exports = Vector2D;
-}
-
-},{}],47:[function(require,module,exports){
-// expose classes
-
-exports.Polynomial = require('./lib/Polynomial');
-exports.SqrtPolynomial = require('./lib/SqrtPolynomial');
-
-},{"./lib/Polynomial":48,"./lib/SqrtPolynomial":49}],48:[function(require,module,exports){
-/**
- *
- *   Polynomial.js
- *
- *   copyright 2002, 2103 Kevin Lindsey
- *
- */
-
-Polynomial.TOLERANCE = 1e-6;
-Polynomial.ACCURACY  = 15;
-
-
-/**
- *  interpolate
- *
- *  @param {Array<Number>} xs
- *  @param {Array<Number>} ys
- *  @param {Number} n
- *  @param {Number} offset
- *  @param {Number} x
- *
- *  @returns {y:Number, dy:Number}
- */
-Polynomial.interpolate = function(xs, ys, n, offset, x) {
-    if ( xs.constructor !== Array || ys.constructor !== Array )
-        throw new Error("Polynomial.interpolate: xs and ys must be arrays");
-    if ( isNaN(n) || isNaN(offset) || isNaN(x) )
-        throw new Error("Polynomial.interpolate: n, offset, and x must be numbers");
-
-    var y  = 0;
-    var dy = 0;
-    var c = new Array(n);
-    var d = new Array(n);
-    var ns = 0;
-    var result;
-
-    var diff = Math.abs(x - xs[offset]);
-    for ( var i = 0; i < n; i++ ) {
-        var dift = Math.abs(x - xs[offset+i]);
-
-        if ( dift < diff ) {
-            ns = i;
-            diff = dift;
-        }
-        c[i] = d[i] = ys[offset+i];
-    }
-    y = ys[offset+ns];
-    ns--;
-
-    for ( var m = 1; m < n; m++ ) {
-        for ( var i = 0; i < n-m; i++ ) {
-            var ho = xs[offset+i] - x;
-            var hp = xs[offset+i+m] - x;
-            var w = c[i+1]-d[i];
-            var den = ho - hp;
-
-            if ( den == 0.0 ) {
-                result = { y: 0, dy: 0};
-                break;
-            }
-
-            den = w / den;
-            d[i] = hp*den;
-            c[i] = ho*den;
-        }
-        dy = (2*(ns+1) < (n-m)) ? c[ns+1] : d[ns--];
-        y += dy;
-    }
-
-    return { y: y, dy: dy };
-};
-
-
-/**
- *  Polynomial
- *
- *  @returns {Polynomial}
- */
-function Polynomial() {
-    this.init( arguments );
-}
-
-
-/**
- *  init
- */
-Polynomial.prototype.init = function(coefs) {
-    this.coefs = new Array();
-
-    for ( var i = coefs.length - 1; i >= 0; i-- )
-        this.coefs.push( coefs[i] );
-
-    this._variable = "t";
-    this._s = 0;
-};
-
-
-/**
- *  eval
- */
-Polynomial.prototype.eval = function(x) {
-    if ( isNaN(x) )
-        throw new Error("Polynomial.eval: parameter must be a number");
-
-    var result = 0;
-
-    for ( var i = this.coefs.length - 1; i >= 0; i-- )
-        result = result * x + this.coefs[i];
-
-    return result;
-};
-
-
-/**
- *  add
- */
-Polynomial.prototype.add = function(that) {
-    var result = new Polynomial();
-    var d1 = this.getDegree();
-    var d2 = that.getDegree();
-    var dmax = Math.max(d1,d2);
-
-    for ( var i = 0; i <= dmax; i++ ) {
-        var v1 = (i <= d1) ? this.coefs[i] : 0;
-        var v2 = (i <= d2) ? that.coefs[i] : 0;
-
-        result.coefs[i] = v1 + v2;
-    }
-
-    return result;
-};
-
-
-/**
- *  multiply
- */
-Polynomial.prototype.multiply = function(that) {
-    var result = new Polynomial();
-
-    for ( var i = 0; i <= this.getDegree() + that.getDegree(); i++ )
-        result.coefs.push(0);
-
-    for ( var i = 0; i <= this.getDegree(); i++ )
-        for ( var j = 0; j <= that.getDegree(); j++ )
-            result.coefs[i+j] += this.coefs[i] * that.coefs[j];
-
-    return result;
-};
-
-
-/**
- *  divide_scalar
- */
-Polynomial.prototype.divide_scalar = function(scalar) {
-    for ( var i = 0; i < this.coefs.length; i++ )
-        this.coefs[i] /= scalar;
-};
-
-
-/**
- *  simplify
- */
-Polynomial.prototype.simplify = function() {
-    for ( var i = this.getDegree(); i >= 0; i-- ) {
-        if ( Math.abs( this.coefs[i] ) <= Polynomial.TOLERANCE )
-            this.coefs.pop();
-        else
-            break;
-    }
-};
-
-
-/**
- *  bisection
- */
-Polynomial.prototype.bisection = function(min, max) {
-    var minValue = this.eval(min);
-    var maxValue = this.eval(max);
-    var result;
-
-    if ( Math.abs(minValue) <= Polynomial.TOLERANCE )
-        result = min;
-    else if ( Math.abs(maxValue) <= Polynomial.TOLERANCE )
-        result = max;
-    else if ( minValue * maxValue <= 0 ) {
-        var tmp1  = Math.log(max - min);
-        var tmp2  = Math.LN10 * Polynomial.ACCURACY;
-        var iters = Math.ceil( (tmp1+tmp2) / Math.LN2 );
-
-        for ( var i = 0; i < iters; i++ ) {
-            result = 0.5 * (min + max);
-            var value = this.eval(result);
-
-            if ( Math.abs(value) <= Polynomial.TOLERANCE ) {
-                break;
-            }
-
-            if ( value * minValue < 0 ) {
-                max = result;
-                maxValue = value;
-            } else {
-                min = result;
-                minValue = value;
-            }
-        }
-    }
-
-    return result;
-};
-
-
-/**
- *  toString
- */
-Polynomial.prototype.toString = function() {
-    var coefs = new Array();
-    var signs = new Array();
-
-    for ( var i = this.coefs.length - 1; i >= 0; i-- ) {
-        var value = Math.round(this.coefs[i]*1000)/1000;
-        //var value = this.coefs[i];
-
-        if ( value != 0 ) {
-            var sign = ( value < 0 ) ? " - " : " + ";
-
-            value = Math.abs(value);
-            if ( i > 0 )
-                if ( value == 1 )
-                    value = this._variable;
-                else
-                    value += this._variable;
-            if ( i > 1 ) value += "^" + i;
-
-            signs.push( sign );
-            coefs.push( value );
-        }
-    }
-
-    signs[0] = ( signs[0] == " + " ) ? "" : "-";
-
-    var result = "";
-    for ( var i = 0; i < coefs.length; i++ )
-        result += signs[i] + coefs[i];
-
-    return result;
-};
-
-
-/**
- *  trapezoid
- *  Based on trapzd in "Numerical Recipes in C", page 137
- */
-Polynomial.prototype.trapezoid = function(min, max, n) {
-    if ( isNaN(min) || isNaN(max) || isNaN(n) )
-        throw new Error("Polynomial.trapezoid: parameters must be numbers");
-
-    var range = max - min;
-    var TOLERANCE = 1e-7;
-
-    if ( n == 1 ) {
-        var minValue = this.eval(min);
-        var maxValue = this.eval(max);
-        this._s = 0.5*range*( minValue + maxValue );
-    } else {
-        var it = 1 << (n-2);
-        var delta = range / it;
-        var x = min + 0.5*delta;
-        var sum = 0;
-
-        for ( var i = 0; i < it; i++ ) {
-            sum += this.eval(x);
-            x += delta;
-        }
-        this._s = 0.5*(this._s + range*sum/it);
-    }
-
-    if ( isNaN(this._s) )
-        throw new Error("Polynomial.trapezoid: this._s is NaN");
-
-    return this._s;
-};
-
-
-/**
- *  simpson
- *  Based on trapzd in "Numerical Recipes in C", page 139
- */
-Polynomial.prototype.simpson = function(min, max) {
-    if ( isNaN(min) || isNaN(max) )
-        throw new Error("Polynomial.simpson: parameters must be numbers");
-
-    var range = max - min;
-    var st = 0.5 * range * ( this.eval(min) + this.eval(max) );
-    var t = st;
-    var s = 4.0*st/3.0;
-    var os = s;
-    var ost = st;
-    var TOLERANCE = 1e-7;
-
-    var it = 1;
-    for ( var n = 2; n <= 20; n++ ) {
-        var delta = range / it;
-        var x     = min + 0.5*delta;
-        var sum   = 0;
-
-        for ( var i = 1; i <= it; i++ ) {
-            sum += this.eval(x);
-            x += delta;
-        }
-
-        t = 0.5 * (t + range * sum / it);
-        st = t;
-        s = (4.0*st - ost)/3.0;
-
-        if ( Math.abs(s-os) < TOLERANCE*Math.abs(os) )
-            break;
-
-        os = s;
-        ost = st;
-        it <<= 1;
-    }
-
-    return s;
-};
-
-
-/**
- *  romberg
- */
-Polynomial.prototype.romberg = function(min, max) {
-    if ( isNaN(min) || isNaN(max) )
-        throw new Error("Polynomial.romberg: parameters must be numbers");
-
-    var MAX = 20;
-    var K = 3;
-    var TOLERANCE = 1e-6;
-    var s = new Array(MAX+1);
-    var h = new Array(MAX+1);
-    var result = { y: 0, dy: 0 };
-
-    h[0] = 1.0;
-    for ( var j = 1; j <= MAX; j++ ) {
-        s[j-1] = this.trapezoid(min, max, j);
-        if ( j >= K ) {
-            result = Polynomial.interpolate(h, s, K, j-K, 0.0);
-            if ( Math.abs(result.dy) <= TOLERANCE*result.y) break;
-        }
-        s[j] = s[j-1];
-        h[j] = 0.25 * h[j-1];
-    }
-
-    return result.y;
-};
-
-// getters and setters
-
-/**
- *  get degree
- */
-Polynomial.prototype.getDegree = function() {
-    return this.coefs.length - 1;
-};
-
-
-/**
- *  getDerivative
- */
-Polynomial.prototype.getDerivative = function() {
-    var derivative = new Polynomial();
-
-    for ( var i = 1; i < this.coefs.length; i++ ) {
-        derivative.coefs.push(i*this.coefs[i]);
-    }
-
-    return derivative;
-};
-
-
-/**
- *  getRoots
- */
-Polynomial.prototype.getRoots = function() {
-    var result;
-
-    this.simplify();
-    switch ( this.getDegree() ) {
-        case 0: result = new Array();              break;
-        case 1: result = this.getLinearRoot();     break;
-        case 2: result = this.getQuadraticRoots(); break;
-        case 3: result = this.getCubicRoots();     break;
-        case 4: result = this.getQuarticRoots();   break;
-        default:
-            result = new Array();
-            // should try Newton's method and/or bisection
-    }
-
-    return result;
-};
-
-
-/**
- *  getRootsInInterval
- */
-Polynomial.prototype.getRootsInInterval = function(min, max) {
-    var roots = new Array();
-    var root;
-
-    if ( this.getDegree() == 1 ) {
-        root = this.bisection(min, max);
-        if ( root != null ) roots.push(root);
-    } else {
-        // get roots of derivative
-        var deriv  = this.getDerivative();
-        var droots = deriv.getRootsInInterval(min, max);
-
-        if ( droots.length > 0 ) {
-            // find root on [min, droots[0]]
-            root = this.bisection(min, droots[0]);
-            if ( root != null ) roots.push(root);
-
-            // find root on [droots[i],droots[i+1]] for 0 <= i <= count-2
-            for ( i = 0; i <= droots.length-2; i++ ) {
-                root = this.bisection(droots[i], droots[i+1]);
-                if ( root != null ) roots.push(root);
-            }
-
-            // find root on [droots[count-1],xmax]
-            root = this.bisection(droots[droots.length-1], max);
-            if ( root != null ) roots.push(root);
-        } else {
-            // polynomial is monotone on [min,max], has at most one root
-            root = this.bisection(min, max);
-            if ( root != null ) roots.push(root);
-        }
-    }
-
-    return roots;
-};
-
-
-/**
- *  getLinearRoot
- */
-Polynomial.prototype.getLinearRoot = function() {
-    var result = new Array();
-    var a = this.coefs[1];
-
-    if ( a != 0 )
-        result.push( -this.coefs[0] / a );
-
-    return result;
-};
-
-
-/**
- *  getQuadraticRoots
- */
-Polynomial.prototype.getQuadraticRoots = function() {
-    var results = new Array();
-
-    if ( this.getDegree() == 2 ) {
-        var a = this.coefs[2];
-        var b = this.coefs[1] / a;
-        var c = this.coefs[0] / a;
-        var d = b*b - 4*c;
-
-        if ( d > 0 ) {
-            var e = Math.sqrt(d);
-
-            results.push( 0.5 * (-b + e) );
-            results.push( 0.5 * (-b - e) );
-        } else if ( d == 0 ) {
-            // really two roots with same value, but we only return one
-            results.push( 0.5 * -b );
-        }
-    }
-
-    return results;
-};
-
-
-/**
- *  getCubicRoots
- *
- *  This code is based on MgcPolynomial.cpp written by David Eberly.  His
- *  code along with many other excellent examples are avaiable at his site:
- *  http://www.magic-software.com
- */
-Polynomial.prototype.getCubicRoots = function() {
-    var results = new Array();
-
-    if ( this.getDegree() == 3 ) {
-        var c3 = this.coefs[3];
-        var c2 = this.coefs[2] / c3;
-        var c1 = this.coefs[1] / c3;
-        var c0 = this.coefs[0] / c3;
-
-        var a       = (3*c1 - c2*c2) / 3;
-        var b       = (2*c2*c2*c2 - 9*c1*c2 + 27*c0) / 27;
-        var offset  = c2 / 3;
-        var discrim = b*b/4 + a*a*a/27;
-        var halfB   = b / 2;
-
-        if ( Math.abs(discrim) <= Polynomial.TOLERANCE ) discrim = 0;
-
-        if ( discrim > 0 ) {
-            var e = Math.sqrt(discrim);
-            var tmp;
-            var root;
-
-            tmp = -halfB + e;
-            if ( tmp >= 0 )
-                root = Math.pow(tmp, 1/3);
-            else
-                root = -Math.pow(-tmp, 1/3);
-
-            tmp = -halfB - e;
-            if ( tmp >= 0 )
-                root += Math.pow(tmp, 1/3);
-            else
-                root -= Math.pow(-tmp, 1/3);
-
-            results.push( root - offset );
-        } else if ( discrim < 0 ) {
-            var distance = Math.sqrt(-a/3);
-            var angle    = Math.atan2( Math.sqrt(-discrim), -halfB) / 3;
-            var cos      = Math.cos(angle);
-            var sin      = Math.sin(angle);
-            var sqrt3    = Math.sqrt(3);
-
-            results.push( 2*distance*cos - offset );
-            results.push( -distance * (cos + sqrt3 * sin) - offset);
-            results.push( -distance * (cos - sqrt3 * sin) - offset);
-        } else {
-            var tmp;
-
-            if ( halfB >= 0 )
-                tmp = -Math.pow(halfB, 1/3);
-            else
-                tmp = Math.pow(-halfB, 1/3);
-
-            results.push( 2*tmp - offset );
-            // really should return next root twice, but we return only one
-            results.push( -tmp - offset );
-        }
-    }
-
-    return results;
-};
-
-
-/**
- *  getQuarticRoots
- *
- *  This code is based on MgcPolynomial.cpp written by David Eberly.  His
- *  code along with many other excellent examples are avaiable at his site:
- *  http://www.magic-software.com
- */
-Polynomial.prototype.getQuarticRoots = function() {
-    var results = new Array();
-
-    if ( this.getDegree() == 4 ) {
-        var c4 = this.coefs[4];
-        var c3 = this.coefs[3] / c4;
-        var c2 = this.coefs[2] / c4;
-        var c1 = this.coefs[1] / c4;
-        var c0 = this.coefs[0] / c4;
-
-        var resolveRoots = new Polynomial(
-            1, -c2, c3*c1 - 4*c0, -c3*c3*c0 + 4*c2*c0 -c1*c1
-        ).getCubicRoots();
-        var y       = resolveRoots[0];
-        var discrim = c3*c3/4 - c2 + y;
-
-        if ( Math.abs(discrim) <= Polynomial.TOLERANCE ) discrim = 0;
-
-        if ( discrim > 0 ) {
-            var e     = Math.sqrt(discrim);
-            var t1    = 3*c3*c3/4 - e*e - 2*c2;
-            var t2    = ( 4*c3*c2 - 8*c1 - c3*c3*c3 ) / ( 4*e );
-            var plus  = t1+t2;
-            var minus = t1-t2;
-
-            if ( Math.abs(plus)  <= Polynomial.TOLERANCE ) plus  = 0;
-            if ( Math.abs(minus) <= Polynomial.TOLERANCE ) minus = 0;
-
-            if ( plus >= 0 ) {
-                var f = Math.sqrt(plus);
-
-                results.push( -c3/4 + (e+f)/2 );
-                results.push( -c3/4 + (e-f)/2 );
-            }
-            if ( minus >= 0 ) {
-                var f = Math.sqrt(minus);
-
-                results.push( -c3/4 + (f-e)/2 );
-                results.push( -c3/4 - (f+e)/2 );
-            }
-        } else if ( discrim < 0 ) {
-            // no roots
-        } else {
-            var t2 = y*y - 4*c0;
-
-            if ( t2 >= -Polynomial.TOLERANCE ) {
-                if ( t2 < 0 ) t2 = 0;
-
-                t2 = 2*Math.sqrt(t2);
-                t1 = 3*c3*c3/4 - 2*c2;
-                if ( t1+t2 >= Polynomial.TOLERANCE ) {
-                    var d = Math.sqrt(t1+t2);
-
-                    results.push( -c3/4 + d/2 );
-                    results.push( -c3/4 - d/2 );
-                }
-                if ( t1-t2 >= Polynomial.TOLERANCE ) {
-                    var d = Math.sqrt(t1-t2);
-
-                    results.push( -c3/4 + d/2 );
-                    results.push( -c3/4 - d/2 );
-                }
-            }
-        }
-    }
-
-    return results;
-};
-
-if (typeof module !== "undefined") {
-    module.exports = Polynomial;
-}
-
-},{}],49:[function(require,module,exports){
-/**
- *
- *   SqrtPolynomial.js
- *
- *   copyright 2003, 2013 Kevin Lindsey
- *
- */
-
-if (typeof module !== "undefined") {
-    var Polynomial = require("./Polynomial");
-}
-
-/**
- *   class variables
- */
-SqrtPolynomial.VERSION = 1.0;
-
-// setup inheritance
-SqrtPolynomial.prototype             = new Polynomial();
-SqrtPolynomial.prototype.constructor = SqrtPolynomial;
-SqrtPolynomial.superclass            = Polynomial.prototype;
-
-
-/**
- *  SqrtPolynomial
- */
-function SqrtPolynomial() {
-    this.init( arguments );
-}
-
-
-/**
- *  eval
- *
- *  @param {Number} x
- *  @returns {Number}
- */
-SqrtPolynomial.prototype.eval = function(x) {
-    var TOLERANCE = 1e-7;
-    var result = SqrtPolynomial.superclass.eval.call(this, x);
-
-    // NOTE: May need to change the following.  I added these to capture
-    // some really small negative values that were being generated by one
-    // of my Bezier arcLength functions
-    if ( Math.abs(result) < TOLERANCE ) result = 0;
-    if ( result < 0 )
-        throw new Error("SqrtPolynomial.eval: cannot take square root of negative number");
-
-    return Math.sqrt(result);
-};
-
-SqrtPolynomial.prototype.toString = function() {
-    var result = SqrtPolynomial.superclass.toString.call(this);
-
-    return "sqrt(" + result + ")";
-};
-
-if (typeof module !== "undefined") {
-    module.exports = SqrtPolynomial;
-}
-
-},{"./Polynomial":48}],50:[function(require,module,exports){
-var parseSVG = require('parse-svg-path')
-var getContours = require('svg-path-contours')
-var cdt2d = require('cdt2d')
-var cleanPSLG = require('clean-pslg')
-var getBounds = require('bound-points')
-var normalize = require('normalize-path-scale')
-var random = require('random-float')
-var assign = require('object-assign')
-var simplify = require('simplify-path')
-
-module.exports = svgMesh3d
-function svgMesh3d (svgPath, opt) {
-  if (typeof svgPath !== 'string') {
-    throw new TypeError('must provide a string as first parameter')
-  }
-  
-  opt = assign({
-    delaunay: true,
-    clean: true,
-    exterior: false,
-    randomization: 0,
-    simplify: 0,
-    scale: 1
-  }, opt)
-  
-  var i
-  // parse string as a list of operations
-  var svg = parseSVG(svgPath)
-  
-  // convert curves into discrete points
-  var contours = getContours(svg, opt.scale)
-  
-  // optionally simplify the path for faster triangulation and/or aesthetics
-  if (opt.simplify > 0 && typeof opt.simplify === 'number') {
-    for (i = 0; i < contours.length; i++) {
-      contours[i] = simplify(contours[i], opt.simplify)
-    }
-  }
-  
-  // prepare for triangulation
-  var polyline = denestPolyline(contours)
-  var positions = polyline.positions
-  var bounds = getBounds(positions)
-
-  // optionally add random points for aesthetics
-  var randomization = opt.randomization
-  if (typeof randomization === 'number' && randomization > 0) {
-    addRandomPoints(positions, bounds, randomization)
-  }
-  
-  var loops = polyline.edges
-  var edges = []
-  for (i = 0; i < loops.length; ++i) {
-    var loop = loops[i]
-    for (var j = 0; j < loop.length; ++j) {
-      edges.push([loop[j], loop[(j + 1) % loop.length]])
-    }
-  }
-
-  // this updates points/edges so that they now form a valid PSLG 
-  if (opt.clean !== false) {
-    cleanPSLG(positions, edges)
-  }
-
-  // triangulate mesh
-  var cells = cdt2d(positions, edges, opt)
-
-  // rescale to [-1 ... 1]
-  normalize(positions, bounds)
-
-  // convert to 3D representation and flip on Y axis for convenience w/ OpenGL
-  to3D(positions)
-
-  return {
-    positions: positions,
-    cells: cells
-  }
-}
-
-function to3D (positions) {
-  for (var i = 0; i < positions.length; i++) {
-    var xy = positions[i]
-    xy[1] *= -1
-    xy[2] = xy[2] || 0
-  }
-}
-
-function addRandomPoints (positions, bounds, count) {
-  var min = bounds[0]
-  var max = bounds[1]
-
-  for (var i = 0; i < count; i++) {
-    positions.push([ // random [ x, y ]
-      random(min[0], max[0]),
-      random(min[1], max[1])
-    ])
-  }
-}
-
-function denestPolyline (nested) {
-  var positions = []
-  var edges = []
-
-  for (var i = 0; i < nested.length; i++) {
-    var path = nested[i]
-    var loop = []
-    for (var j = 0; j < path.length; j++) {
-      var pos = path[j]
-      var idx = positions.indexOf(pos)
-      if (idx === -1) {
-        positions.push(pos)
-        idx = positions.length - 1
-      }
-      loop.push(idx)
-    }
-    edges.push(loop)
-  }
-  return {
-    positions: positions,
-    edges: edges
-  }
-}
-
-},{"bound-points":51,"cdt2d":52,"clean-pslg":70,"normalize-path-scale":116,"object-assign":118,"parse-svg-path":119,"random-float":120,"simplify-path":122,"svg-path-contours":124}],51:[function(require,module,exports){
 'use strict'
 
-module.exports = findBounds
+module.exports = polyBool
 
-function findBounds(points) {
-  var n = points.length
-  if(n === 0) {
-    return [[], []]
-  }
-  var d = points[0].length
-  var lo = points[0].slice()
-  var hi = points[0].slice()
-  for(var i=1; i<n; ++i) {
-    var p = points[i]
-    for(var j=0; j<d; ++j) {
-      var x = p[j]
-      lo[j] = Math.min(lo[j], x)
-      hi[j] = Math.max(hi[j], x)
-    }
-  }
-  return [lo, hi]
+var pslg2poly = require('pslg-to-poly')
+var poly2pslg = require('poly-to-pslg')
+var overlay   = require('overlay-pslg')
+
+function polyBool(a, b, op) {
+  var apsl = poly2pslg(a)
+  var bpsl = poly2pslg(b)
+  var result = overlay(
+    apsl.points, apsl.edges,
+    bpsl.points, bpsl.edges,
+    op)
+  return pslg2poly(result.points, result.red.concat(result.blue))
 }
-},{}],52:[function(require,module,exports){
+
+},{"overlay-pslg":110,"poly-to-pslg":157,"pslg-to-poly":182}],40:[function(require,module,exports){
+"use strict"
+
+function compileSearch(funcName, predicate, reversed, extraArgs, earlyOut) {
+  var code = [
+    "function ", funcName, "(a,l,h,", extraArgs.join(","),  "){",
+earlyOut ? "" : "var i=", (reversed ? "l-1" : "h+1"),
+";while(l<=h){\
+var m=(l+h)>>>1,x=a[m]"]
+  if(earlyOut) {
+    if(predicate.indexOf("c") < 0) {
+      code.push(";if(x===y){return m}else if(x<=y){")
+    } else {
+      code.push(";var p=c(x,y);if(p===0){return m}else if(p<=0){")
+    }
+  } else {
+    code.push(";if(", predicate, "){i=m;")
+  }
+  if(reversed) {
+    code.push("l=m+1}else{h=m-1}")
+  } else {
+    code.push("h=m-1}else{l=m+1}")
+  }
+  code.push("}")
+  if(earlyOut) {
+    code.push("return -1};")
+  } else {
+    code.push("return i};")
+  }
+  return code.join("")
+}
+
+function compileBoundsSearch(predicate, reversed, suffix, earlyOut) {
+  var result = new Function([
+  compileSearch("A", "x" + predicate + "y", reversed, ["y"], earlyOut),
+  compileSearch("P", "c(x,y)" + predicate + "0", reversed, ["y", "c"], earlyOut),
+"function dispatchBsearch", suffix, "(a,y,c,l,h){\
+if(typeof(c)==='function'){\
+return P(a,(l===void 0)?0:l|0,(h===void 0)?a.length-1:h|0,y,c)\
+}else{\
+return A(a,(c===void 0)?0:c|0,(l===void 0)?a.length-1:l|0,y)\
+}}\
+return dispatchBsearch", suffix].join(""))
+  return result()
+}
+
+module.exports = {
+  ge: compileBoundsSearch(">=", false, "GE"),
+  gt: compileBoundsSearch(">", false, "GT"),
+  lt: compileBoundsSearch("<", true, "LT"),
+  le: compileBoundsSearch("<=", true, "LE"),
+  eq: compileBoundsSearch("-", true, "EQ", true)
+}
+
+},{}],41:[function(require,module,exports){
 'use strict'
 
 var monotoneTriangulate = require('./lib/monotone')
@@ -8953,7 +5681,7 @@ function cdt2d(points, edges, options) {
   }
 }
 
-},{"./lib/delaunay":53,"./lib/filter":54,"./lib/monotone":55,"./lib/triangulation":56}],53:[function(require,module,exports){
+},{"./lib/delaunay":42,"./lib/filter":43,"./lib/monotone":44,"./lib/triangulation":45}],42:[function(require,module,exports){
 'use strict'
 
 var inCircle = require('robust-in-sphere')[4]
@@ -9070,7 +5798,7 @@ function delaunayRefine(points, triangulation) {
   }
 }
 
-},{"binary-search-bounds":57,"robust-in-sphere":58}],54:[function(require,module,exports){
+},{"binary-search-bounds":40,"robust-in-sphere":46}],43:[function(require,module,exports){
 'use strict'
 
 var bsearch = require('binary-search-bounds')
@@ -9252,7 +5980,7 @@ function classifyFaces(triangulation, target, infinity) {
   return result
 }
 
-},{"binary-search-bounds":57}],55:[function(require,module,exports){
+},{"binary-search-bounds":40}],44:[function(require,module,exports){
 'use strict'
 
 var bsearch = require('binary-search-bounds')
@@ -9441,7 +6169,7 @@ function monotoneTriangulate(points, edges) {
   return cells
 }
 
-},{"binary-search-bounds":57,"robust-orientation":69}],56:[function(require,module,exports){
+},{"binary-search-bounds":40,"robust-orientation":57}],45:[function(require,module,exports){
 'use strict'
 
 var bsearch = require('binary-search-bounds')
@@ -9547,61 +6275,7 @@ function createTriangulation(numVerts, edges) {
   return new Triangulation(stars, edges)
 }
 
-},{"binary-search-bounds":57}],57:[function(require,module,exports){
-"use strict"
-
-function compileSearch(funcName, predicate, reversed, extraArgs, earlyOut) {
-  var code = [
-    "function ", funcName, "(a,l,h,", extraArgs.join(","),  "){",
-earlyOut ? "" : "var i=", (reversed ? "l-1" : "h+1"),
-";while(l<=h){\
-var m=(l+h)>>>1,x=a[m]"]
-  if(earlyOut) {
-    if(predicate.indexOf("c") < 0) {
-      code.push(";if(x===y){return m}else if(x<=y){")
-    } else {
-      code.push(";var p=c(x,y);if(p===0){return m}else if(p<=0){")
-    }
-  } else {
-    code.push(";if(", predicate, "){i=m;")
-  }
-  if(reversed) {
-    code.push("l=m+1}else{h=m-1}")
-  } else {
-    code.push("h=m-1}else{l=m+1}")
-  }
-  code.push("}")
-  if(earlyOut) {
-    code.push("return -1};")
-  } else {
-    code.push("return i};")
-  }
-  return code.join("")
-}
-
-function compileBoundsSearch(predicate, reversed, suffix, earlyOut) {
-  var result = new Function([
-  compileSearch("A", "x" + predicate + "y", reversed, ["y"], earlyOut),
-  compileSearch("P", "c(x,y)" + predicate + "0", reversed, ["y", "c"], earlyOut),
-"function dispatchBsearch", suffix, "(a,y,c,l,h){\
-if(typeof(c)==='function'){\
-return P(a,(l===void 0)?0:l|0,(h===void 0)?a.length-1:h|0,y,c)\
-}else{\
-return A(a,(c===void 0)?0:c|0,(l===void 0)?a.length-1:l|0,y)\
-}}\
-return dispatchBsearch", suffix].join(""))
-  return result()
-}
-
-module.exports = {
-  ge: compileBoundsSearch(">=", false, "GE"),
-  gt: compileBoundsSearch(">", false, "GT"),
-  lt: compileBoundsSearch("<", true, "LT"),
-  le: compileBoundsSearch("<=", true, "LE"),
-  eq: compileBoundsSearch("-", true, "EQ", true)
-}
-
-},{}],58:[function(require,module,exports){
+},{"binary-search-bounds":40}],46:[function(require,module,exports){
 "use strict"
 
 var twoProduct = require("two-product")
@@ -9769,29 +6443,29 @@ function generateInSphereTest() {
 }
 
 generateInSphereTest()
-},{"robust-scale":60,"robust-subtract":61,"robust-sum":62,"two-product":63}],59:[function(require,module,exports){
+},{"robust-scale":48,"robust-subtract":49,"robust-sum":50,"two-product":51}],47:[function(require,module,exports){
 arguments[4][7][0].apply(exports,arguments)
-},{"dup":7}],60:[function(require,module,exports){
+},{"dup":7}],48:[function(require,module,exports){
 arguments[4][8][0].apply(exports,arguments)
-},{"dup":8,"two-product":63,"two-sum":59}],61:[function(require,module,exports){
+},{"dup":8,"two-product":51,"two-sum":47}],49:[function(require,module,exports){
 arguments[4][9][0].apply(exports,arguments)
-},{"dup":9}],62:[function(require,module,exports){
+},{"dup":9}],50:[function(require,module,exports){
 arguments[4][10][0].apply(exports,arguments)
-},{"dup":10}],63:[function(require,module,exports){
+},{"dup":10}],51:[function(require,module,exports){
 arguments[4][11][0].apply(exports,arguments)
-},{"dup":11}],64:[function(require,module,exports){
+},{"dup":11}],52:[function(require,module,exports){
 arguments[4][7][0].apply(exports,arguments)
-},{"dup":7}],65:[function(require,module,exports){
+},{"dup":7}],53:[function(require,module,exports){
 arguments[4][8][0].apply(exports,arguments)
-},{"dup":8,"two-product":68,"two-sum":64}],66:[function(require,module,exports){
+},{"dup":8,"two-product":56,"two-sum":52}],54:[function(require,module,exports){
 arguments[4][9][0].apply(exports,arguments)
-},{"dup":9}],67:[function(require,module,exports){
+},{"dup":9}],55:[function(require,module,exports){
 arguments[4][10][0].apply(exports,arguments)
-},{"dup":10}],68:[function(require,module,exports){
+},{"dup":10}],56:[function(require,module,exports){
 arguments[4][11][0].apply(exports,arguments)
-},{"dup":11}],69:[function(require,module,exports){
+},{"dup":11}],57:[function(require,module,exports){
 arguments[4][12][0].apply(exports,arguments)
-},{"dup":12,"robust-scale":65,"robust-subtract":66,"robust-sum":67,"two-product":68}],70:[function(require,module,exports){
+},{"dup":12,"robust-scale":53,"robust-subtract":54,"robust-sum":55,"two-product":56}],58:[function(require,module,exports){
 'use strict'
 
 module.exports = cleanPSLG
@@ -10153,7 +6827,7 @@ function cleanPSLG(points, edges, colors) {
   return modified
 }
 
-},{"./lib/rat-seg-intersect":71,"big-rat":75,"big-rat/cmp":73,"big-rat/to-float":90,"box-intersect":91,"compare-cell":101,"nextafter":102,"rat-vec":105,"robust-segment-intersect":114,"union-find":115}],71:[function(require,module,exports){
+},{"./lib/rat-seg-intersect":59,"big-rat":63,"big-rat/cmp":61,"big-rat/to-float":78,"box-intersect":79,"compare-cell":89,"nextafter":90,"rat-vec":93,"robust-segment-intersect":102,"union-find":103}],59:[function(require,module,exports){
 'use strict'
 
 //TODO: Move this to a separate module
@@ -10199,7 +6873,7 @@ function solveIntersection(a, b, c, d) {
   return rvAdd(a, rvMuls(ba, t))
 }
 
-},{"big-rat/div":74,"big-rat/mul":84,"big-rat/sign":88,"big-rat/sub":89,"big-rat/to-float":90,"rat-vec/add":104,"rat-vec/muls":106,"rat-vec/sub":107}],72:[function(require,module,exports){
+},{"big-rat/div":62,"big-rat/mul":72,"big-rat/sign":76,"big-rat/sub":77,"big-rat/to-float":78,"rat-vec/add":92,"rat-vec/muls":94,"rat-vec/sub":95}],60:[function(require,module,exports){
 'use strict'
 
 var rationalize = require('./lib/rationalize')
@@ -10212,7 +6886,7 @@ function add(a, b) {
     a[1].mul(b[1]))
 }
 
-},{"./lib/rationalize":82}],73:[function(require,module,exports){
+},{"./lib/rationalize":70}],61:[function(require,module,exports){
 'use strict'
 
 module.exports = cmp
@@ -10221,7 +6895,7 @@ function cmp(a, b) {
     return a[0].mul(b[1]).cmp(b[0].mul(a[1]))
 }
 
-},{}],74:[function(require,module,exports){
+},{}],62:[function(require,module,exports){
 'use strict'
 
 var rationalize = require('./lib/rationalize')
@@ -10232,7 +6906,7 @@ function div(a, b) {
   return rationalize(a[0].mul(b[1]), a[1].mul(b[0]))
 }
 
-},{"./lib/rationalize":82}],75:[function(require,module,exports){
+},{"./lib/rationalize":70}],63:[function(require,module,exports){
 'use strict'
 
 var isRat = require('./is-rat')
@@ -10294,7 +6968,7 @@ function makeRational(numer, denom) {
   return rationalize(a, b)
 }
 
-},{"./div":74,"./is-rat":76,"./lib/is-bn":80,"./lib/num-to-bn":81,"./lib/rationalize":82,"./lib/str-to-bn":83}],76:[function(require,module,exports){
+},{"./div":62,"./is-rat":64,"./lib/is-bn":68,"./lib/num-to-bn":69,"./lib/rationalize":70,"./lib/str-to-bn":71}],64:[function(require,module,exports){
 'use strict'
 
 var isBN = require('./lib/is-bn')
@@ -10305,7 +6979,7 @@ function isRat(x) {
   return Array.isArray(x) && x.length === 2 && isBN(x[0]) && isBN(x[1])
 }
 
-},{"./lib/is-bn":80}],77:[function(require,module,exports){
+},{"./lib/is-bn":68}],65:[function(require,module,exports){
 'use strict'
 
 var bn = require('bn.js')
@@ -10316,7 +6990,7 @@ function sign(x) {
   return x.cmp(new bn(0))
 }
 
-},{"bn.js":86}],78:[function(require,module,exports){
+},{"bn.js":74}],66:[function(require,module,exports){
 'use strict'
 
 module.exports = bn2num
@@ -10340,7 +7014,7 @@ function bn2num(b) {
   return b.sign ? -out : out
 }
 
-},{}],79:[function(require,module,exports){
+},{}],67:[function(require,module,exports){
 'use strict'
 
 var db = require('double-bits')
@@ -10361,7 +7035,7 @@ function ctzNumber(x) {
   return h + 32
 }
 
-},{"bit-twiddle":85,"double-bits":87}],80:[function(require,module,exports){
+},{"bit-twiddle":73,"double-bits":75}],68:[function(require,module,exports){
 'use strict'
 
 var BN = require('bn.js')
@@ -10374,7 +7048,7 @@ function isBN(x) {
   return x && typeof x === 'object' && Boolean(x.words)
 }
 
-},{"bn.js":86}],81:[function(require,module,exports){
+},{"bn.js":74}],69:[function(require,module,exports){
 'use strict'
 
 var BN = require('bn.js')
@@ -10391,7 +7065,7 @@ function num2bn(x) {
   }
 }
 
-},{"bn.js":86,"double-bits":87}],82:[function(require,module,exports){
+},{"bn.js":74,"double-bits":75}],70:[function(require,module,exports){
 'use strict'
 
 var num2bn = require('./num-to-bn')
@@ -10419,7 +7093,7 @@ function rationalize(numer, denom) {
   return [ numer, denom ]
 }
 
-},{"./bn-sign":77,"./num-to-bn":81}],83:[function(require,module,exports){
+},{"./bn-sign":65,"./num-to-bn":69}],71:[function(require,module,exports){
 'use strict'
 
 var BN = require('bn.js')
@@ -10430,7 +7104,7 @@ function str2BN(x) {
   return new BN(x)
 }
 
-},{"bn.js":86}],84:[function(require,module,exports){
+},{"bn.js":74}],72:[function(require,module,exports){
 'use strict'
 
 var rationalize = require('./lib/rationalize')
@@ -10441,9 +7115,9 @@ function mul(a, b) {
   return rationalize(a[0].mul(b[0]), a[1].mul(b[1]))
 }
 
-},{"./lib/rationalize":82}],85:[function(require,module,exports){
+},{"./lib/rationalize":70}],73:[function(require,module,exports){
 arguments[4][35][0].apply(exports,arguments)
-},{"dup":35}],86:[function(require,module,exports){
+},{"dup":35}],74:[function(require,module,exports){
 (function (module, exports) {
 
 'use strict';
@@ -12763,7 +9437,7 @@ Mont.prototype.invm = function invm(a) {
 
 })(typeof module === 'undefined' || module, this);
 
-},{}],87:[function(require,module,exports){
+},{}],75:[function(require,module,exports){
 (function (Buffer){
 var hasTypedArrays = false
 if(typeof Float64Array !== "undefined") {
@@ -12867,7 +9541,7 @@ module.exports.denormalized = function(n) {
   return !(hi & 0x7ff00000)
 }
 }).call(this,require("buffer").Buffer)
-},{"buffer":1}],88:[function(require,module,exports){
+},{"buffer":1}],76:[function(require,module,exports){
 'use strict'
 
 var bnsign = require('./lib/bn-sign')
@@ -12878,7 +9552,7 @@ function sign(x) {
   return bnsign(x[0]) * bnsign(x[1])
 }
 
-},{"./lib/bn-sign":77}],89:[function(require,module,exports){
+},{"./lib/bn-sign":65}],77:[function(require,module,exports){
 'use strict'
 
 var rationalize = require('./lib/rationalize')
@@ -12889,7 +9563,7 @@ function sub(a, b) {
   return rationalize(a[0].mul(b[1]).sub(a[1].mul(b[0])), a[1].mul(b[1]))
 }
 
-},{"./lib/rationalize":82}],90:[function(require,module,exports){
+},{"./lib/rationalize":70}],78:[function(require,module,exports){
 'use strict'
 
 var bn2num = require('./lib/bn-to-num')
@@ -12932,7 +9606,7 @@ function roundRat(f) {
   }
 }
 
-},{"./lib/bn-to-num":78,"./lib/ctz":79}],91:[function(require,module,exports){
+},{"./lib/bn-to-num":66,"./lib/ctz":67}],79:[function(require,module,exports){
 'use strict'
 
 module.exports = boxIntersectWrapper
@@ -13071,7 +9745,7 @@ function boxIntersectWrapper(arg0, arg1, arg2) {
       throw new Error('box-intersect: Invalid arguments')
   }
 }
-},{"./lib/intersect":93,"./lib/sweep":97,"typedarray-pool":100}],92:[function(require,module,exports){
+},{"./lib/intersect":81,"./lib/sweep":85,"typedarray-pool":88}],80:[function(require,module,exports){
 'use strict'
 
 var DIMENSION   = 'd'
@@ -13216,7 +9890,7 @@ function bruteForcePlanner(full) {
 
 exports.partial = bruteForcePlanner(false)
 exports.full    = bruteForcePlanner(true)
-},{}],93:[function(require,module,exports){
+},{}],81:[function(require,module,exports){
 'use strict'
 
 module.exports = boxIntersectIter
@@ -13711,7 +10385,7 @@ function boxIntersectIter(
     }
   }
 }
-},{"./brute":92,"./median":94,"./partition":95,"./sweep":97,"bit-twiddle":98,"typedarray-pool":100}],94:[function(require,module,exports){
+},{"./brute":80,"./median":82,"./partition":83,"./sweep":85,"bit-twiddle":86,"typedarray-pool":88}],82:[function(require,module,exports){
 'use strict'
 
 module.exports = findMedian
@@ -13854,7 +10528,7 @@ function findMedian(d, axis, start, end, boxes, ids) {
     start, mid, boxes, ids,
     boxes[elemSize*mid+axis])
 }
-},{"./partition":95}],95:[function(require,module,exports){
+},{"./partition":83}],83:[function(require,module,exports){
 'use strict'
 
 module.exports = genPartition
@@ -13875,7 +10549,7 @@ function genPartition(predicate, args) {
         .replace('$', predicate))
   return Function.apply(void 0, fargs)
 }
-},{}],96:[function(require,module,exports){
+},{}],84:[function(require,module,exports){
 'use strict';
 
 //This code is extracted from ndarray-sort
@@ -14112,7 +10786,7 @@ function quickSort(left, right, data) {
     quickSort(less, great, data);
   }
 }
-},{}],97:[function(require,module,exports){
+},{}],85:[function(require,module,exports){
 'use strict'
 
 module.exports = {
@@ -14547,13 +11221,13 @@ red_loop:
     }
   }
 }
-},{"./sort":96,"bit-twiddle":98,"typedarray-pool":100}],98:[function(require,module,exports){
+},{"./sort":84,"bit-twiddle":86,"typedarray-pool":88}],86:[function(require,module,exports){
 arguments[4][35][0].apply(exports,arguments)
-},{"dup":35}],99:[function(require,module,exports){
+},{"dup":35}],87:[function(require,module,exports){
 arguments[4][22][0].apply(exports,arguments)
-},{"dup":22}],100:[function(require,module,exports){
+},{"dup":22}],88:[function(require,module,exports){
 arguments[4][37][0].apply(exports,arguments)
-},{"bit-twiddle":98,"buffer":1,"dup":37}],101:[function(require,module,exports){
+},{"bit-twiddle":86,"buffer":1,"dup":37}],89:[function(require,module,exports){
 module.exports = compareCells
 
 var min = Math.min
@@ -14609,7 +11283,7 @@ function compareCells(a, b) {
   }
 }
 
-},{}],102:[function(require,module,exports){
+},{}],90:[function(require,module,exports){
 "use strict"
 
 var doubleBits = require("double-bits")
@@ -14652,9 +11326,9 @@ function nextafter(x, y) {
   }
   return doubleBits.pack(lo, hi)
 }
-},{"double-bits":103}],103:[function(require,module,exports){
-arguments[4][87][0].apply(exports,arguments)
-},{"buffer":1,"dup":87}],104:[function(require,module,exports){
+},{"double-bits":91}],91:[function(require,module,exports){
+arguments[4][75][0].apply(exports,arguments)
+},{"buffer":1,"dup":75}],92:[function(require,module,exports){
 'use strict'
 
 var bnadd = require('big-rat/add')
@@ -14670,7 +11344,7 @@ function add(a, b) {
   return r
 }
 
-},{"big-rat/add":72}],105:[function(require,module,exports){
+},{"big-rat/add":60}],93:[function(require,module,exports){
 'use strict'
 
 module.exports = float2rat
@@ -14685,7 +11359,7 @@ function float2rat(v) {
   return result
 }
 
-},{"big-rat":75}],106:[function(require,module,exports){
+},{"big-rat":63}],94:[function(require,module,exports){
 'use strict'
 
 var rat = require('big-rat')
@@ -14703,7 +11377,7 @@ function muls(a, x) {
   return r
 }
 
-},{"big-rat":75,"big-rat/mul":84}],107:[function(require,module,exports){
+},{"big-rat":63,"big-rat/mul":72}],95:[function(require,module,exports){
 'use strict'
 
 var bnsub = require('big-rat/sub')
@@ -14719,19 +11393,19 @@ function sub(a, b) {
   return r
 }
 
-},{"big-rat/sub":89}],108:[function(require,module,exports){
+},{"big-rat/sub":77}],96:[function(require,module,exports){
 arguments[4][7][0].apply(exports,arguments)
-},{"dup":7}],109:[function(require,module,exports){
+},{"dup":7}],97:[function(require,module,exports){
 arguments[4][8][0].apply(exports,arguments)
-},{"dup":8,"two-product":112,"two-sum":108}],110:[function(require,module,exports){
+},{"dup":8,"two-product":100,"two-sum":96}],98:[function(require,module,exports){
 arguments[4][9][0].apply(exports,arguments)
-},{"dup":9}],111:[function(require,module,exports){
+},{"dup":9}],99:[function(require,module,exports){
 arguments[4][10][0].apply(exports,arguments)
-},{"dup":10}],112:[function(require,module,exports){
+},{"dup":10}],100:[function(require,module,exports){
 arguments[4][11][0].apply(exports,arguments)
-},{"dup":11}],113:[function(require,module,exports){
+},{"dup":11}],101:[function(require,module,exports){
 arguments[4][12][0].apply(exports,arguments)
-},{"dup":12,"robust-scale":109,"robust-subtract":110,"robust-sum":111,"two-product":112}],114:[function(require,module,exports){
+},{"dup":12,"robust-scale":97,"robust-subtract":98,"robust-sum":99,"two-product":100}],102:[function(require,module,exports){
 "use strict"
 
 module.exports = segmentsIntersect
@@ -14779,7 +11453,7 @@ function segmentsIntersect(a0, a1, b0, b1) {
 
   return true
 }
-},{"robust-orientation":113}],115:[function(require,module,exports){
+},{"robust-orientation":101}],103:[function(require,module,exports){
 "use strict"; "use restrict";
 
 module.exports = UnionFind;
@@ -14842,7 +11516,4128 @@ proto.link = function(x, y) {
     ++ranks[xr];
   }
 }
-},{}],116:[function(require,module,exports){
+},{}],104:[function(require,module,exports){
+'use strict'
+
+module.exports = boundary
+
+var bnd = require('boundary-cells')
+var reduce = require('reduce-simplicial-complex')
+
+function boundary(cells) {
+  return reduce(bnd(cells))
+}
+
+},{"boundary-cells":105,"reduce-simplicial-complex":109}],105:[function(require,module,exports){
+"use strict"
+
+module.exports = boundary
+
+function boundary(cells) {
+  var n = cells.length
+  var sz = 0
+  for(var i=0; i<n; ++i) {
+    sz += cells[i].length
+  }
+  var result = new Array(sz)
+  var ptr = 0
+  for(var i=0; i<n; ++i) {
+    var c = cells[i]
+    var d = c.length
+    for(var j=0; j<d; ++j) {
+      var b = result[ptr++] = new Array(d-1)
+      for(var k=1; k<d; ++k) {
+        b[k-1] = c[(j+k)%d]
+      }
+    }
+  }
+  return result
+}
+
+},{}],106:[function(require,module,exports){
+'use strict'
+
+module.exports = orientation
+
+function orientation(s) {
+  var p = 1
+  for(var i=1; i<s.length; ++i) {
+    for(var j=0; j<i; ++j) {
+      if(s[i] < s[j]) {
+        p = -p
+      } else if(s[j] === s[i]) {
+        return 0
+      }
+    }
+  }
+  return p
+}
+
+},{}],107:[function(require,module,exports){
+arguments[4][89][0].apply(exports,arguments)
+},{"dup":89}],108:[function(require,module,exports){
+'use strict'
+
+var compareCells = require('compare-cell')
+var parity = require('cell-orientation')
+
+module.exports = compareOrientedCells
+
+function compareOrientedCells(a, b) {
+  return compareCells(a, b) || parity(a) - parity(b)
+}
+
+},{"cell-orientation":106,"compare-cell":107}],109:[function(require,module,exports){
+'use strict'
+
+var compareCell = require('compare-cell')
+var compareOrientedCell = require('compare-oriented-cell')
+var orientation = require('cell-orientation')
+
+module.exports = reduceCellComplex
+
+function reduceCellComplex(cells) {
+  cells.sort(compareOrientedCell)
+  var n = cells.length
+  var ptr = 0
+  for(var i=0; i<n; ++i) {
+    var c = cells[i]
+    var o = orientation(c)
+    if(o === 0) {
+      continue
+    }
+    if(ptr > 0) {
+      var f = cells[ptr-1]
+      if(compareCell(c, f) === 0 &&
+         orientation(f)    !== o) {
+        ptr -= 1
+        continue
+      }
+    }
+    cells[ptr++] = c
+  }
+  cells.length = ptr
+  return cells
+}
+
+},{"cell-orientation":106,"compare-cell":107,"compare-oriented-cell":108}],110:[function(require,module,exports){
+'use strict'
+
+var snapRound = require('clean-pslg')
+var cdt2d = require('cdt2d')
+var bsearch = require('binary-search-bounds')
+var boundary = require('simplicial-complex-boundary')
+
+module.exports = overlayPSLG
+
+var RED  = 0
+var BLUE = 1
+
+var OPERATORS = {
+  'xor':  [0, 1, 1, 0],
+  'or':   [0, 1, 1, 1],
+  'and':  [0, 0, 0, 1],
+  'sub':  [0, 1, 0, 0],
+  'rsub': [0, 0, 1, 0]
+}
+
+function getTable(op) {
+  if(typeof op !== 'string') {
+    return OPERATORS.xor
+  }
+  var x = OPERATORS[op.toLowerCase()]
+  if(x) {
+    return x
+  }
+  return OPERATORS.xor
+}
+
+
+function compareEdge(a, b) {
+  return Math.min(a[0], a[1]) - Math.min(b[0], b[1]) ||
+         Math.max(a[0], a[1]) - Math.max(b[0], b[1])
+}
+
+function edgeCellIndex(edge, cell) {
+  var a = edge[0]
+  var b = edge[1]
+  for(var i=0; i<3; ++i) {
+    if(cell[i] !== a && cell[i] !== b) {
+      return i
+    }
+  }
+  return -1
+}
+
+function buildCellIndex(cells) {
+  //Initialize cell index
+  var cellIndex = new Array(3*cells.length)
+  for(var i=0; i<3*cells.length; ++i) {
+    cellIndex[i] = -1
+  }
+
+  //Sort edges
+  var edges = []
+  for(var i=0; i<cells.length; ++i) {
+    var c = cells[i]
+    for(var j=0; j<3; ++j) {
+      edges.push([c[j], c[(j+1)%3], i])
+    }
+  }
+  edges.sort(compareEdge)
+
+  //For each pair of edges, link adjacent cells
+  for(var i=1; i<edges.length; ++i) {
+    var e = edges[i]
+    var f = edges[i-1]
+    if(compareEdge(e, f) !== 0) {
+      continue
+    }
+    var ce = e[2]
+    var cf = f[2]
+    var ei = edgeCellIndex(e, cells[ce])
+    var fi = edgeCellIndex(f, cells[cf])
+    cellIndex[3*ce+ei] = cf
+    cellIndex[3*cf+fi] = ce
+  }
+
+  return cellIndex
+}
+
+function compareLex2(a, b) {
+  return a[0]-b[0] || a[1]-b[1]
+}
+
+function canonicalizeEdges(edges) {
+  for(var i=0; i<edges.length; ++i) {
+    var e = edges[i]
+    var a = e[0]
+    var b = e[1]
+    e[0] = Math.min(a, b)
+    e[1] = Math.max(a, b)
+  }
+  edges.sort(compareLex2)
+}
+
+
+var TMP = [0,0]
+function isConstraint(edges, a, b) {
+  TMP[0] = Math.min(a,b)
+  TMP[1] = Math.max(a,b)
+  return bsearch.eq(edges, TMP, compareLex2) >= 0
+}
+
+//Classify all cells within boundary
+function markCells(cells, adj, edges) {
+
+  //Initialize active/next queues and flags
+  var flags = new Array(cells.length)
+  var constraint = new Array(3*cells.length)
+  for(var i=0; i<3*cells.length; ++i) {
+    constraint[i] = false
+  }
+  var active = []
+  var next   = []
+  for(var i=0; i<cells.length; ++i) {
+    var c = cells[i]
+    flags[i] = 0
+    for(var j=0; j<3; ++j) {
+      var a = c[(j+1)%3]
+      var b = c[(j+2)%3]
+      var constr = constraint[3*i+j] = isConstraint(edges, a, b)
+      if(adj[3*i+j] >= 0) {
+        continue
+      }
+      if(constr) {
+        next.push(i)
+      } else {
+        flags[i] = 1
+        active.push(i)
+      }
+    }
+  }
+
+  //Mark flags
+  var side = 1
+  while(active.length > 0 || next.length > 0) {
+    while(active.length > 0) {
+      var t = active.pop()
+      if(flags[t] === -side) {
+        continue
+      }
+      flags[t] = side
+      var c = cells[t]
+      for(var j=0; j<3; ++j) {
+        var f = adj[3*t+j]
+        if(f >= 0 && flags[f] === 0) {
+          if(constraint[3*t+j]) {
+            next.push(f)
+          } else {
+            active.push(f)
+            flags[f] = side
+          }
+        }
+      }
+    }
+
+    //Swap arrays and loop
+    var tmp = next
+    next = active
+    active = tmp
+    next.length = 0
+    side = -side
+  }
+
+  return flags
+}
+
+function setIntersect(colored, edges) {
+  var ptr = 0
+  for(var i=0,j=0; i<colored.length&&j<edges.length; ) {
+    var e = colored[i]
+    var f = edges[j]
+    var d = e[0]-f[0] || e[1]-f[1]
+    if(d < 0) {
+      i += 1
+    } else if(d > 0) {
+      j += 1
+    } else {
+      colored[ptr++] = colored[i]
+      i += 1
+      j += 1
+    }
+  }
+  colored.length = ptr
+  return colored
+}
+
+function relabelEdges(edges, labels) {
+  for(var i=0; i<edges.length; ++i) {
+    var e = edges[i]
+    e[0] = labels[e[0]]
+    e[1] = labels[e[1]]
+  }
+}
+
+function markEdgesActive(edges, labels) {
+  for(var i=0; i<edges.length; ++i) {
+    var e = edges[i]
+    labels[e[0]] = labels[e[1]] = 1
+  }
+}
+
+function removeUnusedPoints(points, redE, blueE) {
+  var labels = new Array(points.length)
+  for(var i=0; i<labels.length; ++i) {
+    labels[i] = -1
+  }
+  markEdgesActive(redE, labels)
+  markEdgesActive(blueE, labels)
+
+  var ptr = 0
+  for(var i=0; i<points.length; ++i) {
+    if(labels[i] > 0) {
+      labels[i] = ptr
+      points[ptr++] = points[i]
+    }
+  }
+  points.length = ptr
+  relabelEdges(redE, labels)
+  relabelEdges(blueE, labels)
+}
+
+function overlayPSLG(redPoints, redEdges, bluePoints, blueEdges, op) {
+  //1.  concatenate points
+  var numRedPoints = redPoints.length
+  var points = redPoints.concat(bluePoints)
+
+  //2.  concatenate edges
+  var numRedEdges  = redEdges.length
+  var numBlueEdges = blueEdges.length
+  var edges        = new Array(numRedEdges + numBlueEdges)
+  var colors       = new Array(numRedEdges + numBlueEdges)
+  for(var i=0; i<redEdges.length; ++i) {
+    var e      = redEdges[i]
+    colors[i]  = RED
+    edges[i]   = [ e[0], e[1] ]
+  }
+  for(var i=0; i<blueEdges.length; ++i) {
+    var e      = blueEdges[i]
+    colors[i+numRedEdges]  = BLUE
+    edges[i+numRedEdges]   = [ e[0]+numRedPoints, e[1]+numRedPoints ]
+  }
+
+  //3.  run snap rounding with edge colors
+  snapRound(points, edges, colors)
+
+  //4. Sort edges
+  canonicalizeEdges(edges)
+
+  //5.  extract red and blue edges
+  var redE = [], blueE = []
+  for(var i=0; i<edges.length; ++i) {
+    if(colors[i] === RED) {
+      redE.push(edges[i])
+    } else {
+      blueE.push(edges[i])
+    }
+  }
+
+  //6.  triangulate
+  var cells = cdt2d(points, edges, { delaunay: false })
+
+  //7. build adjacency data structure
+  var adj = buildCellIndex(cells)
+
+  //8. classify triangles
+  var redFlags = markCells(cells, adj, redE)
+  var blueFlags = markCells(cells, adj, blueE)
+
+  //9. filter out cels which are not part of triangulation
+  var table = getTable(op)
+  var ptr = 0
+  for(var i=0; i<cells.length; ++i) {
+    var code = ((redFlags[i] < 0)<<1) + (blueFlags[i] < 0)
+    if(table[code]) {
+      cells[ptr++] = cells[i]
+    }
+  }
+  cells.length = ptr
+
+  //10. extract boundary
+  var bnd = boundary(cells)
+  canonicalizeEdges(bnd)
+
+  //11. Intersect constraint edges with boundary
+  redE = setIntersect(redE, bnd)
+  blueE = setIntersect(blueE, bnd)
+
+  //12. filter old points
+  removeUnusedPoints(points, redE, blueE)
+
+  return {
+    points: points,
+    red:    redE,
+    blue:   blueE
+  }
+}
+
+},{"binary-search-bounds":40,"cdt2d":41,"clean-pslg":58,"simplicial-complex-boundary":104}],111:[function(require,module,exports){
+arguments[4][58][0].apply(exports,arguments)
+},{"./lib/rat-seg-intersect":112,"big-rat":116,"big-rat/cmp":114,"big-rat/to-float":131,"box-intersect":132,"compare-cell":142,"dup":58,"nextafter":143,"rat-vec":146,"robust-segment-intersect":155,"union-find":156}],112:[function(require,module,exports){
+arguments[4][59][0].apply(exports,arguments)
+},{"big-rat/div":115,"big-rat/mul":125,"big-rat/sign":129,"big-rat/sub":130,"big-rat/to-float":131,"dup":59,"rat-vec/add":145,"rat-vec/muls":147,"rat-vec/sub":148}],113:[function(require,module,exports){
+arguments[4][60][0].apply(exports,arguments)
+},{"./lib/rationalize":123,"dup":60}],114:[function(require,module,exports){
+arguments[4][61][0].apply(exports,arguments)
+},{"dup":61}],115:[function(require,module,exports){
+arguments[4][62][0].apply(exports,arguments)
+},{"./lib/rationalize":123,"dup":62}],116:[function(require,module,exports){
+arguments[4][63][0].apply(exports,arguments)
+},{"./div":115,"./is-rat":117,"./lib/is-bn":121,"./lib/num-to-bn":122,"./lib/rationalize":123,"./lib/str-to-bn":124,"dup":63}],117:[function(require,module,exports){
+arguments[4][64][0].apply(exports,arguments)
+},{"./lib/is-bn":121,"dup":64}],118:[function(require,module,exports){
+arguments[4][65][0].apply(exports,arguments)
+},{"bn.js":127,"dup":65}],119:[function(require,module,exports){
+arguments[4][66][0].apply(exports,arguments)
+},{"dup":66}],120:[function(require,module,exports){
+arguments[4][67][0].apply(exports,arguments)
+},{"bit-twiddle":126,"double-bits":128,"dup":67}],121:[function(require,module,exports){
+arguments[4][68][0].apply(exports,arguments)
+},{"bn.js":127,"dup":68}],122:[function(require,module,exports){
+arguments[4][69][0].apply(exports,arguments)
+},{"bn.js":127,"double-bits":128,"dup":69}],123:[function(require,module,exports){
+arguments[4][70][0].apply(exports,arguments)
+},{"./bn-sign":118,"./num-to-bn":122,"dup":70}],124:[function(require,module,exports){
+arguments[4][71][0].apply(exports,arguments)
+},{"bn.js":127,"dup":71}],125:[function(require,module,exports){
+arguments[4][72][0].apply(exports,arguments)
+},{"./lib/rationalize":123,"dup":72}],126:[function(require,module,exports){
+arguments[4][35][0].apply(exports,arguments)
+},{"dup":35}],127:[function(require,module,exports){
+arguments[4][74][0].apply(exports,arguments)
+},{"dup":74}],128:[function(require,module,exports){
+arguments[4][75][0].apply(exports,arguments)
+},{"buffer":1,"dup":75}],129:[function(require,module,exports){
+arguments[4][76][0].apply(exports,arguments)
+},{"./lib/bn-sign":118,"dup":76}],130:[function(require,module,exports){
+arguments[4][77][0].apply(exports,arguments)
+},{"./lib/rationalize":123,"dup":77}],131:[function(require,module,exports){
+arguments[4][78][0].apply(exports,arguments)
+},{"./lib/bn-to-num":119,"./lib/ctz":120,"dup":78}],132:[function(require,module,exports){
+arguments[4][79][0].apply(exports,arguments)
+},{"./lib/intersect":134,"./lib/sweep":138,"dup":79,"typedarray-pool":141}],133:[function(require,module,exports){
+arguments[4][80][0].apply(exports,arguments)
+},{"dup":80}],134:[function(require,module,exports){
+arguments[4][81][0].apply(exports,arguments)
+},{"./brute":133,"./median":135,"./partition":136,"./sweep":138,"bit-twiddle":139,"dup":81,"typedarray-pool":141}],135:[function(require,module,exports){
+arguments[4][82][0].apply(exports,arguments)
+},{"./partition":136,"dup":82}],136:[function(require,module,exports){
+arguments[4][83][0].apply(exports,arguments)
+},{"dup":83}],137:[function(require,module,exports){
+arguments[4][84][0].apply(exports,arguments)
+},{"dup":84}],138:[function(require,module,exports){
+arguments[4][85][0].apply(exports,arguments)
+},{"./sort":137,"bit-twiddle":139,"dup":85,"typedarray-pool":141}],139:[function(require,module,exports){
+arguments[4][35][0].apply(exports,arguments)
+},{"dup":35}],140:[function(require,module,exports){
+arguments[4][22][0].apply(exports,arguments)
+},{"dup":22}],141:[function(require,module,exports){
+arguments[4][37][0].apply(exports,arguments)
+},{"bit-twiddle":139,"buffer":1,"dup":37}],142:[function(require,module,exports){
+arguments[4][89][0].apply(exports,arguments)
+},{"dup":89}],143:[function(require,module,exports){
+arguments[4][90][0].apply(exports,arguments)
+},{"double-bits":144,"dup":90}],144:[function(require,module,exports){
+arguments[4][75][0].apply(exports,arguments)
+},{"buffer":1,"dup":75}],145:[function(require,module,exports){
+arguments[4][92][0].apply(exports,arguments)
+},{"big-rat/add":113,"dup":92}],146:[function(require,module,exports){
+arguments[4][93][0].apply(exports,arguments)
+},{"big-rat":116,"dup":93}],147:[function(require,module,exports){
+arguments[4][94][0].apply(exports,arguments)
+},{"big-rat":116,"big-rat/mul":125,"dup":94}],148:[function(require,module,exports){
+arguments[4][95][0].apply(exports,arguments)
+},{"big-rat/sub":130,"dup":95}],149:[function(require,module,exports){
+arguments[4][7][0].apply(exports,arguments)
+},{"dup":7}],150:[function(require,module,exports){
+arguments[4][8][0].apply(exports,arguments)
+},{"dup":8,"two-product":153,"two-sum":149}],151:[function(require,module,exports){
+arguments[4][9][0].apply(exports,arguments)
+},{"dup":9}],152:[function(require,module,exports){
+arguments[4][10][0].apply(exports,arguments)
+},{"dup":10}],153:[function(require,module,exports){
+arguments[4][11][0].apply(exports,arguments)
+},{"dup":11}],154:[function(require,module,exports){
+arguments[4][12][0].apply(exports,arguments)
+},{"dup":12,"robust-scale":150,"robust-subtract":151,"robust-sum":152,"two-product":153}],155:[function(require,module,exports){
+arguments[4][102][0].apply(exports,arguments)
+},{"dup":102,"robust-orientation":154}],156:[function(require,module,exports){
+arguments[4][103][0].apply(exports,arguments)
+},{"dup":103}],157:[function(require,module,exports){
+'use strict'
+
+module.exports = polygonToPSLG
+
+var cleanPSLG = require('clean-pslg')
+
+//Converts a polygon to a planar straight line graph
+function polygonToPSLG(loops, options) {
+  if(!Array.isArray(loops)) {
+    throw new Error('poly-to-pslg: Error, invalid polygon')
+  }
+  if(loops.length === 0) {
+    return {
+      points: [],
+      edges:  []
+    }
+  }
+
+  options = options || {}
+
+  var nested = true
+  if('nested' in options) {
+    nested = !!options.nested
+  } else if(loops[0].length === 2 && typeof loops[0][0] === 'number') {
+    //Hack:  If use doesn't pass in a loop, then try to guess if it is nested
+    nested = false
+  }
+  if(!nested) {
+    loops = [loops]
+  }
+
+  //First we just unroll all the points in the dumb/obvious way
+  var points = []
+  var edges = []
+  for(var i=0; i<loops.length; ++i) {
+    var loop = loops[i]
+    var offset = points.length
+    for(var j=0; j<loop.length; ++j) {
+      points.push(loop[j])
+      edges.push([ offset+j, offset+(j+1)%loop.length ])
+    }
+  }
+
+  //Then we run snap rounding to clean up self intersections and duplicate verts
+  var clean = 'clean' in options ? true : !!options.clean
+  if(clean) {
+    cleanPSLG(points, edges)
+  }
+
+  //Finally, we return the resulting PSLG
+  return {
+    points: points,
+    edges:  edges
+  }
+}
+
+},{"clean-pslg":111}],158:[function(require,module,exports){
+arguments[4][41][0].apply(exports,arguments)
+},{"./lib/delaunay":159,"./lib/filter":160,"./lib/monotone":161,"./lib/triangulation":162,"dup":41}],159:[function(require,module,exports){
+arguments[4][42][0].apply(exports,arguments)
+},{"binary-search-bounds":163,"dup":42,"robust-in-sphere":164}],160:[function(require,module,exports){
+arguments[4][43][0].apply(exports,arguments)
+},{"binary-search-bounds":163,"dup":43}],161:[function(require,module,exports){
+arguments[4][44][0].apply(exports,arguments)
+},{"binary-search-bounds":163,"dup":44,"robust-orientation":175}],162:[function(require,module,exports){
+arguments[4][45][0].apply(exports,arguments)
+},{"binary-search-bounds":163,"dup":45}],163:[function(require,module,exports){
+arguments[4][40][0].apply(exports,arguments)
+},{"dup":40}],164:[function(require,module,exports){
+arguments[4][46][0].apply(exports,arguments)
+},{"dup":46,"robust-scale":166,"robust-subtract":167,"robust-sum":168,"two-product":169}],165:[function(require,module,exports){
+arguments[4][7][0].apply(exports,arguments)
+},{"dup":7}],166:[function(require,module,exports){
+arguments[4][8][0].apply(exports,arguments)
+},{"dup":8,"two-product":169,"two-sum":165}],167:[function(require,module,exports){
+arguments[4][9][0].apply(exports,arguments)
+},{"dup":9}],168:[function(require,module,exports){
+arguments[4][10][0].apply(exports,arguments)
+},{"dup":10}],169:[function(require,module,exports){
+arguments[4][11][0].apply(exports,arguments)
+},{"dup":11}],170:[function(require,module,exports){
+arguments[4][7][0].apply(exports,arguments)
+},{"dup":7}],171:[function(require,module,exports){
+arguments[4][8][0].apply(exports,arguments)
+},{"dup":8,"two-product":174,"two-sum":170}],172:[function(require,module,exports){
+arguments[4][9][0].apply(exports,arguments)
+},{"dup":9}],173:[function(require,module,exports){
+arguments[4][10][0].apply(exports,arguments)
+},{"dup":10}],174:[function(require,module,exports){
+arguments[4][11][0].apply(exports,arguments)
+},{"dup":11}],175:[function(require,module,exports){
+arguments[4][12][0].apply(exports,arguments)
+},{"dup":12,"robust-scale":171,"robust-subtract":172,"robust-sum":173,"two-product":174}],176:[function(require,module,exports){
+arguments[4][104][0].apply(exports,arguments)
+},{"boundary-cells":177,"dup":104,"reduce-simplicial-complex":181}],177:[function(require,module,exports){
+arguments[4][105][0].apply(exports,arguments)
+},{"dup":105}],178:[function(require,module,exports){
+arguments[4][106][0].apply(exports,arguments)
+},{"dup":106}],179:[function(require,module,exports){
+arguments[4][89][0].apply(exports,arguments)
+},{"dup":89}],180:[function(require,module,exports){
+arguments[4][108][0].apply(exports,arguments)
+},{"cell-orientation":178,"compare-cell":179,"dup":108}],181:[function(require,module,exports){
+arguments[4][109][0].apply(exports,arguments)
+},{"cell-orientation":178,"compare-cell":179,"compare-oriented-cell":180,"dup":109}],182:[function(require,module,exports){
+'use strict'
+
+var cdt2d     = require('cdt2d')
+var boundary  = require('simplicial-complex-boundary')
+
+module.exports = pslgToPolygon
+
+function pslgToPolygon(points, edges) {
+  //Get cells
+  var cells = cdt2d(points, edges, {
+    delaunay: false,
+    exterior: false })
+
+  //Extract boundary
+  var bnd = boundary(cells)
+
+  //Construct adjacency list from boundary
+  var adj = new Array(points.length)
+  for(var i=0; i<points.length; ++i) {
+    adj[i] = []
+  }
+
+  for(var i=0; i<bnd.length; ++i) {
+    var e = bnd[i]
+    adj[e[0]].push(e[1])
+  }
+
+  //Extract boundary cycle
+  var loops = []
+  for(var i=0; i<points.length; ++i) {
+    if(adj[i].length === 0) {
+      continue
+    }
+    var v = i, loop = []
+    do {
+      loop.push(points[v])
+      v = adj[v].pop()
+    } while(v !== i)
+    loops.push(loop)
+  }
+
+  return loops
+}
+
+},{"cdt2d":158,"simplicial-complex-boundary":176}],183:[function(require,module,exports){
+// expose module classes
+
+exports.intersect = require('./lib/intersect');
+exports.shape = require('./lib/IntersectionParams').newShape;
+},{"./lib/IntersectionParams":185,"./lib/intersect":186}],184:[function(require,module,exports){
+/**
+ *  Intersection
+ */
+function Intersection(status) {
+    this.init(status);
+}
+
+/**
+ *  init
+ *
+ *  @param {String} status
+ *  @returns {Intersection}
+ */
+Intersection.prototype.init = function(status) {
+    this.status = status;
+    this.points = [];
+};
+
+/**
+ *  appendPoint
+ *
+ *  @param {Point2D} point
+ */
+Intersection.prototype.appendPoint = function(point) {
+    this.points.push(point);
+};
+
+/**
+ *  appendPoints
+ *
+ *  @param {Array<Point2D>} points
+ */
+Intersection.prototype.appendPoints = function(points) {
+    this.points = this.points.concat(points);
+};
+
+module.exports = Intersection;
+
+},{}],185:[function(require,module,exports){
+var Point2D = require('kld-affine').Point2D;
+
+
+/**
+    getArcParameters
+
+    @param {Point2D} startPoint
+    @param {Point2D} endPoint
+    @param {Number} rx
+    @param {Number} ry
+    @param {Number} angle - in degrees
+    @param {Boolean} arcFlag
+    @param {Boolean} sweepFlag
+    @returns {{ center: Point2D, rx: Number, ry: Number, theta1: Number, deltaTheta: Number }}
+*/
+function getArcParameters(startPoint, endPoint, rx, ry, angle, arcFlag, sweepFlag) {
+    function radian(ux, uy, vx, vy) {
+        var dot = ux * vx + uy * vy;
+        var mod = Math.sqrt((ux * ux + uy * uy) * (vx * vx + vy * vy));
+        var rad = Math.acos(dot / mod);
+        if (ux * vy - uy * vx < 0.0) rad = -rad;
+        return rad;
+    }
+    angle = angle * Math.PI / 180;
+    var c = Math.cos(angle);
+    var s = Math.sin(angle);
+    var TOLERANCE = 1e-6;
+    var halfDiff = startPoint.subtract(endPoint).divide(2);
+    var x1p = halfDiff.x * c + halfDiff.y * s;
+    var y1p = halfDiff.x * -s + halfDiff.y * c;
+    var x1px1p = x1p * x1p;
+    var y1py1p = y1p * y1p;
+    var lambda = (x1px1p / (rx * rx)) + (y1py1p / (ry * ry));
+    var factor;
+    if (lambda > 1) {
+        factor = Math.sqrt(lambda);
+        rx *= factor;
+        ry *= factor;
+    }
+    var rxrx = rx * rx;
+    var ryry = ry * ry;
+    var rxy1 = rxrx * y1py1p;
+    var ryx1 = ryry * x1px1p;
+    factor = (rxrx * ryry - rxy1 - ryx1) / (rxy1 + ryx1);
+    if (Math.abs(factor) < TOLERANCE) factor = 0;
+    var sq = Math.sqrt(factor);
+    if (arcFlag == sweepFlag) sq = -sq;
+    var mid = startPoint.add(endPoint).divide(2);
+    var cxp = sq * rx * y1p / ry;
+    var cyp = sq * -ry * x1p / rx;
+    //return new Point2D(cxp * c - cyp * s + mid.x, cxp * s + cyp * c + mid.y);
+
+    var xcr1 = (x1p - cxp) / rx;
+    var xcr2 = (x1p + cxp) / rx;
+    var ycr1 = (y1p - cyp) / ry;
+    var ycr2 = (y1p + cyp) / ry;
+
+    var vcr1 = new Vector2D(1, 0);
+    var theta1 = radian(1.0, 0.0, xcr1, ycr1);
+
+    var deltaTheta = radian(xcr1, ycr1, -xcr2, -ycr2);
+    var PIx2 = Math.PI * 2.0;
+    while (deltaTheta > PIx2) deltaTheta -= PIx2;
+    while (deltaTheta < 0.0) deltaTheta += PIx2;
+    if (sweepFlag == false) deltaTheta -= PIx2;
+
+    return {
+        center: new Point2D(cxp * c - cyp * s + mid.x, cxp * s + cyp * c + mid.y),
+        rx: rx,
+        ry: ry,
+        theta1: theta1,
+        deltaTheta: deltaTheta
+    };
+}
+
+
+/**
+ *  IntersectionParams
+ *
+ *  @param {String} name
+ *  @param {Array<Point2D} params
+ *  @returns {IntersectionParams}
+ */
+function IntersectionParams(name, params) {
+    this.init(name, params);
+}
+
+/** 
+ *  init
+ *
+ *  @param {String} type
+ *  @param {Array<Point2D>} params
+ */
+IntersectionParams.prototype.init = function (type, params) {
+    this.type = type;
+    this.params = params;
+    this.meta = {};
+};
+
+IntersectionParams.TYPE = {};
+var IPTYPE = IntersectionParams.TYPE;
+IPTYPE.LINE = 'Line';
+IPTYPE.RECT = 'Rectangle';
+IPTYPE.ROUNDRECT = 'RoundRectangle';
+IPTYPE.CIRCLE = 'Circle';
+IPTYPE.ELLIPSE = 'Ellipse';
+IPTYPE.POLYGON = 'Polygon';
+IPTYPE.POLYLINE = 'Polyline';
+IPTYPE.PATH = 'Path';
+IPTYPE.ARC = 'Arc';
+IPTYPE.BEZIER2 = 'Bezier2';
+IPTYPE.BEZIER3 = 'Bezier3';
+
+
+function parsePointsString(points) {
+    return points.split(" ").map(function(point) {
+        point = point.split(",");
+        return new Point2D(point[0], point[1]);
+    });
+}
+
+IntersectionParams.newShape = function(svgElementName, props) {
+    svgElementName = svgElementName.toLowerCase();
+
+    if(svgElementName === "line") {
+        return IntersectionParams.newLine(
+            new Point2D(props.x1, props.y1),
+            new Point2D(props.x2, props.y2)
+        );
+    }
+
+    if(svgElementName === "rect") {
+        if(props.rx > 0 || props.ry > 0) {
+            return IntersectionParams.newRoundRect(
+                props.x, props.y,
+                props.width, props.height,
+                props.rx, props.ry
+            );
+        } else {
+            return IntersectionParams.newRect(
+                props.x, props.y,
+                props.width, props.height
+            );
+        }
+    }
+
+    if(svgElementName === "circle") {
+        return IntersectionParams.newCircle(
+            new Point2D(props.cx, props.cy),
+            props.r
+        );
+    }
+
+    if(svgElementName === "ellipse") {
+        return IntersectionParams.newEllipse(
+            new Point2D(props.cx, props.cy),
+            props.rx, props.ry
+        );
+    }
+
+    if(svgElementName === "polygon") {
+        return IntersectionParams.newPolygon(
+            parsePointsString(props.points)
+        );
+    }
+
+    if(svgElementName === "polyline") {
+        return IntersectionParams.newPolyline(
+            parsePointsString(props.points)
+        );
+    }
+
+    if(svgElementName === "path") {
+        return IntersectionParams.newPath(
+            props.d
+        );
+    }
+
+}
+
+
+///////////////////////////////////////////////////////////////////
+/**
+    Creates IntersectionParams for arc.
+
+    @param {Point2D} startPoint - arc start point
+    @param {Point2D} endPoint - arc end point
+    @param {Number} rx - arc ellipse x radius
+    @param {Number} ry - arc ellipse y radius
+    @param {Number} angle - arc ellipse rotation in degrees
+    @param {Boolean} largeArcFlag
+    @param {Boolean} sweepFlag
+    @returns {IntersectionParams}
+*/
+IntersectionParams.newArc = function (startPoint, endPoint, rx, ry, angle, largeArcFlag, sweepFlag) {
+    var p = getArcParameters(startPoint, endPoint, rx, ry, angle, largeArcFlag, sweepFlag);
+    return new IntersectionParams(IPTYPE.ARC, [p.center, p.rx, p.ry, (angle * Math.PI / 180), p.theta1, p.deltaTheta]);
+};
+
+///////////////////////////////////////////////////////////////////
+/**
+    Creates IntersectionParams for bezier2.
+
+    @param {Point2D} p1
+    @param {Point2D} p2
+    @param {Point2D} p3
+    @returns {IntersectionParams}
+*/
+IntersectionParams.newBezier2 = function (p1, p2, p3) {
+    return new IntersectionParams(IPTYPE.BEZIER2, [p1, p2, p3]);
+};
+
+///////////////////////////////////////////////////////////////////
+/**
+    Creates IntersectionParams for bezier3.
+
+    @param {Point2D} p1
+    @param {Point2D} p2
+    @param {Point2D} p3
+    @param {Point2D} p4
+    @returns {IntersectionParams}
+*/
+IntersectionParams.newBezier3 = function (p1, p2, p3, p4) {
+    return new IntersectionParams(IPTYPE.BEZIER3, [p1, p2, p3, p4]);
+};
+
+///////////////////////////////////////////////////////////////////
+/**
+    Creates IntersectionParams for circle.
+
+    @param {Point2D} c
+    @param {Number} r
+    @returns {IntersectionParams}
+*/
+IntersectionParams.newCircle = function (c, r) {
+    return new IntersectionParams(IPTYPE.CIRCLE, [c, r]);
+};
+
+///////////////////////////////////////////////////////////////////
+/**
+    Creates IntersectionParams for ellipse.
+
+    @param {Point2D} c
+    @param {Number} rx
+    @param {Number} ry
+    @returns {IntersectionParams}
+*/
+IntersectionParams.newEllipse = function (c, rx, ry) {
+    return new IntersectionParams(IPTYPE.ELLIPSE, [c, rx, ry]);
+};
+
+///////////////////////////////////////////////////////////////////
+/**
+    Creates IntersectionParams for line.
+
+    @param {Point2D} a1
+    @param {Point2D} a2
+    @returns {IntersectionParams}
+*/
+IntersectionParams.newLine = function (a1, a2) {
+    return new IntersectionParams(IPTYPE.LINE, [a1, a2]);
+};
+
+///////////////////////////////////////////////////////////////////
+/**
+    Creates IntersectionParams for polygon.
+
+    @param {Array<Point2D>} points
+    @returns {IntersectionParams}
+*/
+IntersectionParams.newPolygon = function (points) {
+    return new IntersectionParams(IPTYPE.POLYGON, [points]);
+};
+
+///////////////////////////////////////////////////////////////////
+/**
+    Creates IntersectionParams for polyline.
+
+     @param {Array<Point2D>} points
+    @returns {IntersectionParams}
+*/
+IntersectionParams.newPolyline = function (points) {
+    return new IntersectionParams(IPTYPE.POLYLINE, [points]);
+};
+
+
+///////////////////////////////////////////////////////////////////
+/**
+    Creates IntersectionParams for rectangle.
+
+    @param {Number} x
+    @param {Number} y
+    @param {Number} width
+    @param {Number} height
+    @returns {IntersectionParams}
+*/
+IntersectionParams.newRect = function (x, y, width, height) {
+    var points = [];
+    points.push(new Point2D(x, y));
+    points.push(new Point2D(x + width, y));
+    points.push(new Point2D(x + width, y + height));
+    points.push(new Point2D(x, y + height));
+    return new IntersectionParams(IPTYPE.RECT, [points]);
+};
+
+var degreesToRadians = function (angle) {
+    return angle * Math.PI / 180;
+};
+///////////////////////////////////////////////////////////////////
+/**
+    Creates IntersectionParams for round rectangle, or for rectangle if rx and ry are 0.
+
+    @param {Number} x
+    @param {Number} y
+    @param {Number} width
+    @param {Number} height
+    @param {Number} rx
+    @param {Number} ry
+    @returns {IntersectionParams}
+*/
+IntersectionParams.newRoundRect = function (x, y, width, height, rx, ry) {
+    if (rx === 0 && ry === 0)
+        return IntersectionParams.newRect(x, y, width, height);
+    if (rx === 0)
+        rx = ry;
+    if (ry === 0)
+        ry = rx;
+    if (rx > width / 2)
+        rx = width / 2;
+    if (ry > height / 2)
+        rx = height / 2;
+    var shape = [];
+    var x0 = x, x1 = x + rx, x2 = x + width - rx, x3 = x + width;
+    var y0 = y, y1 = y + ry, y2 = y + height - ry, y3 = y + height;
+    shape.push(new IntersectionParams(IPTYPE.ARC, [new Point2D(x1, y1), rx, ry, 0, degreesToRadians(180), degreesToRadians(90)]));
+    shape.push(new IntersectionParams(IPTYPE.LINE, [new Point2D(x1, y0), new Point2D(x2, y0)]));
+    shape.push(new IntersectionParams(IPTYPE.ARC, [new Point2D(x2, y1), rx, ry, 0, degreesToRadians(-90), degreesToRadians(90)]));
+    shape.push(new IntersectionParams(IPTYPE.LINE, [new Point2D(x3, y1), new Point2D(x3, y2)]));
+    shape.push(new IntersectionParams(IPTYPE.ARC, [new Point2D(x2, y2), rx, ry, 0, degreesToRadians(0), degreesToRadians(90)]));
+    shape.push(new IntersectionParams(IPTYPE.LINE, [new Point2D(x2, y3), new Point2D(x1, y3)]));
+    shape.push(new IntersectionParams(IPTYPE.ARC, [new Point2D(x1, y2), rx, ry, 0, degreesToRadians(90), degreesToRadians(90)]));
+    shape.push(new IntersectionParams(IPTYPE.LINE, [new Point2D(x0, y2), new Point2D(x0, y1)]));
+    shape[shape.length - 1].meta.closePath = true;
+    return new IntersectionParams(IPTYPE.ROUNDRECT, [shape]);
+};
+
+
+
+
+function Token(type, text) {
+    if (arguments.length > 0) {
+        this.init(type, text);
+    }
+}
+Token.prototype.init = function(type, text) {
+    this.type = type;
+    this.text = text;
+};
+Token.prototype.typeis = function(type) {
+    return this.type == type;
+}
+var Path = {};
+Path.COMMAND = 0;
+Path.NUMBER = 1;
+Path.EOD = 2;
+Path.PARAMS = {
+    A: ["rx", "ry", "x-axis-rotation", "large-arc-flag", "sweep-flag", "x", "y"],
+    a: ["rx", "ry", "x-axis-rotation", "large-arc-flag", "sweep-flag", "x", "y"],
+    C: ["x1", "y1", "x2", "y2", "x", "y"],
+    c: ["x1", "y1", "x2", "y2", "x", "y"],
+    H: ["x"],
+    h: ["x"],
+    L: ["x", "y"],
+    l: ["x", "y"],
+    M: ["x", "y"],
+    m: ["x", "y"],
+    Q: ["x1", "y1", "x", "y"],
+    q: ["x1", "y1", "x", "y"],
+    S: ["x2", "y2", "x", "y"],
+    s: ["x2", "y2", "x", "y"],
+    T: ["x", "y"],
+    t: ["x", "y"],
+    V: ["y"],
+    v: ["y"],
+    Z: [],
+    z: []
+};
+
+function tokenize(d) {
+    var tokens = new Array();
+    while (d != "") {
+        if (d.match(/^([ \t\r\n,]+)/)) {
+            d = d.substr(RegExp.$1.length);
+        } else if (d.match(/^([aAcChHlLmMqQsStTvVzZ])/)) {
+            tokens[tokens.length] = new Token(Path.COMMAND, RegExp.$1);
+            d = d.substr(RegExp.$1.length);
+        } else if (d.match(/^(([-+]?[0-9]+(\.[0-9]*)?|[-+]?\.[0-9]+)([eE][-+]?[0-9]+)?)/)) {
+            tokens[tokens.length] = new Token(Path.NUMBER, parseFloat(RegExp.$1));
+            d = d.substr(RegExp.$1.length);
+        } else {
+            throw new Error("Unrecognized segment command: " + d);
+        }
+    }
+    tokens[tokens.length] = new Token(Path.EOD, null);
+    return tokens;
+}
+
+IntersectionParams.newPath = function(d) {
+    var tokens = tokenize(d);
+    var index = 0;
+    var token = tokens[index];
+    var mode = "BOD";
+    var segments = [];
+
+    while (!token.typeis(Path.EOD)) {
+        var param_length;
+        var params = new Array();
+        if (mode == "BOD") {
+            if (token.text == "M" || token.text == "m") {
+                index++;
+                param_length = Path.PARAMS[token.text].length;
+                mode = token.text;
+            } else {
+                throw new Error("Path data must begin with a moveto command");
+            }
+        } else {
+            if (token.typeis(Path.NUMBER)) {
+                param_length = Path.PARAMS[mode].length;
+            } else {
+                index++;
+                param_length = Path.PARAMS[token.text].length;
+                mode = token.text;
+            }
+        }
+        if ((index + param_length) < tokens.length) {
+            for (var i = index; i < index + param_length; i++) {
+                var number = tokens[i];
+                if (number.typeis(Path.NUMBER)) params[params.length] = number.text;
+                else throw new Error("Parameter type is not a number: " + mode + "," + number.text);
+            }
+            var segment;
+            var length = segments.length;
+            var previous = (length == 0) ? null : segments[length - 1];
+            switch (mode) {
+                case "A":
+                    segment = new AbsoluteArcPath(params, previous);
+                    break;
+                case "C":
+                    segment = new AbsoluteCurveto3(params, previous);
+                    break;
+                case "c":
+                    segment = new RelativeCurveto3(params, previous);
+                    break;
+                case "H":
+                    segment = new AbsoluteHLineto(params, previous);
+                    break;
+                case "L":
+                    segment = new AbsoluteLineto(params, previous);
+                    break;
+                case "l":
+                    segment = new RelativeLineto(params, previous);
+                    break;
+                case "M":
+                    segment = new AbsoluteMoveto(params, previous);
+                    break;
+                case "m":
+                    segment = new RelativeMoveto(params, previous);
+                    break;
+                case "Q":
+                    segment = new AbsoluteCurveto2(params, previous);
+                    break;
+                case "q":
+                    segment = new RelativeCurveto2(params, previous);
+                    break;
+                case "S":
+                    segment = new AbsoluteSmoothCurveto3(params, previous);
+                    break;
+                case "s":
+                    segment = new RelativeSmoothCurveto3(params, previous);
+                    break;
+                case "T":
+                    segment = new AbsoluteSmoothCurveto2(params, previous);
+                    break;
+                case "t":
+                    segment = new RelativeSmoothCurveto2(params, previous);
+                    break;
+                case "Z":
+                    segment = new RelativeClosePath(params, previous);
+                    break;
+                case "z":
+                    segment = new RelativeClosePath(params, previous);
+                    break;
+                default:
+                    throw new Error("Unsupported segment type: " + mode);
+            };
+            segments.push(segment);
+            index += param_length;
+            token = tokens[index];
+            if (mode == "M") mode = "L";
+            if (mode == "m") mode = "l";
+        } else {
+            throw new Error("Path data ended before all parameters were found");
+        }
+    }
+
+    var segmentParams = [];
+    for(i=0; i<segments.length; i++) {
+        var ip = segments[i].getIntersectionParams();
+        if(ip) {
+            segmentParams.push(ip);
+        }
+    }
+
+    return new IntersectionParams(IPTYPE.PATH, [segmentParams]);
+}
+
+
+function AbsolutePathSegment(command, params, previous) {
+    if (arguments.length > 0) this.init(command, params, previous);
+};
+AbsolutePathSegment.prototype.init = function(command, params, previous) {
+    this.command = command;
+    this.previous = previous;
+    this.points = [];
+    var index = 0;
+    while (index < params.length) {
+        this.points.push(new Point2D(params[index], params[index + 1]));
+        index += 2;
+    }
+};
+AbsolutePathSegment.prototype.getLastPoint = function() {
+    return this.points[this.points.length - 1];
+};
+AbsolutePathSegment.prototype.getIntersectionParams = function() {
+    return null;
+};
+
+
+
+function AbsoluteArcPath(params, previous) {
+    if (arguments.length > 0) {
+        this.init("A", params, previous);
+    }
+}
+AbsoluteArcPath.prototype.init = function(command, params, previous) {
+    var point = new Array();
+    var y = params.pop();
+    var x = params.pop();
+    point.push(x, y);
+    AbsoluteArcPath.superclass.init.call(this, command, point, previous);
+    this.rx = parseFloat(params.shift());
+    this.ry = parseFloat(params.shift());
+    this.angle = parseFloat(params.shift());
+    this.arcFlag = parseFloat(params.shift());
+    this.sweepFlag = parseFloat(params.shift());
+};
+AbsoluteArcPath.prototype.getIntersectionParams = function() {
+    return new IntersectionParams("Ellipse", [this.getCenter(), this.rx, this.ry]);
+};
+AbsoluteArcPath.prototype.getCenter = function() {
+    var startPoint = this.previous.getLastPoint();
+    var endPoint = this.points[0];
+    var rx = this.rx;
+    var ry = this.ry;
+    var angle = this.angle * Math.PI / 180;
+    var c = Math.cos(angle);
+    var s = Math.sin(angle);
+    var TOLERANCE = 1e-6;
+    var halfDiff = startPoint.subtract(endPoint).divide(2);
+    var x1p = halfDiff.x * c + halfDiff.y * s;
+    var y1p = halfDiff.x * -s + halfDiff.y * c;
+    var x1px1p = x1p * x1p;
+    var y1py1p = y1p * y1p;
+    var lambda = (x1px1p / (rx * rx)) + (y1py1p / (ry * ry));
+    if (lambda > 1) {
+        var factor = Math.sqrt(lambda);
+        rx *= factor;
+        ry *= factor;
+    }
+    var rxrx = rx * rx;
+    var ryry = ry * ry;
+    var rxy1 = rxrx * y1py1p;
+    var ryx1 = ryry * x1px1p;
+    var factor = (rxrx * ryry - rxy1 - ryx1) / (rxy1 + ryx1);
+    if (Math.abs(factor) < TOLERANCE) factor = 0;
+    var sq = Math.sqrt(factor);
+    if (this.arcFlag == this.sweepFlag) sq = -sq;
+    var mid = startPoint.add(endPoint).divide(2);
+    var cxp = sq * rx * y1p / ry;
+    var cyp = sq * -ry * x1p / rx;
+    return new Point2D(cxp * c - cyp * s + mid.x, cxp * s + cyp * c + mid.y);
+};
+
+
+
+function AbsoluteCurveto2(params, previous) {
+    if (arguments.length > 0) {
+        this.init("Q", params, previous);
+    }
+}
+AbsoluteCurveto2.prototype = new AbsolutePathSegment();
+AbsoluteCurveto2.prototype.constructor = AbsoluteCurveto2;
+AbsoluteCurveto2.superclass = AbsolutePathSegment.prototype;
+
+AbsoluteCurveto2.prototype.getIntersectionParams = function() {
+    return new IntersectionParams("Bezier2", [this.previous.getLastPoint(), this.points[0], this.points[1]]);
+};
+
+
+
+function AbsoluteCurveto3(params, previous) {
+    if (arguments.length > 0) {
+        this.init("C", params, previous);
+    }
+}
+AbsoluteCurveto3.prototype = new AbsolutePathSegment();
+AbsoluteCurveto3.prototype.constructor = AbsoluteCurveto3;
+AbsoluteCurveto3.superclass = AbsolutePathSegment.prototype;
+
+AbsoluteCurveto3.prototype.getLastControlPoint = function() {
+    return this.points[1];
+};
+AbsoluteCurveto3.prototype.getIntersectionParams = function() {
+    return new IntersectionParams("Bezier3", [this.previous.getLastPoint(), this.points[0], this.points[1], this.points[2]]);
+};
+
+
+function AbsoluteHLineto(params, previous) {
+    if (arguments.length > 0) {
+        this.init("H", params, previous);
+    }
+}
+AbsoluteHLineto.prototype = new AbsolutePathSegment();
+AbsoluteHLineto.prototype.constructor = AbsoluteHLineto;
+AbsoluteHLineto.superclass = AbsolutePathSegment.prototype;
+
+AbsoluteHLineto.prototype.init = function(command, params, previous) {
+    var prevPoint = previous.getLastPoint();
+    var point = new Array();
+    point.push(params.pop(), prevPoint.y);
+    AbsoluteHLineto.superclass.init.call(this, command, point, previous);
+};
+
+
+function AbsoluteLineto(params, previous) {
+    if (arguments.length > 0) {
+        this.init("L", params, previous);
+    }
+}
+AbsoluteLineto.prototype = new AbsolutePathSegment();
+AbsoluteLineto.prototype.constructor = AbsoluteLineto;
+AbsoluteLineto.superclass = AbsolutePathSegment.prototype;
+
+AbsoluteLineto.prototype.getIntersectionParams = function() {
+    return new IntersectionParams("Line", [this.previous.getLastPoint(), this.points[0]]);
+};
+
+
+
+function AbsoluteMoveto(params, previous) {
+    if (arguments.length > 0) {
+        this.init("M", params, previous);
+    }
+}
+AbsoluteMoveto.prototype = new AbsolutePathSegment();
+AbsoluteMoveto.prototype.constructor = AbsoluteMoveto;
+AbsoluteMoveto.superclass = AbsolutePathSegment.prototype;
+
+
+function AbsoluteSmoothCurveto2(params, previous) {
+    if (arguments.length > 0) {
+        this.init("T", params, previous);
+    }
+}
+AbsoluteSmoothCurveto2.prototype = new AbsolutePathSegment();
+AbsoluteSmoothCurveto2.prototype.constructor = AbsoluteSmoothCurveto2;
+AbsoluteSmoothCurveto2.superclass = AbsolutePathSegment.prototype;
+
+AbsoluteSmoothCurveto2.prototype.getControlPoint = function() {
+    var lastPoint = this.previous.getLastPoint();
+    var point;
+    if (this.previous.command.match(/^[QqTt]$/)) {
+        var ctrlPoint = this.previous.getControlPoint();
+        var diff = ctrlPoint.subtract(lastPoint);
+        point = lastPoint.subtract(diff);
+    } else {
+        point = lastPoint;
+    }
+    return point;
+};
+AbsoluteSmoothCurveto2.prototype.getIntersectionParams = function() {
+    return new IntersectionParams("Bezier2", [this.previous.getLastPoint(), this.getControlPoint(), this.points[0]]);
+};
+
+
+function AbsoluteSmoothCurveto3(params, previous) {
+    if (arguments.length > 0) {
+        this.init("S", params, previous);
+    }
+}
+AbsoluteSmoothCurveto3.prototype = new AbsolutePathSegment();
+AbsoluteSmoothCurveto3.prototype.constructor = AbsoluteSmoothCurveto3;
+AbsoluteSmoothCurveto3.superclass = AbsolutePathSegment.prototype;
+
+AbsoluteSmoothCurveto3.prototype.getFirstControlPoint = function() {
+    var lastPoint = this.previous.getLastPoint();
+    var point;
+    if (this.previous.command.match(/^[SsCc]$/)) {
+        var lastControl = this.previous.getLastControlPoint();
+        var diff = lastControl.subtract(lastPoint);
+        point = lastPoint.subtract(diff);
+    } else {
+        point = lastPoint;
+    }
+    return point;
+};
+AbsoluteSmoothCurveto3.prototype.getLastControlPoint = function() {
+    return this.points[0];
+};
+AbsoluteSmoothCurveto3.prototype.getIntersectionParams = function() {
+    return new IntersectionParams("Bezier3", [this.previous.getLastPoint(), this.getFirstControlPoint(), this.points[0], this.points[1]]);
+};
+
+
+function RelativePathSegment(command, params, previous) {
+    if (arguments.length > 0) this.init(command, params, previous);
+}
+RelativePathSegment.prototype = new AbsolutePathSegment();
+RelativePathSegment.prototype.constructor = RelativePathSegment;
+RelativePathSegment.superclass = AbsolutePathSegment.prototype;
+
+RelativePathSegment.prototype.init = function(command, params, previous) {
+    this.command = command;
+    this.previous = previous;
+    this.points = [];
+    var lastPoint;
+    if (this.previous) lastPoint = this.previous.getLastPoint();
+    else lastPoint = new Point2D(0, 0);
+    var index = 0;
+    while (index < params.length) {
+        var point = new Point2D(lastPoint.x + params[index], lastPoint.y + params[index + 1]);
+        this.points.push(point);
+        index += 2;
+    }
+};
+
+function RelativeClosePath(params, previous) {
+    if (arguments.length > 0) {
+        this.init("z", params, previous);
+    }
+}
+RelativeClosePath.prototype = new RelativePathSegment();
+RelativeClosePath.prototype.constructor = RelativeClosePath;
+RelativeClosePath.superclass = RelativePathSegment.prototype;
+RelativeClosePath.prototype.getLastPoint = function() {
+    var current = this.previous;
+    var point;
+    while (current) {
+        if (current.command.match(/^[mMzZ]$/)) {
+            point = current.getLastPoint();
+            break;
+        }
+        current = current.previous;
+    }
+    return point;
+};
+RelativeClosePath.prototype.getIntersectionParams = function() {
+    return new IntersectionParams("Line", [this.previous.getLastPoint(), this.getLastPoint()]);
+};
+
+
+function RelativeCurveto2(params, previous) {
+    if (arguments.length > 0) {
+        this.init("q", params, previous);
+    }
+}
+RelativeCurveto2.prototype = new RelativePathSegment();
+RelativeCurveto2.prototype.constructor = RelativeCurveto2;
+RelativeCurveto2.superclass = RelativePathSegment.prototype;
+
+RelativeCurveto2.prototype.getControlPoint = function() {
+    return this.points[0];
+};
+RelativeCurveto2.prototype.getIntersectionParams = function() {
+    return new IntersectionParams("Bezier2", [this.previous.getLastPoint(), this.points[0], this.points[1]]);
+};
+
+
+function RelativeCurveto3(params, previous) {
+    if (arguments.length > 0) {
+        this.init("c", params, previous);
+    }
+}
+RelativeCurveto3.prototype = new RelativePathSegment();
+RelativeCurveto3.prototype.constructor = RelativeCurveto3;
+RelativeCurveto3.superclass = RelativePathSegment.prototype;
+
+RelativeCurveto3.prototype.getLastControlPoint = function() {
+    return this.points[1];
+};
+RelativeCurveto3.prototype.getIntersectionParams = function() {
+    return new IntersectionParams("Bezier3", [this.previous.getLastPoint(), this.points[0], this.points[1], this.points[2]]);
+};
+
+
+function RelativeLineto(params, previous) {
+    if (arguments.length > 0) {
+        this.init("l", params, previous);
+    }
+}
+RelativeLineto.prototype = new RelativePathSegment();
+RelativeLineto.prototype.constructor = RelativeLineto;
+RelativeLineto.superclass = RelativePathSegment.prototype;
+
+RelativeLineto.prototype.toString = function() {
+    var points = new Array();
+    var command = "";
+    var lastPoint;
+    var point;
+    if (this.previous) lastPoint = this.previous.getLastPoint();
+    else lastPoint = new Point(0, 0);
+    point = this.points[0].subtract(lastPoint);
+    if (this.previous.constructor != this.constuctor)
+        if (this.previous.constructor != RelativeMoveto) cmd = this.command;
+    return cmd + point.toString();
+};
+RelativeLineto.prototype.getIntersectionParams = function() {
+    return new IntersectionParams("Line", [this.previous.getLastPoint(), this.points[0]]);
+};
+
+
+
+function RelativeMoveto(params, previous) {
+    if (arguments.length > 0) {
+        this.init("m", params, previous);
+    }
+}
+RelativeMoveto.prototype = new RelativePathSegment();
+RelativeMoveto.prototype.constructor = RelativeMoveto;
+RelativeMoveto.superclass = RelativePathSegment.prototype;
+
+
+
+function RelativeSmoothCurveto2(params, previous) {
+    if (arguments.length > 0) {
+        this.init("t", params, previous);
+    }
+}
+RelativeSmoothCurveto2.prototype = new RelativePathSegment();
+RelativeSmoothCurveto2.prototype.constructor = RelativeSmoothCurveto2;
+RelativeSmoothCurveto2.superclass = RelativePathSegment.prototype;
+
+RelativeSmoothCurveto2.prototype.getControlPoint = function() {
+    var lastPoint = this.previous.getLastPoint();
+    var point;
+    if (this.previous.command.match(/^[QqTt]$/)) {
+        var ctrlPoint = this.previous.getControlPoint();
+        var diff = ctrlPoint.subtract(lastPoint);
+        point = lastPoint.subtract(diff);
+    } else {
+        point = lastPoint;
+    }
+    return point;
+};
+RelativeSmoothCurveto2.prototype.getIntersectionParams = function() {
+    return new IntersectionParams("Bezier2", [this.previous.getLastPoint(), this.getControlPoint(), this.points[0]]);
+};
+
+
+
+function RelativeSmoothCurveto3(params, previous) {
+    if (arguments.length > 0) {
+        this.init("s", params, previous);
+    }
+}
+RelativeSmoothCurveto3.prototype = new RelativePathSegment();
+RelativeSmoothCurveto3.prototype.constructor = RelativeSmoothCurveto3;
+RelativeSmoothCurveto3.superclass = RelativePathSegment.prototype;
+
+RelativeSmoothCurveto3.prototype.getFirstControlPoint = function() {
+    var lastPoint = this.previous.getLastPoint();
+    var point;
+    if (this.previous.command.match(/^[SsCc]$/)) {
+        var lastControl = this.previous.getLastControlPoint();
+        var diff = lastControl.subtract(lastPoint);
+        point = lastPoint.subtract(diff);
+    } else {
+        point = lastPoint;
+    }
+    return point;
+};
+RelativeSmoothCurveto3.prototype.getLastControlPoint = function() {
+    return this.points[0];
+};
+RelativeSmoothCurveto3.prototype.getIntersectionParams = function() {
+    return new IntersectionParams("Bezier3", [this.previous.getLastPoint(), this.getFirstControlPoint(), this.points[0], this.points[1]]);
+};
+
+
+module.exports = IntersectionParams;
+
+},{"kld-affine":187}],186:[function(require,module,exports){
+/**
+ *
+ *  Intersection.js
+ *
+ *  copyright 2002, 2013 Kevin Lindsey
+ *
+ *  contribution {@link http://github.com/Quazistax/kld-intersections}
+ *      @copyright 2015 Robert Benko (Quazistax) <quazistax@gmail.com>
+ *      @license MIT
+ */
+ 
+var Point2D = require('kld-affine').Point2D;
+var Vector2D = require('kld-affine').Vector2D;
+var Matrix2D = require('kld-affine').Matrix2D;
+var Polynomial = require('kld-polynomial').Polynomial;
+var IntersectionParams = require('./IntersectionParams');
+var Intersection = require('./Intersection');
+
+var IPTYPE = IntersectionParams.TYPE;
+
+
+
+/**
+ *  bezout
+ *
+ *  This code is based on MgcIntr2DElpElp.cpp written by David Eberly.  His
+ *  code along with many other excellent examples are avaiable at his site:
+ *  http://www.geometrictools.com
+ *
+ *  @param {Array<Point2D>} e1
+ *  @param {Array<Point2D>} e2
+ *  @returns {Polynomial}
+ */
+function bezout(e1, e2) {
+    var AB    = e1[0]*e2[1] - e2[0]*e1[1];
+    var AC    = e1[0]*e2[2] - e2[0]*e1[2];
+    var AD    = e1[0]*e2[3] - e2[0]*e1[3];
+    var AE    = e1[0]*e2[4] - e2[0]*e1[4];
+    var AF    = e1[0]*e2[5] - e2[0]*e1[5];
+    var BC    = e1[1]*e2[2] - e2[1]*e1[2];
+    var BE    = e1[1]*e2[4] - e2[1]*e1[4];
+    var BF    = e1[1]*e2[5] - e2[1]*e1[5];
+    var CD    = e1[2]*e2[3] - e2[2]*e1[3];
+    var DE    = e1[3]*e2[4] - e2[3]*e1[4];
+    var DF    = e1[3]*e2[5] - e2[3]*e1[5];
+    var BFpDE = BF + DE;
+    var BEmCD = BE - CD;
+
+    return new Polynomial(
+        AB*BC - AC*AC,
+        AB*BEmCD + AD*BC - 2*AC*AE,
+        AB*BFpDE + AD*BEmCD - AE*AE - 2*AC*AF,
+        AB*DF + AD*BFpDE - 2*AE*AF,
+        AD*DF - AF*AF
+    );
+}
+
+/**
+    Removes from intersection points those points that are not between two rays determined by arc parameters.
+    Rays begin at ellipse center and go through arc startPoint/endPoint.
+
+    @param {Intersection} intersection - will be modified and returned
+    @param {Point2D} c - center of arc ellipse
+    @param {Number} rx
+    @param {Number} ry
+    @param {Number} phi - in radians
+    @param {Number} th1 - in radians
+    @param {Number} dth - in radians
+    @param {Matrix2D} [m] - arc transformation matrix
+    @returns {Intersection}
+*/
+function removePointsNotInArc(intersection, c, rx, ry, phi, th1, dth, m) {
+    if (intersection.points.length === 0) return intersection;
+    if (m && !m.isIdentity())
+        var mp = m.inverse();
+    var np = [];
+    var vx = new Vector2D(1, 0);
+    var pi2 = Math.PI * 2;
+    var wasNeg = dth < 0;
+    var wasBig = Math.abs(dth) > Math.PI;
+    var m1 = new Matrix2D().scaleNonUniform(1, ry / rx).rotate(th1);
+    var m2 = new Matrix2D().scaleNonUniform(1, ry / rx).rotate(th1 + dth);
+
+    th1 = (vx.angleBetween(vx.transform(m1)) + pi2) % pi2;
+    dth = vx.transform(m1).angleBetween(vx.transform(m2));
+    dth = (wasBig ? pi2 - Math.abs(dth) : Math.abs(dth)) * (wasNeg ? -1 : 1);
+    var m3 = new Matrix2D().rotate(phi).multiply(m1);
+
+    for (var i = 0, p, a; i < intersection.points.length; i++) {
+        p = intersection.points[i];
+        a = vx.transform(m3).angleBetween(Vector2D.fromPoints(c, (mp) ? p.transform(mp) : p));
+        if (dth >= 0) {
+            a = (a + 2 * pi2) % pi2;
+            if (a <= dth)
+                np.push(p);
+        } else {
+            a = (a - 2 * pi2) % pi2;
+            if (a >= dth)
+                np.push(p);
+        }
+    }
+    intersection.points = np;
+    return intersection;
+};
+
+/**
+    points1 will be modified, points close (almost identical) to any point in points2 will be removed
+
+    @param {Array<Point2D>} points1 - will be modified, points close to any point in points2 will be removed
+    @param {Array<Point2D>} points2
+*/
+function removeClosePoints(points1, points2) {
+    if (points1.length === 0 || points2.length === 0)
+        return;
+    var maxf = function (p, v) { if (p < v.x) p = v.x; if (p < v.y) p = v.y; return p; };
+    var max = points1.reduce(maxf, 0);
+    max = points2.reduce(maxf, max);
+    var ERRF = 1e-15;
+    var ZEROepsilon = 100 * max * ERRF * Math.SQRT2;
+    var j;
+    for (var i = 0; i < points1.length;) {
+        for (j = 0; j < points2.length; j++) {
+            if (points1[i].distanceFrom(points2[j]) <= ZEROepsilon) {
+                points1.splice(i, 1);
+                break;
+            }
+        }
+        if (j == points2.length)
+            i++;
+    }
+}
+
+// The basic intersection functions for all SVG shapes expect bezier curves
+// If you need to support bezier curves, plug in the functions/bezier module
+// like this: intersect.plugin( require('svg-intersections/lib/functions/bezier') )
+var intersectionFunctions = {
+            
+    /**
+        intersectPathShape
+
+        @param {IntersectionParams} path
+        @param {IntersectionParams} shape
+        @param {Matrix2D} [m1]
+        @param {Matrix2D} [m2]
+        @returns {Intersection}
+    */
+    intersectPathShape: function (path, shape, m1, m2) {
+        var result = new Intersection();
+        var pathParams = path.params[0];
+        var inter0;
+        var previnter;
+        for (var inter, i = 0; i < pathParams.length; i++) {
+            inter = intersect(pathParams[i], shape, m1, m2);
+            if (!inter0)
+                inter0 = inter;
+            if (previnter) {
+                removeClosePoints(previnter.points, inter.points);
+                result.appendPoints(previnter.points);
+            }
+            previnter = inter;
+        }
+        if (previnter) {
+            result.appendPoints(previnter.points);
+        }
+        return result;
+    },
+
+
+    /**
+        intersectLinesShape
+
+        @param {IntersectionParams} lines - IntersectionParams with points as first parameter (like types RECT, POLYLINE or POLYGON)
+        @param {IntersectionParams} shape - IntersectionParams of other shape
+        @param {Matrix2D} [m1]
+        @param {Matrix2D} [m2]
+        @param {Boolean} [closed] - if set, determines if line between first and last point will be taken into callculation too. If not set, it's true for RECT and POLYGON, false for other <b>lines</b> types.
+        @returns {Intersection}
+    */
+    intersectLinesShape: function (lines, shape, m1, m2, closed) {
+        var IPTYPE = IntersectionParams.TYPE;
+        var line_points = lines.params[0];
+        var ip = new IntersectionParams(IPTYPE.LINE, [0, 0]);
+        var result = new Intersection();
+        var inter, i;
+        var intersectLine = function (i1, i2) {
+            ip.params[0] = line_points[i1];
+            ip.params[1] = line_points[i2];
+            inter = intersect(ip, shape, m1, m2);
+            removeClosePoints(inter.points, [line_points[i2]]);
+            result.appendPoints(inter.points);
+        }
+        for (i = 0; i < line_points.length - 1; i++) {
+            intersectLine(i, i + 1);
+        }
+        if (typeof closed !== 'undefined' && closed || lines.type === IPTYPE.RECT || lines.type === IPTYPE.POLYGON) {
+            intersectLine(line_points.length - 1, 0);
+        }
+        return result;
+    },
+
+    ///////////////////////////////////////////////////////////////////
+    /**
+        intersectArcShape
+
+        @param {IntersectionParams} arc
+        @param {IntersectionParams} shape
+        @param {Matrix2D} [m1]
+        @param {Matrix2D} [m2]
+        @returns {Intersection}
+    */
+    intersectArcShape: function (arc, shape, m1, m2) {
+        m1 = m1 || Matrix2D.IDENTITY;
+        m2 = m2 || Matrix2D.IDENTITY;
+        var c1 = arc.params[0],
+            rx1 = arc.params[1],
+            ry1 = arc.params[2],
+            phi1 = arc.params[3],
+            th1 = arc.params[4],
+            dth1 = arc.params[5];
+
+        var res;
+        if (m1.isIdentity() && phi1 === 0) {
+            res = intersect(IntersectionParams.newEllipse(c1, rx1, ry1), shape, m1, m2);
+        }
+        else {
+            m1 = m1.multiply(Matrix2D.IDENTITY.translate(c1.x, c1.y).rotate(phi1));
+            c1 = new Point2D(0, 0);
+            phi1 = 0;
+            res = intersect(IntersectionParams.newEllipse(c1, rx1, ry1), shape, m1, m2);
+        }
+        res = removePointsNotInArc(res, c1, rx1, ry1, phi1, th1, dth1, m1);
+        return res;
+    },
+
+    /**
+     *  Finds intersection points of two ellipses. <br/>
+     *
+     *  This code is based on MgcIntr2DElpElp.cpp written by David Eberly. His
+     *  code along with many other excellent examples are avaiable at his site:
+     *  http://www.geometrictools.com
+     *
+     *  Changes - 2015 Robert Benko (Quazistax)
+     *
+     *  @param {Point2D} c1
+     *  @param {Number} rx1
+     *  @param {Number} ry1
+     *  @param {Point2D} c2
+     *  @param {Number} rx2
+     *  @param {Number} ry2
+     *  @returns {Intersection}
+     */
+    intersectEllipseEllipse: function (c1, rx1, ry1, c2, rx2, ry2) {
+        var a = [
+            ry1 * ry1, 0, rx1 * rx1, -2 * ry1 * ry1 * c1.x, -2 * rx1 * rx1 * c1.y,
+            ry1 * ry1 * c1.x * c1.x + rx1 * rx1 * c1.y * c1.y - rx1 * rx1 * ry1 * ry1
+        ];
+        var b = [
+            ry2 * ry2, 0, rx2 * rx2, -2 * ry2 * ry2 * c2.x, -2 * rx2 * rx2 * c2.y,
+            ry2 * ry2 * c2.x * c2.x + rx2 * rx2 * c2.y * c2.y - rx2 * rx2 * ry2 * ry2
+        ];
+
+        var yPoly = bezout(a, b);
+        var yRoots = yPoly.getRoots();
+        var epsilon = 1e-3;
+        var norm0 = (a[0] * a[0] + 2 * a[1] * a[1] + a[2] * a[2]) * epsilon;
+        var norm1 = (b[0] * b[0] + 2 * b[1] * b[1] + b[2] * b[2]) * epsilon;
+        var result = new Intersection();
+
+        var i;
+        //Handling root calculation error causing not detecting intersection
+        var clip = function (val, min, max) { return Math.max(min, Math.min(max, val)); };
+        for (i = 0 ; i < yRoots.length; i++) {
+            yRoots[i] = clip(yRoots[i], c1.y - ry1, c1.y + ry1);
+            yRoots[i] = clip(yRoots[i], c2.y - ry2, c2.y + ry2);
+        }
+
+        //For detection of multiplicated intersection points
+        yRoots.sort(function (a, b) { return a - b; });
+        var rootPointsN = [];
+
+        for (var y = 0; y < yRoots.length; y++) {
+            var xPoly = new Polynomial(
+                a[0],
+                a[3] + yRoots[y] * a[1],
+                a[5] + yRoots[y] * (a[4] + yRoots[y] * a[2])
+            );
+            var ERRF = 1e-15;
+            if (Math.abs(xPoly.coefs[0]) < 10 * ERRF * Math.abs(xPoly.coefs[2]))
+                xPoly.coefs[0] = 0;
+            var xRoots = xPoly.getRoots();
+
+            rootPointsN.push(0);
+            for (var x = 0; x < xRoots.length; x++) {
+                var test =
+                    (a[0] * xRoots[x] + a[1] * yRoots[y] + a[3]) * xRoots[x] +
+                    (a[2] * yRoots[y] + a[4]) * yRoots[y] + a[5];
+                if (Math.abs(test) < norm0) {
+                    test =
+                        (b[0] * xRoots[x] + b[1] * yRoots[y] + b[3]) * xRoots[x] +
+                        (b[2] * yRoots[y] + b[4]) * yRoots[y] + b[5];
+                    if (Math.abs(test) < norm1) {
+                        result.appendPoint(new Point2D(xRoots[x], yRoots[y]));
+                        rootPointsN[y] += 1;
+                    }
+                }
+            }
+        }
+
+        if (result.points.length <= 0)
+            return result;
+
+        //Removal of multiplicated intersection points
+        var pts = result.points;
+        if (pts.length == 8) {
+            pts = pts.splice(0, 6);
+            pts.splice(2, 2);
+        }
+        else if (pts.length == 7) {
+            pts = pts.splice(0, 6);
+            pts.splice(2, 2);
+            pts.splice(rootPointsN.indexOf(1), 1);
+        }
+        else if (pts.length == 6) {
+            pts.splice(2, 2);
+            //console.log('ElEl 6pts: N: ' + rootPointsN.toString());
+            if (rootPointsN.indexOf(0) > -1) {
+                if (pts[0].distanceFrom(pts[1]) < pts[2].distanceFrom(pts[3])) {
+                    pts.splice(0, 1);
+                }
+                else {
+                    pts.splice(2, 1);
+                }
+            }
+            else if (rootPointsN[0] == rootPointsN[3]) {
+                pts.splice(1, 2);
+            }
+        }
+        else if (pts.length == 4) {
+            if (
+                (yRoots.length == 2)
+            || (yRoots.length == 4 && (rootPointsN[0] == 2 && rootPointsN[1] == 2 || rootPointsN[2] == 2 && rootPointsN[3] == 2))
+            ) {
+                pts.splice(2, 2);
+            }
+        }
+        else if (pts.length == 3 || pts.length == 5) {
+            i = rootPointsN.indexOf(2);
+            if (i > -1) {
+                if (pts.length == 3)
+                    i = i % 2;
+                var ii = i + (i % 2 ? -1 : 2);
+                var d1, d2, d3;
+                d1 = pts[i].distanceFrom(pts[i + 1]);
+                d2 = pts[i].distanceFrom(pts[ii]);
+                d3 = pts[i + 1].distanceFrom(pts[ii]);
+                if (d1 < d2 && d1 < d3) {
+                    pts.splice(i, 1);
+                }
+                else {
+                    pts.splice(ii, 1);
+                }
+            }
+        }
+
+        var poly = yPoly;
+        var ZEROepsilon = yPoly.zeroErrorEstimate();
+        ZEROepsilon *= 100 * Math.SQRT2;
+        for (i = 0; i < pts.length - 1;) {
+            if (pts[i].distanceFrom(pts[i + 1]) < ZEROepsilon) {
+                pts.splice(i + 1, 1);
+                continue;
+            }
+            i++;
+        }
+
+        result.points = pts;
+        return result;
+    },
+
+
+    /**
+     *  intersectEllipseLine
+     *
+     *  NOTE: Rotation will need to be added to this function
+     *
+     *  @param {Point2D} c
+     *  @param {Number} rx
+     *  @param {Number} ry
+     *  @param {Point2D} a1
+     *  @param {Point2D} a2
+     *  @returns {Intersection}
+     */
+    intersectEllipseLine: function(c, rx, ry, a1, a2) {
+        var result;
+        var origin = new Vector2D(a1.x, a1.y);
+        var dir    = Vector2D.fromPoints(a1, a2);
+        var center = new Vector2D(c.x, c.y);
+        var diff   = origin.subtract(center);
+        var mDir   = new Vector2D( dir.x/(rx*rx),  dir.y/(ry*ry)  );
+        var mDiff  = new Vector2D( diff.x/(rx*rx), diff.y/(ry*ry) );
+
+        var a = dir.dot(mDir);
+        var b = dir.dot(mDiff);
+        var c = diff.dot(mDiff) - 1.0;
+        var d = b*b - a*c;
+
+        var ERRF = 1e-15;
+        var ZEROepsilon = 10 * Math.max(Math.abs(a), Math.abs(b), Math.abs(c)) * ERRF;
+        if (Math.abs(d) < ZEROepsilon) {
+            d = 0;
+        }
+
+        if ( d < 0 ) {
+            result = new Intersection("Outside");
+        } else if ( d > 0 ) {
+            var root = Math.sqrt(d);
+            var t_a  = (-b - root) / a;
+            var t_b  = (-b + root) / a;
+
+            t_b = (t_b > 1) ? t_b - ERRF : (t_b < 0) ? t_b + ERRF : t_b;
+            t_a = (t_a > 1) ? t_a - ERRF : (t_a < 0) ? t_a + ERRF : t_a;
+
+            if ( (t_a < 0 || 1 < t_a) && (t_b < 0 || 1 < t_b) ) {
+                if ( (t_a < 0 && t_b < 0) || (t_a > 1 && t_b > 1) )
+                    result = new Intersection("Outside");
+                else
+                    result = new Intersection("Inside");
+            } else {
+                result = new Intersection();
+                if ( 0 <= t_a && t_a <= 1 )
+                    result.appendPoint( a1.lerp(a2, t_a) );
+                if ( 0 <= t_b && t_b <= 1 )
+                    result.appendPoint( a1.lerp(a2, t_b) );
+            }
+        } else {
+            var t = -b/a;
+            if ( 0 <= t && t <= 1 ) {
+                result = new Intersection();
+                result.appendPoint( a1.lerp(a2, t) );
+            } else {
+                result = new Intersection("Outside");
+            }
+        }
+
+        return result;
+    },
+
+
+    /**
+     *  intersectLineLine
+     *
+     *  @param {Point2D} a1
+     *  @param {Point2D} a2
+     *  @param {Point2D} b1
+     *  @param {Point2D} b2
+     *  @returns {Intersection}
+     */
+    intersectLineLine: function(a1, a2, b1, b2) {
+        var result;
+        var ua_t = (b2.x - b1.x) * (a1.y - b1.y) - (b2.y - b1.y) * (a1.x - b1.x);
+        var ub_t = (a2.x - a1.x) * (a1.y - b1.y) - (a2.y - a1.y) * (a1.x - b1.x);
+        var u_b  = (b2.y - b1.y) * (a2.x - a1.x) - (b2.x - b1.x) * (a2.y - a1.y);
+
+        if ( u_b !== 0 ) {
+            var ua = ua_t / u_b;
+            var ub = ub_t / u_b;
+
+            if ( 0 <= ua && ua <= 1 && 0 <= ub && ub <= 1 ) {
+                result = new Intersection();
+                result.points.push(
+                    new Point2D(
+                        a1.x + ua * (a2.x - a1.x),
+                        a1.y + ua * (a2.y - a1.y)
+                    )
+                );
+            } else {
+                result = new Intersection();
+            }
+        } else {
+            if ( ua_t === 0 || ub_t === 0 ) {
+                result = new Intersection("Coincident");
+            } else {
+                result = new Intersection("Parallel");
+            }
+        }
+
+        return result;
+    },
+
+
+    /**
+     *  intersectRayRay
+     *
+     *  @param {Point2D} a1
+     *  @param {Point2D} a2
+     *  @param {Point2D} b1
+     *  @param {Point2D} b2
+     *  @returns {Intersection}
+     */
+    intersectRayRay: function(a1, a2, b1, b2) {
+        var result;
+
+        var ua_t = (b2.x - b1.x) * (a1.y - b1.y) - (b2.y - b1.y) * (a1.x - b1.x);
+        var ub_t = (a2.x - a1.x) * (a1.y - b1.y) - (a2.y - a1.y) * (a1.x - b1.x);
+        var u_b  = (b2.y - b1.y) * (a2.x - a1.x) - (b2.x - b1.x) * (a2.y - a1.y);
+
+        if ( u_b !== 0 ) {
+            var ua = ua_t / u_b;
+
+            result = new Intersection();
+            result.points.push(
+                new Point2D(
+                    a1.x + ua * (a2.x - a1.x),
+                    a1.y + ua * (a2.y - a1.y)
+                )
+            );
+        } else {
+            if ( ua_t === 0 || ub_t === 0 ) {
+                result = new Intersection("Coincident");
+            } else {
+                result = new Intersection("Parallel");
+            }
+        }
+
+        return result;
+    }
+};
+
+var composedShapeMethods = {};
+composedShapeMethods[IPTYPE.PATH] = intersectionFunctions.intersectPathShape;
+composedShapeMethods[IPTYPE.POLYLINE] = intersectionFunctions.intersectLinesShape;
+composedShapeMethods[IPTYPE.POLYGON] = intersectionFunctions.intersectLinesShape;
+composedShapeMethods[IPTYPE.RECT] = intersectionFunctions.intersectLinesShape;
+composedShapeMethods[IPTYPE.ROUNDRECT] = intersectionFunctions.intersectPathShape;
+composedShapeMethods[IPTYPE.ARC] = intersectionFunctions.intersectArcShape;
+
+
+
+function intersect(shape1, shape2, m1, m2) {
+    var ip1 = shape1;
+    var ip2 = shape2;
+    var result;
+
+    if (ip1 !== null && ip2 !== null) {
+        var method;
+        if (method = composedShapeMethods[ip1.type]) {
+            result = method(ip1, ip2, m1, m2);
+        }
+        else if (method = composedShapeMethods[ip2.type]) {
+            result = method(ip2, ip1, m2, m1);
+        }
+        else {
+            var params;
+
+            var params1, params2, type1, type2;
+
+            if (ip1.type === IPTYPE.CIRCLE) {
+                params1 = [ip1.params[0], ip1.params[1], ip1.params[1]];
+                type1 = IPTYPE.ELLIPSE;
+            }
+            else {
+                params1 = ip1.params.slice();
+                type1 = ip1.type;
+            }
+
+            if (ip2.type === IPTYPE.CIRCLE) {
+                params2 = [ip2.params[0], ip2.params[1], ip2.params[1]];
+                type2 = IPTYPE.ELLIPSE;
+            }
+            else {
+                params2 = ip2.params.slice();
+                type2 = ip2.type;
+            }
+
+            //var m1 = new Matrix2D(), m2 = new Matrix2D();
+            var SMF = 1;
+            var itm;
+            var useCTM = (m1 instanceof Matrix2D && m2 instanceof Matrix2D);// && (!m1.isIdentity() || !m2.isIdentity()));
+            if (useCTM) {
+                if (type1 === IPTYPE.ELLIPSE && type2 === IPTYPE.ELLIPSE) {
+                    var m1_, m2_;
+                    var d2;
+                    var c1 = params1[0], rx1 = params1[1], ry1 = params1[2];
+                    var c2 = params2[0], rx2 = params2[1], ry2 = params2[2];
+
+                    m1 = m1.multiply(Matrix2D.IDENTITY.translate(c1.x, c1.y).scaleNonUniform(rx1 / SMF, ry1 / SMF));
+                    c1 = new Point2D(0, 0);
+                    rx1 = ry1 = SMF;
+
+                    m2 = m2.multiply(Matrix2D.IDENTITY.translate(c2.x, c2.y).scaleNonUniform(rx2, ry2));
+                    c2 = new Point2D(0, 0);
+                    rx2 = ry2 = 1;
+
+                    d2 = m1.inverse().multiply(m2).getDecompositionTRSR();
+                    m1_ = d2.R.inverse().multiply(d2.T.inverse());
+                    m2_ = d2.S;
+
+                    rx2 = m2_.a;
+                    ry2 = m2_.d;
+                    c1 = c1.transform(m1_);
+                    itm = m1.multiply(m1_.inverse());
+
+                    params1[0] = c1;
+                    params1[1] = rx1;
+                    params1[2] = ry1;
+                    params2[0] = c2;
+                    params2[1] = rx2;
+                    params2[2] = ry2;
+                }
+                else {
+                    var transParams = function (type, params, m) {
+                        var transParam = function (i) {
+                            params[i] = params[i].transform(m);
+                        }
+
+                        if (type === IPTYPE.LINE) {
+                            transParam(0);
+                            transParam(1);
+                        }
+                        else if (type === IPTYPE.BEZIER2) {
+                            transParam(0);
+                            transParam(1);
+                            transParam(2);
+                        }
+                        else if (type === IPTYPE.BEZIER3) {
+                            transParam(0);
+                            transParam(1);
+                            transParam(2);
+                            transParam(3);
+                        }
+                        else {
+                            throw new Error('Unknown shape: ' + type);
+                        }
+                    }
+
+                    if (type2 === IPTYPE.ELLIPSE) {
+                        var tmp;
+                        tmp = params2; params2 = params1; params1 = tmp;
+                        tmp = type2; type2 = type1; type1 = tmp;
+                        tmp = m2; m2 = m1; m1 = tmp;
+                    }
+
+                    if (type1 === IPTYPE.ELLIPSE) {
+                        var c1 = params1[0], rx1 = params1[1], ry1 = params1[2];
+
+                        m1 = m1.multiply(Matrix2D.IDENTITY.translate(c1.x, c1.y).scaleNonUniform(rx1 / SMF, ry1 / SMF));
+                        c1 = new Point2D(0, 0);
+                        rx1 = ry1 = SMF;
+
+                        m2_ = m1.inverse().multiply(m2);
+                        transParams(type2, params2, m2_);
+
+                        itm = m1;
+
+                        params1[0] = c1;
+                        params1[1] = rx1;
+                        params1[2] = ry1;
+                    }
+                    else {
+                        transParams(type1, params1, m1);
+                        transParams(type2, params2, m2);
+                        itm = Matrix2D.IDENTITY;
+                    }
+                }
+            }
+
+            if (type1 < type2) {
+                method = "intersect" + type1 + type2;
+                params = params1.concat(params2);
+            } else {
+                method = "intersect" + type2 + type1;
+                params = params2.concat(params1);
+            }
+
+            result = intersectionFunctions[method].apply(null, params);
+
+            if (useCTM) {
+                for (var i = 0; i < result.points.length; i++) {
+                    result.points[i] = result.points[i].transform(itm);
+                }
+            }
+        }
+    } else {
+        result = new Intersection();
+    }
+
+    return result;
+}
+
+intersect.plugin = function() {
+    for(var i = 0; i < argLength; i++) {
+        var arg = arguments[i];
+        for(var key in arg) {
+            if(arg.hasOwnProperty(key)) {
+                intersectionFunctions[key] = arg[key];
+            }
+        }
+    }
+}
+
+module.exports = intersect;
+
+ 
+
+
+},{"./Intersection":184,"./IntersectionParams":185,"kld-affine":187,"kld-polynomial":191}],187:[function(require,module,exports){
+// expose classes
+
+exports.Point2D = require('./lib/Point2D');
+exports.Vector2D = require('./lib/Vector2D');
+exports.Matrix2D = require('./lib/Matrix2D');
+
+},{"./lib/Matrix2D":188,"./lib/Point2D":189,"./lib/Vector2D":190}],188:[function(require,module,exports){
+/**
+ *
+ *   Matrix2D.js
+ *
+ *   copyright 2001-2002, 2013 Kevin Lindsey
+ *
+ */
+
+/**
+ *  Matrix2D
+ *
+ *  @param {Number} a
+ *  @param {Number} b
+ *  @param {Number} c
+ *  @param {Number} d
+ *  @param {Number} e
+ *  @param {Number} f
+ *  @returns {Matrix2D}
+ */
+function Matrix2D(a, b, c, d, e, f) {
+    Object.defineProperties(this, {
+        "a": {
+            value: (a !== undefined) ? a : 1,
+            writable: false,
+            enumerable: true,
+            configurable: false
+        },
+        "b": {
+            value: (b !== undefined) ? b : 0,
+            writable: false,
+            enumerable: true,
+            configurable: false
+        },
+        "c": {
+            value: (c !== undefined) ? c : 0,
+            writable: false,
+            enumerable: true,
+            configurable: false
+        },
+        "d": {
+            value: (d !== undefined) ? d : 1,
+            writable: false,
+            enumerable: true,
+            configurable: false
+        },
+        "e": {
+            value: (e !== undefined) ? e : 0,
+            writable: false,
+            enumerable: true,
+            configurable: false
+        },
+        "f": {
+            value: (f !== undefined) ? f : 0,
+            writable: false,
+            enumerable: true,
+            configurable: false
+        }
+    });
+    // this.a = (a !== undefined) ? a : 1;
+    // this.b = (b !== undefined) ? b : 0;
+    // this.c = (c !== undefined) ? c : 0;
+    // this.d = (d !== undefined) ? d : 1;
+    // this.e = (e !== undefined) ? e : 0;
+    // this.f = (f !== undefined) ? f : 0;
+}
+
+/**
+ *  Identity matrix
+ *
+ *  @returns {Matrix2D}
+ */
+Matrix2D.IDENTITY = new Matrix2D(1, 0, 0, 1, 0, 0);
+
+// TODO: rotate, skew, etc. matrices as well?
+
+/**
+ *  multiply
+ *
+ *  @pararm {Matrix2D} that
+ *  @returns {Matrix2D}
+ */
+Matrix2D.prototype.multiply = function(that) {
+    return new Matrix2D(
+        this.a * that.a + this.c * that.b,
+        this.b * that.a + this.d * that.b,
+        this.a * that.c + this.c * that.d,
+        this.b * that.c + this.d * that.d,
+        this.a * that.e + this.c * that.f + this.e,
+        this.b * that.e + this.d * that.f + this.f
+    );
+};
+
+/**
+ *  inverse
+ *
+ *  @returns {Matrix2D}
+ */
+Matrix2D.prototype.inverse = function() {
+    var det1 = this.a * this.d - this.b * this.c;
+
+    if ( det1 == 0.0 )
+        throw("Matrix is not invertible");
+
+    var idet = 1.0 / det1;
+    var det2 = this.f * this.c - this.e * this.d;
+    var det3 = this.e * this.b - this.f * this.a;
+
+    return new Matrix2D(
+        this.d * idet,
+       -this.b * idet,
+       -this.c * idet,
+        this.a * idet,
+          det2 * idet,
+          det3 * idet
+    );
+};
+
+/**
+ *  translate
+ *
+ *  @param {Number} tx
+ *  @param {Number} ty
+ *  @returns {Matrix2D}
+ */
+Matrix2D.prototype.translate = function(tx, ty) {
+    return new Matrix2D(
+        this.a,
+        this.b,
+        this.c,
+        this.d,
+        this.a * tx + this.c * ty + this.e,
+        this.b * tx + this.d * ty + this.f
+    );
+};
+
+/**
+ *  scale
+ *
+ *  @param {Number} scale
+ *  @returns {Matrix2D}
+ */
+Matrix2D.prototype.scale = function(scale) {
+    return new Matrix2D(
+        this.a * scale,
+        this.b * scale,
+        this.c * scale,
+        this.d * scale,
+        this.e,
+        this.f
+    );
+};
+
+/**
+ *  scaleAt
+ *
+ *  @param {Number} scale
+ *  @param {Point2D} center
+ *  @returns {Matrix2D}
+ */
+Matrix2D.prototype.scaleAt = function(scale, center) {
+    var dx = center.x - scale * center.x;
+    var dy = center.y - scale * center.y;
+
+    return new Matrix2D(
+        this.a * scale,
+        this.b * scale,
+        this.c * scale,
+        this.d * scale,
+        this.a * dx + this.c * dy + this.e,
+        this.b * dx + this.d * dy + this.f
+    );
+};
+
+/**
+ *  scaleNonUniform
+ *
+ *  @param {Number} scaleX
+ *  @param {Number} scaleY
+ *  @returns {Matrix2D}
+ */
+Matrix2D.prototype.scaleNonUniform = function(scaleX, scaleY) {
+    return new Matrix2D(
+        this.a * scaleX,
+        this.b * scaleX,
+        this.c * scaleY,
+        this.d * scaleY,
+        this.e,
+        this.f
+    );
+};
+
+/**
+ *  scaleNonUniformAt
+ *
+ *  @param {Number} scaleX
+ *  @param {Number} scaleY
+ *  @param {Point2D} center
+ *  @returns {Matrix2D}
+ */
+Matrix2D.prototype.scaleNonUniformAt = function(scaleX, scaleY, center) {
+    var dx = center.x - scaleX * center.x;
+    var dy = center.y - scaleY * center.y;
+
+    return new Matrix2D(
+        this.a * scaleX,
+        this.b * scaleX,
+        this.c * scaleY,
+        this.d * scaleY,
+        this.a * dx + this.c * dy + this.e,
+        this.b * dx + this.d * dy + this.f
+    );
+};
+
+/**
+ *  rotate
+ *
+ *  @param {Number} radians
+ *  @returns {Matrix2D}
+ */
+Matrix2D.prototype.rotate = function(radians) {
+    var c = Math.cos(radians);
+    var s = Math.sin(radians);
+
+    return new Matrix2D(
+        this.a *  c + this.c * s,
+        this.b *  c + this.d * s,
+        this.a * -s + this.c * c,
+        this.b * -s + this.d * c,
+        this.e,
+        this.f
+    );
+};
+
+/**
+ *  rotateAt
+ *
+ *  @param {Number} radians
+ *  @param {Point2D} center
+ *  @result {Matrix2D}
+ */
+Matrix2D.prototype.rotateAt = function(radians, center) {
+    var c = Math.cos(radians);
+    var s = Math.sin(radians);
+    var t1 = -center.x + center.x * c - center.y * s;
+    var t2 = -center.y + center.y * c + center.x * s;
+
+    return new Matrix2D(
+        this.a *  c + this.c * s,
+        this.b *  c + this.d * s,
+        this.a * -s + this.c * c,
+        this.b * -s + this.d * c,
+        this.a * t1 + this.c * t2 + this.e,
+        this.b * t1 + this.d * t2 + this.f
+    );
+};
+
+/**
+ *  rotateFromVector
+ *
+ *  @param {Vector2D}
+ *  @returns {Matrix2D}
+ */
+Matrix2D.prototype.rotateFromVector = function(vector) {
+    var unit = vector.unit();
+    var c = unit.x; // cos
+    var s = unit.y; // sin
+
+    return new Matrix2D(
+        this.a *  c + this.c * s,
+        this.b *  c + this.d * s,
+        this.a * -s + this.c * c,
+        this.b * -s + this.d * c,
+        this.e,
+        this.f
+    );
+};
+
+/**
+ *  flipX
+ *
+ *  @returns {Matrix2D}
+ */
+Matrix2D.prototype.flipX = function() {
+    return new Matrix2D(
+        -this.a,
+        -this.b,
+         this.c,
+         this.d,
+         this.e,
+         this.f
+    );
+};
+
+/**
+ *  flipY
+ *
+ *  @returns {Matrix2D}
+ */
+Matrix2D.prototype.flipY = function() {
+    return new Matrix2D(
+         this.a,
+         this.b,
+        -this.c,
+        -this.d,
+         this.e,
+         this.f
+    );
+};
+
+/**
+ *  skewX
+ *
+ *  @pararm {Number} radians
+ *  @returns {Matrix2D}
+ */
+Matrix2D.prototype.skewX = function(radians) {
+    var t = Math.tan(radians);
+
+    return new Matrix2D(
+        this.a,
+        this.b,
+        this.a * t + this.c,
+        this.b * t + this.d,
+        this.e,
+        this.f
+    );
+};
+
+// TODO: skewXAt
+
+/**
+ *  skewY
+ *
+ *  @pararm {Number} radians
+ *  @returns {Matrix2D}
+ */
+Matrix2D.prototype.skewY = function(radians) {
+    var t = Math.tan(angle);
+
+    return matrix_new(
+        this.a + this.c * t,
+        this.b + this.d * t,
+        this.c,
+        this.d,
+        this.e,
+        this.f
+    );
+};
+
+// TODO: skewYAt
+
+/**
+ *  isIdentity
+ *
+ *  @returns {Boolean}
+ */
+Matrix2D.prototype.isIdentity = function() {
+    return (
+        this.a === 1.0 &&
+        this.b === 0.0 &&
+        this.c === 0.0 &&
+        this.d === 1.0 &&
+        this.e === 0.0 &&
+        this.f === 0.0
+    );
+};
+
+/**
+ *  isInvertible
+ *
+ *  @returns {Boolean}
+ */
+Matrix2D.prototype.isInvertible = function() {
+    this.a * this.d - this.b * this.c !== 0.0;
+};
+
+/**
+ *  getScale
+ *
+ *  @returns {scaleX: Number, scaleY: Number}
+ */
+Matrix2D.prototype.getScale = function() {
+    return {
+        scaleX: Math.sqrt(this.a * this.a + this.c * this.c),
+        scaleY: Math.sqrt(this.b * this.b + this.d * this.d)
+    };
+};
+
+/**
+ *  equals
+ *
+ *  @param {Matrix2D} that
+ *  @returns {Boolean}
+ */
+Matrix2D.prototype.equals = function(that) {
+    return (
+        this.a === that.a &&
+        this.b === that.b &&
+        this.c === that.c &&
+        this.d === that.d &&
+        this.e === that.e &&
+        this.f === that.f
+    );
+};
+
+/**
+ *  toString
+ *
+ *  @returns {String}
+ */
+Matrix2D.prototype.toString = function() {
+    return (
+        "matrix(" +
+        this.a + "," +
+        this.b + "," +
+        this.c + "," +
+        this.d + "," +
+        this.e + "," +
+        this.f + ")"
+    );
+}
+
+if (typeof module !== "undefined") {
+    module.exports = Matrix2D;
+}
+},{}],189:[function(require,module,exports){
+/**
+ *
+ *   Point2D.js
+ *
+ *   copyright 2001-2002, 2013 Kevin Lindsey
+ *
+ */
+
+/**
+ *  Point2D
+ *
+ *  @param {Number} x
+ *  @param {Number} y
+ *  @returns {Point2D}
+ */
+function Point2D(x, y) {
+    Object.defineProperties(this, {
+        "x": {
+            value: x,
+            writable: false,
+            enumerable: true,
+            configurable: false
+        },
+        "y": {
+            value: y,
+            writable: false,
+            enumerable: true,
+            configurable: false
+        }
+    });
+    // this.x = x;
+    // this.y = y;
+}
+
+/**
+ *  clone
+ *
+ *  @returns {Point2D}
+ */
+Point2D.prototype.clone = function() {
+    return new Point2D(this.x, this.y);
+};
+
+/**
+ *  add
+ *
+ *  @param {Point2D|Vector2D} that
+ *  @returns {Point2D}
+ */
+Point2D.prototype.add = function(that) {
+    return new Point2D(this.x+that.x, this.y+that.y);
+};
+
+/**
+ *  subtract
+ *
+ *  @param { Vector2D | Point2D } that
+ *  @returns {Point2D}
+ */
+Point2D.prototype.subtract = function(that) {
+    return new Point2D(this.x-that.x, this.y-that.y);
+};
+
+/**
+ *  multiply
+ *
+ *  @param {Number} scalar
+ *  @returns {Point2D}
+ */
+Point2D.prototype.multiply = function(scalar) {
+    return new Point2D(this.x*scalar, this.y*scalar);
+};
+
+/**
+ *  divide
+ *
+ *  @param {Number} scalar
+ *  @returns {Point2D}
+ */
+Point2D.prototype.divide = function(scalar) {
+    return new Point2D(this.x/scalar, this.y/scalar);
+};
+
+/**
+ *  equals
+ *
+ *  @param {Point2D} that
+ *  @returns {Boolean}
+ */
+Point2D.prototype.equals = function(that) {
+    return ( this.x == that.x && this.y == that.y );
+};
+
+// utility methods
+
+/**
+ *  lerp
+ *
+ *  @param { Vector2D | Point2D } that
+ *  @param {Number} t
+ @  @returns {Point2D}
+ */
+Point2D.prototype.lerp = function(that, t) {
+    var omt = 1.0 - t;
+
+    return new Point2D(
+        this.x * omt + that.x * t,
+        this.y * omt + that.y * t
+    );
+};
+
+/**
+ *  distanceFrom
+ *
+ *  @param {Point2D} that
+ *  @returns {Number}
+ */
+Point2D.prototype.distanceFrom = function(that) {
+    var dx = this.x - that.x;
+    var dy = this.y - that.y;
+
+    return Math.sqrt(dx*dx + dy*dy);
+};
+
+/**
+ *  min
+ *
+ *  @param {Point2D} that
+ *  @returns {Number}
+ */
+Point2D.prototype.min = function(that) {
+    return new Point2D(
+        Math.min( this.x, that.x ),
+        Math.min( this.y, that.y )
+    );
+};
+
+/**
+ *  max
+ *
+ *  @param {Point2D} that
+ *  @returns {Number}
+ */
+Point2D.prototype.max = function(that) {
+    return new Point2D(
+        Math.max( this.x, that.x ),
+        Math.max( this.y, that.y )
+    );
+};
+
+/**
+ *  transform
+ *
+ *  @param {Matrix2D}
+ *  @result {Point2D}
+ */
+Point2D.prototype.transform = function(matrix) {
+    return new Point2D(
+        matrix.a * this.x + matrix.c * this.y + matrix.e,
+        matrix.b * this.x + matrix.d * this.y + matrix.f
+    );
+};
+
+/**
+ *  toString
+ *
+ *  @returns {String}
+ */
+Point2D.prototype.toString = function() {
+    return "point(" + this.x + "," + this.y + ")";
+};
+
+if (typeof module !== "undefined") {
+    module.exports = Point2D;
+}
+
+},{}],190:[function(require,module,exports){
+/**
+ *
+ *   Vector2D.js
+ *
+ *   copyright 2001-2002, 2013 Kevin Lindsey
+ *
+ */
+
+/**
+ *  Vector2D
+ *
+ *  @param {Number} x
+ *  @param {Number} y
+ *  @returns {Vector2D}
+ */
+function Vector2D(x, y) {
+    Object.defineProperties(this, {
+        "x": {
+            value: x,
+            writable: false,
+            enumerable: true,
+            configurable: false
+        },
+        "y": {
+            value: y,
+            writable: false,
+            enumerable: true,
+            configurable: false
+        }
+    });
+    // this.x = x;
+    // this.y = y;
+}
+
+/**
+ *  fromPoints
+ *
+ *  @param {Point2D} p1
+ *  @param {Point2D} p2
+ *  @returns {Vector2D}
+ */
+Vector2D.fromPoints = function(p1, p2) {
+    return new Vector2D(
+        p2.x - p1.x,
+        p2.y - p1.y
+    );
+};
+
+/**
+ *  length
+ *
+ *  @returns {Number}
+ */
+Vector2D.prototype.length = function() {
+    return Math.sqrt(this.x*this.x + this.y*this.y);
+};
+
+/**
+ *  magnitude
+ *
+ *  @returns {Number}
+ */
+Vector2D.prototype.magnitude = function() {
+    return this.x*this.x + this.y*this.y;
+};
+
+/**
+ *  dot
+ *
+ *  @param {Vector2D} that
+ *  @returns {Number}
+ */
+Vector2D.prototype.dot = function(that) {
+    return this.x*that.x + this.y*that.y;
+};
+
+/**
+ *  cross
+ *
+ *  @param {Vector2D} that
+ *  @returns {Number}
+ */
+Vector2D.prototype.cross = function(that) {
+    return this.x*that.y - this.y*that.x;
+}
+
+/**
+ *  determinant
+ *
+ *  @param {Vector2D} that
+ *  @returns {Number}
+ */
+Vector2D.prototype.determinant = function(that) {
+    return this.x*that.y - this.y*that.x;
+};
+
+/**
+ *  unit
+ *
+ *  @returns {Vector2D}
+ */
+Vector2D.prototype.unit = function() {
+    return this.divide( this.length() );
+};
+
+/**
+ *  add
+ *
+ *  @param {Vector2D} that
+ *  @returns {Vector2D}
+ */
+Vector2D.prototype.add = function(that) {
+    return new Vector2D(this.x + that.x, this.y + that.y);
+};
+
+/**
+ *  subtract
+ *
+ *  @param {Vector2D} that
+ *  @returns {Vector2D}
+ */
+Vector2D.prototype.subtract = function(that) {
+    return new Vector2D(this.x - that.x, this.y - that.y);
+};
+
+/**
+ *  multiply
+ *
+ *  @param {Number} scalar
+ *  @returns {Vector2D}
+ */
+Vector2D.prototype.multiply = function(scalar) {
+    return new Vector2D(this.x * scalar, this.y * scalar);
+};
+
+/**
+ *  divide
+ *
+ *  @param {Number} scalar
+ *  @returns {Vector2D}
+ */
+Vector2D.prototype.divide = function(scalar) {
+    return new Vector2D(this.x / scalar, this.y / scalar);
+};
+
+/**
+ *  angleBetween
+ *
+ *  @param {Vector2D} that
+ *  @returns {Number}
+ */
+Vector2D.prototype.angleBetween = function(that) {
+    var cos = this.dot(that) / (this.length() * that.length());
+    if (cos < -1) {
+        cos = -1;
+    }
+    else if (cos > 1) {
+        cos = 1;
+    }
+    var radians = Math.acos(cos);
+
+    return (this.cross(that) < 0.0) ? -radians : radians;
+};
+
+/**
+ *  Find a vector is that is perpendicular to this vector
+ *
+ *  @returns {Vector2D}
+ */
+Vector2D.prototype.perp = function() {
+    return new Vector2D(-this.y, this.x);
+};
+
+/**
+ *  Find the component of the specified vector that is perpendicular to
+ *  this vector
+ *
+ *  @param {Vector2D} that
+ *  @returns {Vector2D}
+ */
+Vector2D.prototype.perpendicular = function(that) {
+    return this.subtract(this.project(that));
+};
+
+/**
+ *  project
+ *
+ *  @param {Vector2D} that
+ *  @returns {Vector2D}
+ */
+Vector2D.prototype.project = function(that) {
+    var percent = this.dot(that) / that.dot(that);
+
+    return that.multiply(percent);
+};
+
+/**
+ *  transform
+ *
+ *  @param {Matrix2D}
+ *  @returns {Vector2D}
+ */
+Vector2D.prototype.transform = function(matrix) {
+    return new Vector2D(
+        matrix.a * this.x + matrix.c * this.y,
+        matrix.b * this.x + matrix.d * this.y
+    );
+};
+
+/**
+ *  equals
+ *
+ *  @param {Vector2D} that
+ *  @returns {Boolean}
+ */
+Vector2D.prototype.equals = function(that) {
+    return (
+        this.x === that.x &&
+        this.y === that.y
+    );
+};
+
+/**
+ *  toString
+ *
+ *  @returns {String}
+ */
+Vector2D.prototype.toString = function() {
+    return "vector(" + this.x + "," + this.y + ")";
+};
+
+if (typeof module !== "undefined") {
+    module.exports = Vector2D;
+}
+
+},{}],191:[function(require,module,exports){
+// expose classes
+
+exports.Polynomial = require('./lib/Polynomial');
+exports.SqrtPolynomial = require('./lib/SqrtPolynomial');
+
+},{"./lib/Polynomial":192,"./lib/SqrtPolynomial":193}],192:[function(require,module,exports){
+/**
+ *
+ *   Polynomial.js
+ *
+ *   copyright 2002, 2103 Kevin Lindsey
+ *
+ */
+
+Polynomial.TOLERANCE = 1e-6;
+Polynomial.ACCURACY  = 15;
+
+
+/**
+ *  interpolate
+ *
+ *  @param {Array<Number>} xs
+ *  @param {Array<Number>} ys
+ *  @param {Number} n
+ *  @param {Number} offset
+ *  @param {Number} x
+ *
+ *  @returns {y:Number, dy:Number}
+ */
+Polynomial.interpolate = function(xs, ys, n, offset, x) {
+    if ( xs.constructor !== Array || ys.constructor !== Array )
+        throw new Error("Polynomial.interpolate: xs and ys must be arrays");
+    if ( isNaN(n) || isNaN(offset) || isNaN(x) )
+        throw new Error("Polynomial.interpolate: n, offset, and x must be numbers");
+
+    var y  = 0;
+    var dy = 0;
+    var c = new Array(n);
+    var d = new Array(n);
+    var ns = 0;
+    var result;
+
+    var diff = Math.abs(x - xs[offset]);
+    for ( var i = 0; i < n; i++ ) {
+        var dift = Math.abs(x - xs[offset+i]);
+
+        if ( dift < diff ) {
+            ns = i;
+            diff = dift;
+        }
+        c[i] = d[i] = ys[offset+i];
+    }
+    y = ys[offset+ns];
+    ns--;
+
+    for ( var m = 1; m < n; m++ ) {
+        for ( var i = 0; i < n-m; i++ ) {
+            var ho = xs[offset+i] - x;
+            var hp = xs[offset+i+m] - x;
+            var w = c[i+1]-d[i];
+            var den = ho - hp;
+
+            if ( den == 0.0 ) {
+                result = { y: 0, dy: 0};
+                break;
+            }
+
+            den = w / den;
+            d[i] = hp*den;
+            c[i] = ho*den;
+        }
+        dy = (2*(ns+1) < (n-m)) ? c[ns+1] : d[ns--];
+        y += dy;
+    }
+
+    return { y: y, dy: dy };
+};
+
+
+/**
+ *  Polynomial
+ *
+ *  @returns {Polynomial}
+ */
+function Polynomial() {
+    this.init( arguments );
+}
+
+
+/**
+ *  init
+ */
+Polynomial.prototype.init = function(coefs) {
+    this.coefs = new Array();
+
+    for ( var i = coefs.length - 1; i >= 0; i-- )
+        this.coefs.push( coefs[i] );
+
+    this._variable = "t";
+    this._s = 0;
+};
+
+
+/**
+ *  eval
+ */
+Polynomial.prototype.eval = function(x) {
+    if ( isNaN(x) )
+        throw new Error("Polynomial.eval: parameter must be a number");
+
+    var result = 0;
+
+    for ( var i = this.coefs.length - 1; i >= 0; i-- )
+        result = result * x + this.coefs[i];
+
+    return result;
+};
+
+
+/**
+ *  add
+ */
+Polynomial.prototype.add = function(that) {
+    var result = new Polynomial();
+    var d1 = this.getDegree();
+    var d2 = that.getDegree();
+    var dmax = Math.max(d1,d2);
+
+    for ( var i = 0; i <= dmax; i++ ) {
+        var v1 = (i <= d1) ? this.coefs[i] : 0;
+        var v2 = (i <= d2) ? that.coefs[i] : 0;
+
+        result.coefs[i] = v1 + v2;
+    }
+
+    return result;
+};
+
+
+/**
+ *  multiply
+ */
+Polynomial.prototype.multiply = function(that) {
+    var result = new Polynomial();
+
+    for ( var i = 0; i <= this.getDegree() + that.getDegree(); i++ )
+        result.coefs.push(0);
+
+    for ( var i = 0; i <= this.getDegree(); i++ )
+        for ( var j = 0; j <= that.getDegree(); j++ )
+            result.coefs[i+j] += this.coefs[i] * that.coefs[j];
+
+    return result;
+};
+
+
+/**
+ *  divide_scalar
+ */
+Polynomial.prototype.divide_scalar = function(scalar) {
+    for ( var i = 0; i < this.coefs.length; i++ )
+        this.coefs[i] /= scalar;
+};
+
+
+/**
+ *  simplify
+ */
+Polynomial.prototype.simplify = function() {
+    for ( var i = this.getDegree(); i >= 0; i-- ) {
+        if ( Math.abs( this.coefs[i] ) <= Polynomial.TOLERANCE )
+            this.coefs.pop();
+        else
+            break;
+    }
+};
+
+
+/**
+ *  bisection
+ */
+Polynomial.prototype.bisection = function(min, max) {
+    var minValue = this.eval(min);
+    var maxValue = this.eval(max);
+    var result;
+
+    if ( Math.abs(minValue) <= Polynomial.TOLERANCE )
+        result = min;
+    else if ( Math.abs(maxValue) <= Polynomial.TOLERANCE )
+        result = max;
+    else if ( minValue * maxValue <= 0 ) {
+        var tmp1  = Math.log(max - min);
+        var tmp2  = Math.LN10 * Polynomial.ACCURACY;
+        var iters = Math.ceil( (tmp1+tmp2) / Math.LN2 );
+
+        for ( var i = 0; i < iters; i++ ) {
+            result = 0.5 * (min + max);
+            var value = this.eval(result);
+
+            if ( Math.abs(value) <= Polynomial.TOLERANCE ) {
+                break;
+            }
+
+            if ( value * minValue < 0 ) {
+                max = result;
+                maxValue = value;
+            } else {
+                min = result;
+                minValue = value;
+            }
+        }
+    }
+
+    return result;
+};
+
+
+/**
+ *  toString
+ */
+Polynomial.prototype.toString = function() {
+    var coefs = new Array();
+    var signs = new Array();
+
+    for ( var i = this.coefs.length - 1; i >= 0; i-- ) {
+        var value = Math.round(this.coefs[i]*1000)/1000;
+        //var value = this.coefs[i];
+
+        if ( value != 0 ) {
+            var sign = ( value < 0 ) ? " - " : " + ";
+
+            value = Math.abs(value);
+            if ( i > 0 )
+                if ( value == 1 )
+                    value = this._variable;
+                else
+                    value += this._variable;
+            if ( i > 1 ) value += "^" + i;
+
+            signs.push( sign );
+            coefs.push( value );
+        }
+    }
+
+    signs[0] = ( signs[0] == " + " ) ? "" : "-";
+
+    var result = "";
+    for ( var i = 0; i < coefs.length; i++ )
+        result += signs[i] + coefs[i];
+
+    return result;
+};
+
+
+/**
+ *  trapezoid
+ *  Based on trapzd in "Numerical Recipes in C", page 137
+ */
+Polynomial.prototype.trapezoid = function(min, max, n) {
+    if ( isNaN(min) || isNaN(max) || isNaN(n) )
+        throw new Error("Polynomial.trapezoid: parameters must be numbers");
+
+    var range = max - min;
+    var TOLERANCE = 1e-7;
+
+    if ( n == 1 ) {
+        var minValue = this.eval(min);
+        var maxValue = this.eval(max);
+        this._s = 0.5*range*( minValue + maxValue );
+    } else {
+        var it = 1 << (n-2);
+        var delta = range / it;
+        var x = min + 0.5*delta;
+        var sum = 0;
+
+        for ( var i = 0; i < it; i++ ) {
+            sum += this.eval(x);
+            x += delta;
+        }
+        this._s = 0.5*(this._s + range*sum/it);
+    }
+
+    if ( isNaN(this._s) )
+        throw new Error("Polynomial.trapezoid: this._s is NaN");
+
+    return this._s;
+};
+
+
+/**
+ *  simpson
+ *  Based on trapzd in "Numerical Recipes in C", page 139
+ */
+Polynomial.prototype.simpson = function(min, max) {
+    if ( isNaN(min) || isNaN(max) )
+        throw new Error("Polynomial.simpson: parameters must be numbers");
+
+    var range = max - min;
+    var st = 0.5 * range * ( this.eval(min) + this.eval(max) );
+    var t = st;
+    var s = 4.0*st/3.0;
+    var os = s;
+    var ost = st;
+    var TOLERANCE = 1e-7;
+
+    var it = 1;
+    for ( var n = 2; n <= 20; n++ ) {
+        var delta = range / it;
+        var x     = min + 0.5*delta;
+        var sum   = 0;
+
+        for ( var i = 1; i <= it; i++ ) {
+            sum += this.eval(x);
+            x += delta;
+        }
+
+        t = 0.5 * (t + range * sum / it);
+        st = t;
+        s = (4.0*st - ost)/3.0;
+
+        if ( Math.abs(s-os) < TOLERANCE*Math.abs(os) )
+            break;
+
+        os = s;
+        ost = st;
+        it <<= 1;
+    }
+
+    return s;
+};
+
+
+/**
+ *  romberg
+ */
+Polynomial.prototype.romberg = function(min, max) {
+    if ( isNaN(min) || isNaN(max) )
+        throw new Error("Polynomial.romberg: parameters must be numbers");
+
+    var MAX = 20;
+    var K = 3;
+    var TOLERANCE = 1e-6;
+    var s = new Array(MAX+1);
+    var h = new Array(MAX+1);
+    var result = { y: 0, dy: 0 };
+
+    h[0] = 1.0;
+    for ( var j = 1; j <= MAX; j++ ) {
+        s[j-1] = this.trapezoid(min, max, j);
+        if ( j >= K ) {
+            result = Polynomial.interpolate(h, s, K, j-K, 0.0);
+            if ( Math.abs(result.dy) <= TOLERANCE*result.y) break;
+        }
+        s[j] = s[j-1];
+        h[j] = 0.25 * h[j-1];
+    }
+
+    return result.y;
+};
+
+// getters and setters
+
+/**
+ *  get degree
+ */
+Polynomial.prototype.getDegree = function() {
+    return this.coefs.length - 1;
+};
+
+
+/**
+ *  getDerivative
+ */
+Polynomial.prototype.getDerivative = function() {
+    var derivative = new Polynomial();
+
+    for ( var i = 1; i < this.coefs.length; i++ ) {
+        derivative.coefs.push(i*this.coefs[i]);
+    }
+
+    return derivative;
+};
+
+
+/**
+ *  getRoots
+ */
+Polynomial.prototype.getRoots = function() {
+    var result;
+
+    this.simplify();
+    switch ( this.getDegree() ) {
+        case 0: result = new Array();              break;
+        case 1: result = this.getLinearRoot();     break;
+        case 2: result = this.getQuadraticRoots(); break;
+        case 3: result = this.getCubicRoots();     break;
+        case 4: result = this.getQuarticRoots();   break;
+        default:
+            result = new Array();
+            // should try Newton's method and/or bisection
+    }
+
+    return result;
+};
+
+
+/**
+ *  getRootsInInterval
+ */
+Polynomial.prototype.getRootsInInterval = function(min, max) {
+    var roots = new Array();
+    var root;
+
+    if ( this.getDegree() == 1 ) {
+        root = this.bisection(min, max);
+        if ( root != null ) roots.push(root);
+    } else {
+        // get roots of derivative
+        var deriv  = this.getDerivative();
+        var droots = deriv.getRootsInInterval(min, max);
+
+        if ( droots.length > 0 ) {
+            // find root on [min, droots[0]]
+            root = this.bisection(min, droots[0]);
+            if ( root != null ) roots.push(root);
+
+            // find root on [droots[i],droots[i+1]] for 0 <= i <= count-2
+            for ( i = 0; i <= droots.length-2; i++ ) {
+                root = this.bisection(droots[i], droots[i+1]);
+                if ( root != null ) roots.push(root);
+            }
+
+            // find root on [droots[count-1],xmax]
+            root = this.bisection(droots[droots.length-1], max);
+            if ( root != null ) roots.push(root);
+        } else {
+            // polynomial is monotone on [min,max], has at most one root
+            root = this.bisection(min, max);
+            if ( root != null ) roots.push(root);
+        }
+    }
+
+    return roots;
+};
+
+
+/**
+ *  getLinearRoot
+ */
+Polynomial.prototype.getLinearRoot = function() {
+    var result = new Array();
+    var a = this.coefs[1];
+
+    if ( a != 0 )
+        result.push( -this.coefs[0] / a );
+
+    return result;
+};
+
+
+/**
+ *  getQuadraticRoots
+ */
+Polynomial.prototype.getQuadraticRoots = function() {
+    var results = new Array();
+
+    if ( this.getDegree() == 2 ) {
+        var a = this.coefs[2];
+        var b = this.coefs[1] / a;
+        var c = this.coefs[0] / a;
+        var d = b*b - 4*c;
+
+        if ( d > 0 ) {
+            var e = Math.sqrt(d);
+
+            results.push( 0.5 * (-b + e) );
+            results.push( 0.5 * (-b - e) );
+        } else if ( d == 0 ) {
+            // really two roots with same value, but we only return one
+            results.push( 0.5 * -b );
+        }
+    }
+
+    return results;
+};
+
+
+/**
+ *  getCubicRoots
+ *
+ *  This code is based on MgcPolynomial.cpp written by David Eberly.  His
+ *  code along with many other excellent examples are avaiable at his site:
+ *  http://www.magic-software.com
+ */
+Polynomial.prototype.getCubicRoots = function() {
+    var results = new Array();
+
+    if ( this.getDegree() == 3 ) {
+        var c3 = this.coefs[3];
+        var c2 = this.coefs[2] / c3;
+        var c1 = this.coefs[1] / c3;
+        var c0 = this.coefs[0] / c3;
+
+        var a       = (3*c1 - c2*c2) / 3;
+        var b       = (2*c2*c2*c2 - 9*c1*c2 + 27*c0) / 27;
+        var offset  = c2 / 3;
+        var discrim = b*b/4 + a*a*a/27;
+        var halfB   = b / 2;
+
+        if ( Math.abs(discrim) <= Polynomial.TOLERANCE ) discrim = 0;
+
+        if ( discrim > 0 ) {
+            var e = Math.sqrt(discrim);
+            var tmp;
+            var root;
+
+            tmp = -halfB + e;
+            if ( tmp >= 0 )
+                root = Math.pow(tmp, 1/3);
+            else
+                root = -Math.pow(-tmp, 1/3);
+
+            tmp = -halfB - e;
+            if ( tmp >= 0 )
+                root += Math.pow(tmp, 1/3);
+            else
+                root -= Math.pow(-tmp, 1/3);
+
+            results.push( root - offset );
+        } else if ( discrim < 0 ) {
+            var distance = Math.sqrt(-a/3);
+            var angle    = Math.atan2( Math.sqrt(-discrim), -halfB) / 3;
+            var cos      = Math.cos(angle);
+            var sin      = Math.sin(angle);
+            var sqrt3    = Math.sqrt(3);
+
+            results.push( 2*distance*cos - offset );
+            results.push( -distance * (cos + sqrt3 * sin) - offset);
+            results.push( -distance * (cos - sqrt3 * sin) - offset);
+        } else {
+            var tmp;
+
+            if ( halfB >= 0 )
+                tmp = -Math.pow(halfB, 1/3);
+            else
+                tmp = Math.pow(-halfB, 1/3);
+
+            results.push( 2*tmp - offset );
+            // really should return next root twice, but we return only one
+            results.push( -tmp - offset );
+        }
+    }
+
+    return results;
+};
+
+
+/**
+ *  getQuarticRoots
+ *
+ *  This code is based on MgcPolynomial.cpp written by David Eberly.  His
+ *  code along with many other excellent examples are avaiable at his site:
+ *  http://www.magic-software.com
+ */
+Polynomial.prototype.getQuarticRoots = function() {
+    var results = new Array();
+
+    if ( this.getDegree() == 4 ) {
+        var c4 = this.coefs[4];
+        var c3 = this.coefs[3] / c4;
+        var c2 = this.coefs[2] / c4;
+        var c1 = this.coefs[1] / c4;
+        var c0 = this.coefs[0] / c4;
+
+        var resolveRoots = new Polynomial(
+            1, -c2, c3*c1 - 4*c0, -c3*c3*c0 + 4*c2*c0 -c1*c1
+        ).getCubicRoots();
+        var y       = resolveRoots[0];
+        var discrim = c3*c3/4 - c2 + y;
+
+        if ( Math.abs(discrim) <= Polynomial.TOLERANCE ) discrim = 0;
+
+        if ( discrim > 0 ) {
+            var e     = Math.sqrt(discrim);
+            var t1    = 3*c3*c3/4 - e*e - 2*c2;
+            var t2    = ( 4*c3*c2 - 8*c1 - c3*c3*c3 ) / ( 4*e );
+            var plus  = t1+t2;
+            var minus = t1-t2;
+
+            if ( Math.abs(plus)  <= Polynomial.TOLERANCE ) plus  = 0;
+            if ( Math.abs(minus) <= Polynomial.TOLERANCE ) minus = 0;
+
+            if ( plus >= 0 ) {
+                var f = Math.sqrt(plus);
+
+                results.push( -c3/4 + (e+f)/2 );
+                results.push( -c3/4 + (e-f)/2 );
+            }
+            if ( minus >= 0 ) {
+                var f = Math.sqrt(minus);
+
+                results.push( -c3/4 + (f-e)/2 );
+                results.push( -c3/4 - (f+e)/2 );
+            }
+        } else if ( discrim < 0 ) {
+            // no roots
+        } else {
+            var t2 = y*y - 4*c0;
+
+            if ( t2 >= -Polynomial.TOLERANCE ) {
+                if ( t2 < 0 ) t2 = 0;
+
+                t2 = 2*Math.sqrt(t2);
+                t1 = 3*c3*c3/4 - 2*c2;
+                if ( t1+t2 >= Polynomial.TOLERANCE ) {
+                    var d = Math.sqrt(t1+t2);
+
+                    results.push( -c3/4 + d/2 );
+                    results.push( -c3/4 - d/2 );
+                }
+                if ( t1-t2 >= Polynomial.TOLERANCE ) {
+                    var d = Math.sqrt(t1-t2);
+
+                    results.push( -c3/4 + d/2 );
+                    results.push( -c3/4 - d/2 );
+                }
+            }
+        }
+    }
+
+    return results;
+};
+
+if (typeof module !== "undefined") {
+    module.exports = Polynomial;
+}
+
+},{}],193:[function(require,module,exports){
+/**
+ *
+ *   SqrtPolynomial.js
+ *
+ *   copyright 2003, 2013 Kevin Lindsey
+ *
+ */
+
+if (typeof module !== "undefined") {
+    var Polynomial = require("./Polynomial");
+}
+
+/**
+ *   class variables
+ */
+SqrtPolynomial.VERSION = 1.0;
+
+// setup inheritance
+SqrtPolynomial.prototype             = new Polynomial();
+SqrtPolynomial.prototype.constructor = SqrtPolynomial;
+SqrtPolynomial.superclass            = Polynomial.prototype;
+
+
+/**
+ *  SqrtPolynomial
+ */
+function SqrtPolynomial() {
+    this.init( arguments );
+}
+
+
+/**
+ *  eval
+ *
+ *  @param {Number} x
+ *  @returns {Number}
+ */
+SqrtPolynomial.prototype.eval = function(x) {
+    var TOLERANCE = 1e-7;
+    var result = SqrtPolynomial.superclass.eval.call(this, x);
+
+    // NOTE: May need to change the following.  I added these to capture
+    // some really small negative values that were being generated by one
+    // of my Bezier arcLength functions
+    if ( Math.abs(result) < TOLERANCE ) result = 0;
+    if ( result < 0 )
+        throw new Error("SqrtPolynomial.eval: cannot take square root of negative number");
+
+    return Math.sqrt(result);
+};
+
+SqrtPolynomial.prototype.toString = function() {
+    var result = SqrtPolynomial.superclass.toString.call(this);
+
+    return "sqrt(" + result + ")";
+};
+
+if (typeof module !== "undefined") {
+    module.exports = SqrtPolynomial;
+}
+
+},{"./Polynomial":192}],194:[function(require,module,exports){
+var parseSVG = require('parse-svg-path')
+var getContours = require('svg-path-contours')
+var cdt2d = require('cdt2d')
+var cleanPSLG = require('clean-pslg')
+var getBounds = require('bound-points')
+var normalize = require('normalize-path-scale')
+var random = require('random-float')
+var assign = require('object-assign')
+var simplify = require('simplify-path')
+
+module.exports = svgMesh3d
+function svgMesh3d (svgPath, opt) {
+  if (typeof svgPath !== 'string') {
+    throw new TypeError('must provide a string as first parameter')
+  }
+
+  opt = assign({
+    delaunay: true,
+    clean: true,
+    exterior: false,
+    randomization: 0,
+    simplify: 0,
+    scale: 1
+  }, opt)
+
+  var i
+  // parse string as a list of operations
+  var svg = parseSVG(svgPath)
+
+  // convert curves into discrete points
+  var contours = getContours(svg, opt.scale)
+
+  // optionally simplify the path for faster triangulation and/or aesthetics
+  if (opt.simplify > 0 && typeof opt.simplify === 'number') {
+    for (i = 0; i < contours.length; i++) {
+      contours[i] = simplify(contours[i], opt.simplify)
+    }
+  }
+
+  // prepare for triangulation
+  var polyline = denestPolyline(contours)
+  var positions = polyline.positions
+  var bounds = getBounds(positions)
+
+  // optionally add random points for aesthetics
+  var randomization = opt.randomization
+  if (typeof randomization === 'number' && randomization > 0) {
+    addRandomPoints(positions, bounds, randomization)
+  }
+
+  var loops = polyline.edges
+  var edges = []
+  for (i = 0; i < loops.length; ++i) {
+    var loop = loops[i]
+    for (var j = 0; j < loop.length; ++j) {
+      edges.push([loop[j], loop[(j + 1) % loop.length]])
+    }
+  }
+
+  // this updates points/edges so that they now form a valid PSLG
+  if (opt.clean !== false) {
+    cleanPSLG(positions, edges)
+  }
+
+  // triangulate mesh
+  var cells = cdt2d(positions, edges, opt)
+
+  // rescale to [-1 ... 1]
+  normalize(positions, bounds)
+
+  // convert to 3D representation and flip on Y axis for convenience w/ OpenGL
+  to3D(positions)
+
+  return {
+    positions: positions,
+    cells: cells
+  }
+}
+
+function to3D (positions) {
+  for (var i = 0; i < positions.length; i++) {
+    var xy = positions[i]
+    xy[1] *= -1
+    xy[2] = xy[2] || 0
+  }
+}
+
+function addRandomPoints (positions, bounds, count) {
+  var min = bounds[0]
+  var max = bounds[1]
+
+  for (var i = 0; i < count; i++) {
+    positions.push([ // random [ x, y ]
+      random(min[0], max[0]),
+      random(min[1], max[1])
+    ])
+  }
+}
+
+function denestPolyline (nested) {
+  var positions = []
+  var edges = []
+
+  for (var i = 0; i < nested.length; i++) {
+    var path = nested[i]
+    var loop = []
+    for (var j = 0; j < path.length; j++) {
+      var pos = path[j]
+      var idx = positions.indexOf(pos)
+      if (idx === -1) {
+        positions.push(pos)
+        idx = positions.length - 1
+      }
+      loop.push(idx)
+    }
+    edges.push(loop)
+  }
+  return {
+    positions: positions,
+    edges: edges
+  }
+}
+
+},{"bound-points":195,"cdt2d":196,"clean-pslg":214,"normalize-path-scale":260,"object-assign":262,"parse-svg-path":263,"random-float":264,"simplify-path":266,"svg-path-contours":268}],195:[function(require,module,exports){
+'use strict'
+
+module.exports = findBounds
+
+function findBounds(points) {
+  var n = points.length
+  if(n === 0) {
+    return [[], []]
+  }
+  var d = points[0].length
+  var lo = points[0].slice()
+  var hi = points[0].slice()
+  for(var i=1; i<n; ++i) {
+    var p = points[i]
+    for(var j=0; j<d; ++j) {
+      var x = p[j]
+      lo[j] = Math.min(lo[j], x)
+      hi[j] = Math.max(hi[j], x)
+    }
+  }
+  return [lo, hi]
+}
+},{}],196:[function(require,module,exports){
+arguments[4][41][0].apply(exports,arguments)
+},{"./lib/delaunay":197,"./lib/filter":198,"./lib/monotone":199,"./lib/triangulation":200,"dup":41}],197:[function(require,module,exports){
+arguments[4][42][0].apply(exports,arguments)
+},{"binary-search-bounds":201,"dup":42,"robust-in-sphere":202}],198:[function(require,module,exports){
+arguments[4][43][0].apply(exports,arguments)
+},{"binary-search-bounds":201,"dup":43}],199:[function(require,module,exports){
+arguments[4][44][0].apply(exports,arguments)
+},{"binary-search-bounds":201,"dup":44,"robust-orientation":213}],200:[function(require,module,exports){
+arguments[4][45][0].apply(exports,arguments)
+},{"binary-search-bounds":201,"dup":45}],201:[function(require,module,exports){
+arguments[4][40][0].apply(exports,arguments)
+},{"dup":40}],202:[function(require,module,exports){
+arguments[4][46][0].apply(exports,arguments)
+},{"dup":46,"robust-scale":204,"robust-subtract":205,"robust-sum":206,"two-product":207}],203:[function(require,module,exports){
+arguments[4][7][0].apply(exports,arguments)
+},{"dup":7}],204:[function(require,module,exports){
+arguments[4][8][0].apply(exports,arguments)
+},{"dup":8,"two-product":207,"two-sum":203}],205:[function(require,module,exports){
+arguments[4][9][0].apply(exports,arguments)
+},{"dup":9}],206:[function(require,module,exports){
+arguments[4][10][0].apply(exports,arguments)
+},{"dup":10}],207:[function(require,module,exports){
+arguments[4][11][0].apply(exports,arguments)
+},{"dup":11}],208:[function(require,module,exports){
+arguments[4][7][0].apply(exports,arguments)
+},{"dup":7}],209:[function(require,module,exports){
+arguments[4][8][0].apply(exports,arguments)
+},{"dup":8,"two-product":212,"two-sum":208}],210:[function(require,module,exports){
+arguments[4][9][0].apply(exports,arguments)
+},{"dup":9}],211:[function(require,module,exports){
+arguments[4][10][0].apply(exports,arguments)
+},{"dup":10}],212:[function(require,module,exports){
+arguments[4][11][0].apply(exports,arguments)
+},{"dup":11}],213:[function(require,module,exports){
+arguments[4][12][0].apply(exports,arguments)
+},{"dup":12,"robust-scale":209,"robust-subtract":210,"robust-sum":211,"two-product":212}],214:[function(require,module,exports){
+arguments[4][58][0].apply(exports,arguments)
+},{"./lib/rat-seg-intersect":215,"big-rat":219,"big-rat/cmp":217,"big-rat/to-float":234,"box-intersect":235,"compare-cell":245,"dup":58,"nextafter":246,"rat-vec":249,"robust-segment-intersect":258,"union-find":259}],215:[function(require,module,exports){
+arguments[4][59][0].apply(exports,arguments)
+},{"big-rat/div":218,"big-rat/mul":228,"big-rat/sign":232,"big-rat/sub":233,"big-rat/to-float":234,"dup":59,"rat-vec/add":248,"rat-vec/muls":250,"rat-vec/sub":251}],216:[function(require,module,exports){
+arguments[4][60][0].apply(exports,arguments)
+},{"./lib/rationalize":226,"dup":60}],217:[function(require,module,exports){
+arguments[4][61][0].apply(exports,arguments)
+},{"dup":61}],218:[function(require,module,exports){
+arguments[4][62][0].apply(exports,arguments)
+},{"./lib/rationalize":226,"dup":62}],219:[function(require,module,exports){
+arguments[4][63][0].apply(exports,arguments)
+},{"./div":218,"./is-rat":220,"./lib/is-bn":224,"./lib/num-to-bn":225,"./lib/rationalize":226,"./lib/str-to-bn":227,"dup":63}],220:[function(require,module,exports){
+arguments[4][64][0].apply(exports,arguments)
+},{"./lib/is-bn":224,"dup":64}],221:[function(require,module,exports){
+arguments[4][65][0].apply(exports,arguments)
+},{"bn.js":230,"dup":65}],222:[function(require,module,exports){
+arguments[4][66][0].apply(exports,arguments)
+},{"dup":66}],223:[function(require,module,exports){
+arguments[4][67][0].apply(exports,arguments)
+},{"bit-twiddle":229,"double-bits":231,"dup":67}],224:[function(require,module,exports){
+arguments[4][68][0].apply(exports,arguments)
+},{"bn.js":230,"dup":68}],225:[function(require,module,exports){
+arguments[4][69][0].apply(exports,arguments)
+},{"bn.js":230,"double-bits":231,"dup":69}],226:[function(require,module,exports){
+arguments[4][70][0].apply(exports,arguments)
+},{"./bn-sign":221,"./num-to-bn":225,"dup":70}],227:[function(require,module,exports){
+arguments[4][71][0].apply(exports,arguments)
+},{"bn.js":230,"dup":71}],228:[function(require,module,exports){
+arguments[4][72][0].apply(exports,arguments)
+},{"./lib/rationalize":226,"dup":72}],229:[function(require,module,exports){
+arguments[4][35][0].apply(exports,arguments)
+},{"dup":35}],230:[function(require,module,exports){
+arguments[4][74][0].apply(exports,arguments)
+},{"dup":74}],231:[function(require,module,exports){
+arguments[4][75][0].apply(exports,arguments)
+},{"buffer":1,"dup":75}],232:[function(require,module,exports){
+arguments[4][76][0].apply(exports,arguments)
+},{"./lib/bn-sign":221,"dup":76}],233:[function(require,module,exports){
+arguments[4][77][0].apply(exports,arguments)
+},{"./lib/rationalize":226,"dup":77}],234:[function(require,module,exports){
+arguments[4][78][0].apply(exports,arguments)
+},{"./lib/bn-to-num":222,"./lib/ctz":223,"dup":78}],235:[function(require,module,exports){
+arguments[4][79][0].apply(exports,arguments)
+},{"./lib/intersect":237,"./lib/sweep":241,"dup":79,"typedarray-pool":244}],236:[function(require,module,exports){
+arguments[4][80][0].apply(exports,arguments)
+},{"dup":80}],237:[function(require,module,exports){
+arguments[4][81][0].apply(exports,arguments)
+},{"./brute":236,"./median":238,"./partition":239,"./sweep":241,"bit-twiddle":242,"dup":81,"typedarray-pool":244}],238:[function(require,module,exports){
+arguments[4][82][0].apply(exports,arguments)
+},{"./partition":239,"dup":82}],239:[function(require,module,exports){
+arguments[4][83][0].apply(exports,arguments)
+},{"dup":83}],240:[function(require,module,exports){
+arguments[4][84][0].apply(exports,arguments)
+},{"dup":84}],241:[function(require,module,exports){
+arguments[4][85][0].apply(exports,arguments)
+},{"./sort":240,"bit-twiddle":242,"dup":85,"typedarray-pool":244}],242:[function(require,module,exports){
+arguments[4][35][0].apply(exports,arguments)
+},{"dup":35}],243:[function(require,module,exports){
+arguments[4][22][0].apply(exports,arguments)
+},{"dup":22}],244:[function(require,module,exports){
+arguments[4][37][0].apply(exports,arguments)
+},{"bit-twiddle":242,"buffer":1,"dup":37}],245:[function(require,module,exports){
+arguments[4][89][0].apply(exports,arguments)
+},{"dup":89}],246:[function(require,module,exports){
+arguments[4][90][0].apply(exports,arguments)
+},{"double-bits":247,"dup":90}],247:[function(require,module,exports){
+arguments[4][75][0].apply(exports,arguments)
+},{"buffer":1,"dup":75}],248:[function(require,module,exports){
+arguments[4][92][0].apply(exports,arguments)
+},{"big-rat/add":216,"dup":92}],249:[function(require,module,exports){
+arguments[4][93][0].apply(exports,arguments)
+},{"big-rat":219,"dup":93}],250:[function(require,module,exports){
+arguments[4][94][0].apply(exports,arguments)
+},{"big-rat":219,"big-rat/mul":228,"dup":94}],251:[function(require,module,exports){
+arguments[4][95][0].apply(exports,arguments)
+},{"big-rat/sub":233,"dup":95}],252:[function(require,module,exports){
+arguments[4][7][0].apply(exports,arguments)
+},{"dup":7}],253:[function(require,module,exports){
+arguments[4][8][0].apply(exports,arguments)
+},{"dup":8,"two-product":256,"two-sum":252}],254:[function(require,module,exports){
+arguments[4][9][0].apply(exports,arguments)
+},{"dup":9}],255:[function(require,module,exports){
+arguments[4][10][0].apply(exports,arguments)
+},{"dup":10}],256:[function(require,module,exports){
+arguments[4][11][0].apply(exports,arguments)
+},{"dup":11}],257:[function(require,module,exports){
+arguments[4][12][0].apply(exports,arguments)
+},{"dup":12,"robust-scale":253,"robust-subtract":254,"robust-sum":255,"two-product":256}],258:[function(require,module,exports){
+arguments[4][102][0].apply(exports,arguments)
+},{"dup":102,"robust-orientation":257}],259:[function(require,module,exports){
+arguments[4][103][0].apply(exports,arguments)
+},{"dup":103}],260:[function(require,module,exports){
 var getBounds = require('bound-points')
 var unlerp = require('unlerp')
 
@@ -14875,11 +15670,11 @@ function normalizePathScale (positions, bounds) {
   }
   return positions
 }
-},{"bound-points":51,"unlerp":117}],117:[function(require,module,exports){
+},{"bound-points":195,"unlerp":261}],261:[function(require,module,exports){
 module.exports = function range(min, max, value) {
   return (value - min) / (max - min)
 }
-},{}],118:[function(require,module,exports){
+},{}],262:[function(require,module,exports){
 /* eslint-disable no-unused-vars */
 'use strict';
 var hasOwnProperty = Object.prototype.hasOwnProperty;
@@ -14920,7 +15715,7 @@ module.exports = Object.assign || function (target, source) {
 	return to;
 };
 
-},{}],119:[function(require,module,exports){
+},{}],263:[function(require,module,exports){
 
 module.exports = parse
 
@@ -14977,7 +15772,7 @@ function parseValues(args){
 	return args ? args.map(Number) : []
 }
 
-},{}],120:[function(require,module,exports){
+},{}],264:[function(require,module,exports){
 'use strict';
 module.exports = function (min, max) {
 	if (max === undefined) {
@@ -14992,7 +15787,7 @@ module.exports = function (min, max) {
 	return Math.random() * (max - min) + min;
 };
 
-},{}],121:[function(require,module,exports){
+},{}],265:[function(require,module,exports){
 // square distance from a point to a segment
 function getSqSegDist(p, p1, p2) {
     var x = p1[0],
@@ -15056,7 +15851,7 @@ module.exports = function simplifyDouglasPeucker(points, tolerance) {
     return simplified;
 }
 
-},{}],122:[function(require,module,exports){
+},{}],266:[function(require,module,exports){
 var simplifyRadialDist = require('./radial-distance')
 var simplifyDouglasPeucker = require('./douglas-peucker')
 
@@ -15069,7 +15864,7 @@ module.exports = function simplify(points, tolerance) {
 
 module.exports.radialDistance = simplifyRadialDist;
 module.exports.douglasPeucker = simplifyDouglasPeucker;
-},{"./douglas-peucker":121,"./radial-distance":123}],123:[function(require,module,exports){
+},{"./douglas-peucker":265,"./radial-distance":267}],267:[function(require,module,exports){
 function getSqDist(p1, p2) {
     var dx = p1[0] - p2[0],
         dy = p1[1] - p2[1];
@@ -15101,7 +15896,7 @@ module.exports = function simplifyRadialDist(points, tolerance) {
 
     return newPoints;
 }
-},{}],124:[function(require,module,exports){
+},{}],268:[function(require,module,exports){
 var bezier = require('adaptive-bezier-curve')
 var abs = require('abs-svg-path')
 var norm = require('normalize-svg-path')
@@ -15147,7 +15942,7 @@ module.exports = function contours(svg, scale) {
         paths.push(points)
     return paths
 }
-},{"abs-svg-path":125,"adaptive-bezier-curve":127,"normalize-svg-path":128,"vec2-copy":129}],125:[function(require,module,exports){
+},{"abs-svg-path":269,"adaptive-bezier-curve":271,"normalize-svg-path":272,"vec2-copy":273}],269:[function(require,module,exports){
 
 module.exports = absolutize
 
@@ -15216,7 +16011,7 @@ function absolutize(path){
 	})
 }
 
-},{}],126:[function(require,module,exports){
+},{}],270:[function(require,module,exports){
 function clone(point) { //TODO: use gl-vec2 for this
     return [point[0], point[1]]
 }
@@ -15415,9 +16210,9 @@ module.exports = function createBezierBuilder(opt) {
     }
 }
 
-},{}],127:[function(require,module,exports){
+},{}],271:[function(require,module,exports){
 module.exports = require('./function')()
-},{"./function":126}],128:[function(require,module,exports){
+},{"./function":270}],272:[function(require,module,exports){
 
 var π = Math.PI
 var _120 = radians(120)
@@ -15619,13 +16414,13 @@ function radians(degress){
 	return degress * (π / 180)
 }
 
-},{}],129:[function(require,module,exports){
+},{}],273:[function(require,module,exports){
 module.exports = function vec2Copy(out, a) {
     out[0] = a[0]
     out[1] = a[1]
     return out
 }
-},{}],130:[function(require,module,exports){
+},{}],274:[function(require,module,exports){
 var inherits = require('inherits')
 
 module.exports = function(THREE) {
@@ -15679,7 +16474,7 @@ module.exports = function(THREE) {
 
     return Complex
 }
-},{"inherits":131}],131:[function(require,module,exports){
+},{"inherits":275}],275:[function(require,module,exports){
 if (typeof Object.create === 'function') {
   // implementation from standard node.js 'util' module
   module.exports = function inherits(ctor, superCtor) {
@@ -15704,7 +16499,7 @@ if (typeof Object.create === 'function') {
   }
 }
 
-},{}],132:[function(require,module,exports){
+},{}],276:[function(require,module,exports){
 module.exports = unindex
 
 function unindex(positions, cells, out) {
@@ -15758,7 +16553,7 @@ function unindex(positions, cells, out) {
   return out
 }
 
-},{}],133:[function(require,module,exports){
+},{}],277:[function(require,module,exports){
 window.loadSvg = require('load-svg')
 window.parsePath = require('extract-svg-path').parse
 window.svgMesh3d = require('svg-mesh-3d')
@@ -15770,6 +16565,6 @@ window.csrMatrix = require('csr-matrix')
 window.drawTriangles = require('draw-triangles-2d')
 window.svgIntersections = require('svg-intersections');
 window.polygonBoolean = require('2d-polygon-boolean');
+window.polybool = require('poly-bool');
 
-
-},{"2d-polygon-boolean":5,"csr-matrix":20,"draw-triangles-2d":23,"extract-svg-path":24,"load-svg":26,"mesh-laplacian":34,"mesh-reindex":38,"svg-intersections":39,"svg-mesh-3d":50,"three-simplicial-complex":130,"unindex-mesh":132}]},{},[133]);
+},{"2d-polygon-boolean":5,"csr-matrix":20,"draw-triangles-2d":23,"extract-svg-path":24,"load-svg":26,"mesh-laplacian":34,"mesh-reindex":38,"poly-bool":39,"svg-intersections":183,"svg-mesh-3d":194,"three-simplicial-complex":274,"unindex-mesh":276}]},{},[277]);

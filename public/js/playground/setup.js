@@ -5,14 +5,14 @@ var renderer;
 var raycaster = new THREE.Raycaster()
 var mouse = new THREE.Vector2();
 var size = 1;
+var Point;
 
 $(function () {
   paper.setup('canvas');
   Point = paper.Point;
-
   Q.fcall(init())
   .then(drawObjects())
-  .then(drawSVG())
+  .then(createSvg())
   .then(animate())
 });
 
@@ -24,7 +24,7 @@ function init() {
   scene.add( camera );
 
   scene.add(new THREE.AmbientLight(0xccc));
-  var light = new THREE.SpotLight(0xffffff, 1.5);
+  var light = new THREE.SpotLight(0xfff, 1.5);
   light.position.set(size*7, size*7, -size*7);
   light.castShadow = true;
   light.shadow.camera.near = size*3;

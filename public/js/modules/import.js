@@ -9,4 +9,4 @@ window.csrMatrix = require('csr-matrix')
 window.drawTriangles = require('draw-triangles-2d')
 window.svgIntersections = require('svg-intersections');
 window.polygonBoolean = require('2d-polygon-boolean');
-
+window.polybool = require('poly-bool');
