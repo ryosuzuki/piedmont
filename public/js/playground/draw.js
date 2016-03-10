@@ -8,36 +8,35 @@ var material = new THREE.MeshBasicMaterial({
 
 var Point;
 window.onload = function () {
-  paper.setup('canvas');
-  Point = paper.Point;
+}
 
-  Q.fcall(init())
-  .then(drawObjects())
-  .then(animate())
-  .then(drawSVG())
-
-  function drawSVG () {
-    points = points[0].map(function (p) { return [(p[0]+1.5)*100, (p[1]+1.5)*100]})
-    console.log(points);
-    var path = new paper.Path();
-    path.strokeColor = 'black';
-    for (var i=0; i<points.length; i++) {
-      var point = points[i];
-      var next = points[(i+1)%points.length];
-      path.moveTo(new Point(point[0], point[1]))
-      path.lineTo(new Point(next[0], next[1]))
-    }
-    path.closed = true;
-    paper.view.draw();
-
-    var d = $(path.exportSVG()).attr('d')
-    m = svgMesh3d(d, {
-      scale: 10,
-      simplify: 0.1,
-      randomization: false
-    })
-    console.log(m)
+function drawSVG () {
+  console.log('ghoe')
+  points = points[0].map(function (p) { return [(p[0]+1.5)*100, (p[1]+1.5)*100]})
+  console.log(points);
+  var path = new paper.Path();
+  path.strokeColor = 'black';
+  for (var i=0; i<points.length; i++) {
+    var point = points[i];
+    var next = points[(i+1)%points.length];
+    path.moveTo(new Point(point[0], point[1]))
+    path.lineTo(new Point(next[0], next[1]))
   }
+  path.closed = true;
+  paper.view.draw();
+
+  var d = $(path.exportSVG()).attr('d')
+  m = svgMesh3d(d, {
+    scale: 10,
+    simplify: 0.1,
+    randomization: false
+  })
+  console.log(m)
+
+  complex = reindex(unindex(m.positions, m.cells));
+  var geometry = new createGeom(complex)
+  var mesh = new THREE.Mesh(geometry, material)
+  scene.add(mesh);
 }
 
 function drawObjects () {
@@ -72,7 +71,7 @@ function drawObjects () {
       [b.x, b.y],
       [c.x, c.y]
     ]
-    points = polygonBoolean(triangle, positions, 'and')
+    points = polygonBoolean(triangle, positions, 'not')
     break;
   }
 

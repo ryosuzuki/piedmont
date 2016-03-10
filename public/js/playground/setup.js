@@ -7,9 +7,13 @@ var mouse = new THREE.Vector2();
 var size = 1;
 
 $(function () {
-  init();
-  drawObjects();
-  animate();
+  paper.setup('canvas');
+  Point = paper.Point;
+
+  Q.fcall(init())
+  .then(drawObjects())
+  .then(drawSVG())
+  .then(animate())
 });
 
 function init() {
