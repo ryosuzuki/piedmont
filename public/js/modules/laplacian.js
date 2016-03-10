@@ -7,7 +7,7 @@ function computeUniq (geometry) {
   var vertices = geometry.vertices;
   var map = new Array(vertices.length);
   var uniq = [];
-  var epsilon = Math.pow(10, -6);
+  var epsilon = Math.pow(10, -1);
   for (var i=0; i<vertices.length; i++) {
     var vertex = vertices[i];
     var bool = true;
