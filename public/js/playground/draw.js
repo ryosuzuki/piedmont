@@ -21,19 +21,20 @@ function drawSVG (points) {
   path.rotate(-90)
   path.closed = true;
   paper.view.draw();
-  // var d = $(path.exportSVG()).attr('d')
-  // m = svgMesh3d(d, {
-  //   scale: 10,
-  //   simplify: 0.1,
-  //   randomization: false
-  // })
-  // console.log(m)
 
-  // complex = reindex(unindex(m.positions, m.cells));
-  // var geometry = new createGeom(complex)
-  // var mesh = new THREE.Mesh(geometry, material)
-  // scene.add(mesh);
-  // return geometry;
+  var d = $(path.exportSVG()).attr('d')
+  m = svgMesh3d(d, {
+    scale: 10,
+    simplify: 0.1,
+    randomization: false
+  })
+  console.log(m)
+
+  complex = reindex(unindex(m.positions, m.cells));
+  var geometry = new createGeom(complex)
+  var mesh = new THREE.Mesh(geometry, material)
+  scene.add(mesh);
+  return geometry;
 }
 
 var ng = new THREE.Geometry();
@@ -42,7 +43,7 @@ function createSvg () {
   loadSvg('/public/assets/mickey.svg', function (err, svg) {
     console.log(svg);
     var d = $('path', svg).attr('d');
-    var d = "M 120, 120 m -70, 0 a 70,70 0 1,0 150,0 a 70,70 0 1,0 -150,0";
+    // var d = "M 120, 120 m -70, 0 a 70,70 0 1,0 150,0 a 70,70 0 1,0 -150,0";
     var m = svgMesh3d(d, {
       scale: 10,
       simplify: 0.1,
