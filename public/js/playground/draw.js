@@ -198,6 +198,14 @@ function addFace (ng, og, fi) {
   return { ng: ng, intersect: intersect };
 }
 
+function exportSTL () {
+  var exporter = new THREE.STLExporter();
+  var stlString = exporter.parse( scene );
+  var blob = new Blob([stlString], {type: 'text/plain'});
+  saveAs(blob, 'demo.stl');
+}
+
+
 /*
 var sign = function (p1, p2, p3) {
   return (p1.x-p3.x)*(p2.y-p3.y)-(p2.x-p3.x)*(p1.y-p3.y);
