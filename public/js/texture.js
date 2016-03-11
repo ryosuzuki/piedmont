@@ -31,7 +31,9 @@ function createTexture () {
     g.vertices.push(v1);
     g.vertices.push(v2);
     g.vertices.push(v3);
-    g.faces.push(new THREE.Face3(0, 1, 2));
+    var f = new THREE.Face3(0, 1, 2);
+    f.normal = face.normal;
+    g.faces.push(f);
     g.verticesNeedUpdate = true;
     var m = new THREE.Mesh(g)
     geometry.mergeMesh(m);
