@@ -4611,6 +4611,1292 @@ module.exports = (function xmlparser() {
   }
 })()
 },{}],26:[function(require,module,exports){
+module.exports = {
+  union: require('./lib/union'),
+  intersect: require('./lib/intersect'),
+  subtract: require('./lib/subtract'),
+
+  // include utils to make things easier
+  utils: require('./lib/util')
+};
+
+},{"./lib/intersect":28,"./lib/subtract":30,"./lib/union":31,"./lib/util":32}],27:[function(require,module,exports){
+var Ring = require('./ring');
+var Vertex = require('./vertex');
+var pip = require('point-in-polygon');
+var util = require('./util');
+
+/**
+ * Greiner-Hormann clipping uses 3 phases:
+ *
+ * 1. Find intersection vertices, build data structure
+ * 2. Mark vertices as entry/exit points
+ * 3. Build Polygons
+ *
+ * We additionally add in some special case handling
+ * after intersection detection, because GH won't handle
+ * cases where one of the polygons fully encloses the other,
+ * or the two polygons are totally disjoint
+ */
+module.exports = function (subject, clipper, sForward, cForward) {
+  sForward = !!sForward;
+  cForward = !!cForward;
+
+  var mode = detectMode(sForward, cForward);
+  var sPoints = Ring.fromArray(subject);
+  var cPoints = Ring.fromArray(clipper);
+
+  /**
+   * PHASE ONE: Identify Intersections
+   */
+  buildIntersectionLists(sPoints, cPoints, subject, clipper);
+  markDegensAsIntersect(sPoints);
+
+  /**
+   * OPTIMIZATION / EDGE CASES: check for known cases where we can bail out early
+   */
+  var maybeResult = checkQuitCases(sPoints, cPoints, subject, clipper, mode);
+  if (maybeResult) return maybeResult;
+
+  /**
+   * PHASE TWO: Identify Entry/Exit (Includes Degeneracy labelling logic)
+   */
+  setEntryExit(sPoints);
+
+  /**
+   * PHASE THREE: Build clipped polys
+   */
+  return buildPolygons(sPoints, sForward, cForward);
+};
+
+/**
+ * s_forward and c_forward can be manipulated to change the operation
+ * applied to the subject / clipper. This method provides a string
+ * representation of the mode for easy reference.
+ *
+ *  Operation        | s_forward   | c_forward
+ * -----------------------------------------------
+ *  Union            | false       | false
+ *  Intersect        | true        | true
+ *  Subtract (A - B) | false       | true
+ *  Subtract (B - A) | true        | false
+ *
+ * @param  {bool} sForward whether to traverse the subject polygon in forward order
+ * @param  {bool} cForward whether to traverse the clip polygon in forward order
+ * @return {string}           the string description of the selected clip mode
+ */
+function detectMode(sForward, cForward) {
+  var mode;
+
+  if (!sForward && !cForward) {
+    mode = 'union';
+  } else if (sForward && cForward) {
+    mode = 'intersect';
+  } else if (!sForward && cForward) {
+    mode = 'subtractB'; // A - B
+  } else if (sForward && !cForward) {
+    mode = 'subtractA'; // B - A
+  }
+  return mode;
+}
+
+/**
+ * Handles some cases here we can bail out without fully computing the intersection.
+ *
+ * @return {array|null} the result polygons, if an edge case was handled
+ */
+function checkQuitCases(sPoints, cPoints, subject, clipper, mode) {
+  var totalS = sPoints.count();
+  var totalC = cPoints.count();
+
+  // No intersections exist
+  if (sPoints.count('intersect', true) === 0) {
+    switch (mode) {
+      case 'union':
+        if (sPoints.count('type', 'in') === totalS) {
+          return [[clipper]];
+        } else if (cPoints.count('type', 'in') === totalC) {
+          return [[subject]];
+        }
+        // Return both shapes as a multipolygon
+        return [[subject], [clipper]];
+        break;
+      case 'intersect':
+        // There's no intersection, return nothing.
+        return [];
+        break;
+      case 'subtractB':
+        // If B is inside of A, it's a hole.
+        if (cPoints.first.type === 'in') {
+          return [[subject, clipper]];
+        }
+        if (sPoints.count('type', 'in') === totalS) {
+          return [];
+        }
+
+        // Otherwise it's disjoint, so we ignore it.
+        return [[subject]];
+        break;
+      case 'subtractA':
+        // If A is inside of B, it's a hole.
+        if (sPoints.first.type === 'in') {
+          return [[clipper, subject]];
+        }
+        if (cPoints.first.type === 'in') {
+          return [];
+        }
+        // Otherwise it's disjoint, so we ignore it.
+        return [[clipper]];
+        break;
+    }
+  }
+
+  // All points are degenerate. The shapes may be spatially equal.
+  // The intersect === 1 is a dumb hack for certain cases where (probably because of
+  // floating point errors) a single point of a polygon we generated is touching
+  // an edge. This is probably a sign of a bigger issue in intersection detection,
+  // but we'll wait and see how that goes
+  if (totalS === sPoints.count('degenerate', true) || sPoints.count('intersect', true) === 1) {
+    switch (mode) {
+      case 'subtractA':
+        // If all points in the clip are also degenerate, these shapes
+        // are equal.
+        if (totalC === cPoints.count('degenerate', true)) {
+          return [];
+        }
+        return [[clipper]];
+        break;
+      case 'subtractB':
+        // If all points in the clip are also degenerate, these shapes
+        // are equal.
+        if (totalC === cPoints.count('degenerate', true)) {
+          return [];
+        }
+        return [[subject]];
+        break;
+      default:
+        return [[subject]];
+    }
+  }
+}
+
+
+/**
+ * Builds the list of Polygon(s) representing the desired overlap of
+ * the subject/clipper.
+ *
+ * @param  {[type]} sPoints [description]
+ * @return {[type]}         [description]
+ */
+function buildPolygons(sPoints, sForward, cForward) {
+  var curr = sPoints.first;
+  var polylist = [];
+  var onclip = false;
+  var endir = 'next';
+  var exdir = 'prev';
+
+  while ((curr = sPoints.firstIntersect())) {
+    var poly = [[curr.x, curr.y]];
+
+    do {
+      if (onclip) {
+        endir = cForward ? 'next' : 'prev';
+        exdir = cForward ? 'prev' : 'next';
+      } else {
+        endir = sForward ? 'next' : 'prev';
+        exdir = sForward ? 'prev' : 'next';
+      }
+
+      curr.checked = true;
+      if (curr.neighbor) {
+        curr.neighbor.checked = true;
+      }
+
+      if (curr.entry) {
+        do {
+          curr = curr[endir];
+          poly.push([curr.x, curr.y]);
+        } while (!curr.intersect);
+      } else {
+        do {
+          curr = curr[exdir];
+          poly.push([curr.x, curr.y]);
+        } while (!curr.intersect);
+      }
+
+      // Jump to the other list
+      curr = curr.neighbor;
+      onclip = !onclip;
+
+    } while (!curr.checked);
+
+    if (!util.pointsEqual(poly[0], poly[poly.length - 1])) {
+      poly.push(poly[0]);
+    } else if (poly.length < 4) {
+      continue;
+    }
+    polylist.push({geom: poly, isHole: false});
+  }
+
+  // Generate a graph of which polygons own which other polygons (detect holes)
+  var result = [];
+  var graph = {};
+  for (var i = 0; i < polylist.length; i++) {
+    if (!graph[i]) { graph[i] = []; }
+
+    for (var j = 0; j < polylist.length; j++) {
+      if (i === j) {
+        continue;
+      }
+      // Because we just generated the intersections, we know that
+      // none of these results can intersect eachother, so we only need to
+      // run PIP on a single point of each poly.
+      if (pip(polylist[j].geom[0], polylist[i].geom)) {
+        polylist[j].isHole = true;
+        graph[i].push(j);
+      }
+    }
+  }
+
+  // Construct polys with their holes
+  for (var key in graph) {
+    if (polylist[key].isHole) {
+      continue;
+    }
+    var p = [polylist[key].geom];
+    for (var idx = 0; idx < graph[key].length; idx++) {
+      p.push(polylist[graph[key][idx]].geom);
+    }
+    result.push(p);
+  }
+  return result;
+}
+
+/**
+ * Builds vertex lists for the subject and clipper. Essentially
+ * the way this will work is that it will detect intersections by
+ * comparing each pair of lines between the subject / clipper, then
+ * injecting intersection vertices (marked by the "intersects" property)
+ * in the appropriate spots in each coordinate list.
+ *
+ * Once this is complete, our subject and clipper coordinate lists will
+ * each contain, in traversable order, every vertex, including ones for
+ * each point where the other polygon intersected.
+ *
+ * @param  {[type]} sPoints [description]
+ * @param  {[type]} cPoints [description]
+ * @return {[type]}         [description]
+ */
+function buildIntersectionLists(sPoints, cPoints, sPoly, cPoly) {
+  var sCurr = sPoints.first;
+
+  do {
+    setPointRelativeLocation(sCurr, cPoly);
+    var cCurr = cPoints.first;
+    if (!sCurr.intersect) {
+      do {
+        setPointRelativeLocation(cCurr, sPoly);
+        if (!cCurr.intersect) {
+          var sEnd = sPoints.nextNonIntersect(sCurr.next);
+          var cEnd = cPoints.nextNonIntersect(cCurr.next);
+          var intersect = lineIntersects(sCurr, sEnd, cCurr, cEnd);
+
+          if (intersect) {
+            cCurr = handleIntersection(sPoints, cPoints, sCurr, sEnd, cCurr, cEnd, intersect);
+          }
+        }
+
+        cCurr = cCurr.next;
+      } while (cCurr !== cPoints.first);
+    }
+
+    sCurr = sCurr.next;
+  } while (sCurr !== sPoints.first);
+}
+
+/**
+ * Loop back through, ensuring that all degenerate vertices
+ * are marked as intersections.
+ *
+ * @param  {Ring} points [description]
+ * @return {[type]}        [description]
+ */
+function markDegensAsIntersect(points) {
+  var curr = points.first;
+
+  do {
+    if (curr.degenerate) {
+      curr.intersect = true;
+      curr.neighbor.intersect = true;
+    }
+    curr = curr.next;
+  } while ((curr !== points.first))
+}
+
+/**
+ * Handle inserting / replacing points appropriately for
+ * a found intersection
+ *
+ * @param  {Ring}   sPoints   Subject Ring
+ * @param  {Ring}   cPoints   Clip Ring
+ * @param  {Vertex} sCurr     Start of the Subject line
+ * @param  {Vertex} sEnd      End of the Subject line
+ * @param  {Vertex} cCurr     Start of the Clip line
+ * @param  {Vertex} cEnd      End of the Clip line
+ * @param  {Object} intersect Object representing an intersection
+ * @return {[type]}           [description]
+ */
+function handleIntersection(sPoints, cPoints, sCurr, sEnd, cCurr, cEnd, intersect) {
+  var sPt, cPt;
+  var sBetween = (intersect.alphaA > 0) && intersect.alphaA < 1;
+  var cBetween = (intersect.alphaB > 0) && intersect.alphaB < 1;
+
+  if (sBetween && cBetween) {
+    sPt = new Vertex(intersect.x, intersect.y, intersect.alphaA, true);
+    cPt = new Vertex(intersect.x, intersect.y, intersect.alphaB, true);
+    sPoints.insert(sPt, sCurr, sEnd);
+    cPoints.insert(cPt, cCurr, cEnd);
+  } else {
+    // Handle various degeneracy cases for the subject point
+    if (sBetween) {
+      sPt = new Vertex(intersect.x, intersect.y, intersect.alphaA, true, true);
+      sPoints.insert(sPt, sCurr, sPoints.nextNonIntersect(sCurr.next));
+    } else if (intersect.alphaA === 0) {
+      sCurr.intersect = true;
+      sCurr.degenerate = true;
+      sCurr.alpha = intersect.alphaA;
+      sPt = sCurr;
+    } else if (intersect.alphaA === 1) {
+      // End points get marked as degenerate but don't get marked as intersects.
+      // This allows us to catch them later, and still use them for generating
+      // lines to test against the other polygon
+      sEnd.intersect = false;
+      sEnd.degenerate = true;
+      sEnd.alpha = intersect.alphaA;
+      sPt = sEnd;
+    }
+
+    // Handle various degeneracy cases for the clip point
+    if (cBetween) {
+      cPt = new Vertex(intersect.x, intersect.y, intersect.alphaB, true, true);
+      cPoints.insert(cPt, cCurr, cPoints.nextNonIntersect(cCurr.next));
+    } else if (intersect.alphaB === 0) {
+      cCurr.intersect = true;
+      cCurr.degenerate = true;
+      cCurr.alpha = intersect.alphaB;
+      cPt = cCurr;
+    } else if (intersect.alphaB === 1) {
+      // End points get marked as degenerate but don't get marked as intersects.
+      // This allows us to catch them later, and still use them for generating
+      // lines to test against the other polygon
+      cEnd.intersect = false;
+      cEnd.degenerate = true;
+      cEnd.alpha = intersect.alphaB;
+      cPt = cEnd;
+      if (cCurr.next !== cPoints.first) {
+        cCurr = cCurr.next;
+      }
+    }
+  }
+
+  if (!sPt.intersect) cPt.intersect = false;
+  if (!cPt.intersect) sPt.intersect = false;
+
+  // Neighbors are used to jump back and forth between the lists
+  if (sPt && cPt) {
+    sPt.neighbor = cPt;
+    cPt.neighbor = sPt;
+    // Intersections are always "on" a line
+    sPt.type = 'on';
+    cPt.type = 'on';
+  }
+  return cCurr;
+}
+
+/**
+ * Set a point in or out compared to the other polygon:
+ * - if it's a subject point, compare to the clip polygon,
+ * - if it's a clip point, compare to the subject polygon
+ *
+ * @param {Vertex}  pt   Point to check against the poly
+ * @param {Polygon} poly Check if pt is within this poly
+ */
+function setPointRelativeLocation(pt, poly) {
+  if (!pt.type) {
+    if (pip([pt.x, pt.y], poly)) {
+      pt.type = 'in';
+    } else {
+      pt.type = 'out';
+    }
+  }
+}
+
+/**
+ * Handle setting entry/exit flags for each intersection. This is
+ * where a large part of degeneracy handling happens - the original
+ * GH algorithm uses very simple entry/exit handling, which won't work
+ * for our degenerate cases.
+ *
+ * http://arxiv-web3.library.cornell.edu/pdf/1211.3376v1.pdf
+ *
+ * @param {Ring}    sPoints The subject polygon's vertices
+ */
+function setEntryExit(sPoints) {
+  var first = sPoints.first;
+  var curr = first;
+
+  do {
+    if (curr.intersect && curr.neighbor) {
+      handleEnEx(curr);
+      handleEnEx(curr.neighbor);
+
+      // If this and the neighbor share the same entry / exit flag values
+      // we need to throw them out and relabel
+      switch (curr.entryPair()) {
+        case 'en/en':
+          curr.remove = true;
+          curr.type = 'in';
+          curr.neighbor.type = 'in';
+          curr.intersect = false;
+          curr.neighbor.intersect = false;
+          break;
+        case 'ex/ex':
+          curr.remove = true;
+          curr.type = 'out';
+          curr.neighbor.type = 'out';
+          curr.intersect = false;
+          curr.neighbor.intersect = false;
+          break;
+      }
+    }
+
+    curr = curr.next;
+  } while ((curr !== first))
+}
+
+/**
+ * Handles deciding the entry / exit flag setting for a given point.
+ * This is probably where most of the things could be wrong
+ *
+ * @param  {Vertex} curr The vertex to flag
+ */
+function handleEnEx(curr) {
+  var cp = curr.pairing();
+  switch (cp) {
+    case 'in/out':
+    case 'on/out':
+    case 'in/on':
+      curr.entry = false;
+      break;
+    case 'out/in':
+    case 'on/in':
+    case 'out/on':
+      curr.entry = true;
+      break;
+    case 'out/out':
+    case 'in/in':
+    case 'on/on':
+      var np = curr.neighbor.pairing();
+      if (np === 'out/out' || np === 'in/in' || np === 'on/on' || (cp === 'on/on' && np === 'on/out' && curr.degenerate)) {
+        curr.remove = true;
+        curr.neighbor.remove = true;
+        curr.neighbor.intersect = false;
+        curr.intersect = false;
+      } else {
+        handleEnEx(curr.neighbor);
+        curr.entry = !curr.neighbor.entry;
+      }
+      break;
+    default:
+      // This shouldn't ever happen - It's here to confirm nothing stupid is happening.
+      console.error('UNKNOWN TYPE', curr.pairing());
+  }
+}
+
+
+/**
+ * Take two lines (each represented by the respective
+ * start and end), and tells you where they intersect,
+ * as well as the intersection alphas
+ *
+ * @param  {Vertex} start1 [description]
+ * @param  {Vertex} end1   [description]
+ * @param  {Vertex} start2 [description]
+ * @param  {Vertex} end2   [description]
+ * @return {[type]}        [description]
+ */
+function lineIntersects(start1, end1, start2, end2) {
+  // if the lines intersect, the result contains the x and y of the intersection (treating the lines as infinite) and booleans for whether line segment 1 or line segment 2 contain the point
+  var denominator, a, b, numerator1, numerator2,
+    result = {
+      x: null,
+      y: null,
+      onLine1: false,
+      onLine2: false,
+      alphaA: null,
+      alphaB: null
+    };
+
+  denominator = ((end2.y - start2.y) * (end1.x - start1.x)) - ((end2.x - start2.x) * (end1.y - start1.y));
+  if (denominator === 0) {
+    if (start1.equals(start2)) {
+      result.x = start1.x;
+      result.y = start1.y;
+      result.alphaA = 0;
+      result.alphaB = 0;
+      return result;
+    }
+    return false;
+  }
+
+  a = start1.y - start2.y;
+  b = start1.x - start2.x;
+  numerator1 = ((end2.x - start2.x) * a) - ((end2.y - start2.y) * b);
+  numerator2 = ((end1.x - start1.x) * a) - ((end1.y - start1.y) * b);
+  a = numerator1 / denominator;
+  b = numerator2 / denominator;
+
+  // if we cast these lines infinitely in both directions, they intersect here:
+  result.x = start1.x + (a * (end1.x - start1.x));
+  result.y = start1.y + (a * (end1.y - start1.y));
+  result.alphaA = a;
+  result.alphaB = b;
+
+  // TODO: any better way to handle this?
+  if (result.alphaA > 0.99999999999999) {
+    result.alphaA = 1;
+  }
+  if (result.alphaB > 0.99999999999999) {
+    result.alphaB = 1;
+  }
+  if (result.alphaA < 0.00000000000001) {
+    result.alphaA = 0;
+  }
+  if (result.alphaB < 0.00000000000001) {
+    result.alphaB = 0;
+  }
+
+  // if line1 is a segment and line2 is infinite, they intersect if:
+  if (a >= 0 && a <= 1) {
+    result.onLine1 = true;
+  }
+  // if line2 is a segment and line1 is infinite, they intersect if:
+  if (b >= 0 && b <= 1) {
+    result.onLine2 = true;
+  }
+  // if line1 and line2 are segments, they intersect if both of the above are true
+  if (result.onLine1 && result.onLine2) {
+    return result;
+  } else {
+    return false;
+  }
+}
+
+},{"./ring":29,"./util":32,"./vertex":33,"point-in-polygon":34}],28:[function(require,module,exports){
+var ghClipping = require('./greiner-hormann');
+var union = require('./union');
+var utils = require('./util');
+var subtract = require('./subtract');
+
+module.exports = function (subject, clipper) {
+  subject = utils.clone(subject);
+  clipper = utils.clone(clipper);
+  var sHulls = utils.outerHulls(subject);
+  var cHulls = utils.outerHulls(clipper);
+  var holes = utils.holes(subject).concat(utils.holes(clipper));
+  var result = [];
+
+  for (var i = 0; i < sHulls.length; i++) {
+    for (var j = 0; j < cHulls.length; j++) {
+      var test = ghClipping(sHulls[i], cHulls[j], true, true);
+      if (Array.isArray(test)) {
+        result = result.concat(test);
+      }
+    }
+  }
+
+  // Union all the holes then subtract them rom the result
+  if (holes.length > 0) {
+    var holeUnion = union(utils.wrapToPolygons(holes));
+    return subtract(result, utils.wrapToPolygons(utils.outerHulls(holeUnion)));
+  }
+
+  return result;
+};
+
+},{"./greiner-hormann":27,"./subtract":30,"./union":31,"./util":32}],29:[function(require,module,exports){
+var Vertex = require('./vertex');
+var clockwise = require('turf-is-clockwise');
+
+/**
+ * Ring is a circular doubly-linked list; Every node
+ * has a next and a prev, even if it's the only node in the list.
+ *
+ * This supports some search methods that need to wrap back to the start of the list.
+ */
+function Ring() {
+  this.first = null;
+}
+
+Ring.prototype.count = function (countkey, countval) {
+  var curr = this.first;
+  var count = 0;
+  while (true) {
+    if (countkey) {
+      if (curr[countkey] === countval) count++;
+    } else {
+      count++;
+    }
+    curr = curr.next;
+
+    if (curr === this.first) break;
+  }
+  return count;
+};
+
+
+/**
+ * Takes an array of coordinates and constructs a Ring
+ *
+ * @param  {array} coordinates   the array of coordinates to convert to a Ring
+ * @return {Ring}
+ */
+Ring.fromArray = function (coordinates) {
+  var ring = new Ring();
+
+  if (!clockwise(coordinates)) coordinates = coordinates.reverse();
+
+  for (var i = 0; i < (coordinates.length - 1); i++) {
+    var elem = coordinates[i];
+    ring.push(new Vertex(elem[0], elem[1]));
+  }
+
+  return ring;
+};
+
+/**
+ * Push a vertex into the ring's list. This
+ * just updates pointers to put the point at
+ * the end of the list
+ *
+ * @param  {Vertex} vertex the vertex to push
+ */
+Ring.prototype.push = function (vertex) {
+  if (!this.first) {
+    this.first = vertex;
+    this.first.prev = vertex;
+    this.first.next = vertex;
+  } else {
+    var next = this.first;
+    var prev = next.prev;
+    next.prev = vertex;
+    vertex.next = next;
+    vertex.prev = prev;
+    prev.next = vertex;
+  }
+};
+
+/**
+ * Insert a vertex between specific vertices
+ *
+ * If there are intersection points, inbetween
+ * start and end, the new vertex is inserted
+ * based on it's alpha value
+ *
+ * @param  {Vertex} vertex the vertex to insert
+ * @param  {Vertex} start  the "leftmost" vertex this point could be inserted next to
+ * @param  {Vertex} end    the "rightmost" vertex this could could be inserted next to
+ */
+Ring.prototype.insert = function (vertex, start, end) {
+  var curr = start.next;
+
+  while (curr !== end && curr.alpha < vertex.alpha) {
+    curr = curr.next;
+  }
+
+  // Insert just before the "curr" value
+  vertex.next = curr;
+  var prev = curr.prev;
+  vertex.prev = prev;
+  prev.next = vertex;
+  curr.prev = vertex;
+};
+
+/**
+ * Start at the start vertex, and get the next
+ * point that isn't an intersection
+ *
+ * @param  {Vertex} start the vertex to start searching at
+ * @return {Vertex} the next non-intersect
+ */
+Ring.prototype.nextNonIntersect = function (start) {
+  var curr = start;
+  while (curr.intersect && curr !== this.first) {
+    curr = curr.next;
+  }
+  return curr;
+};
+
+/**
+ * Returns the first unchecked intersection in the list
+ *
+ * @return {Vertex|bool}
+ */
+Ring.prototype.firstIntersect = function () {
+  var curr =  this.first;
+
+  while (true) {
+    if (curr.intersect && !curr.checked) return curr;
+    curr = curr.next;
+    if (curr === this.first) break;
+  }
+  return false;
+};
+
+/**
+ * Converts the Ring into an array
+ *
+ * @return {array} array representation of the ring
+ */
+Ring.prototype.toArray = function () {
+  var curr = this.first;
+  var points = [];
+
+  do {
+    points.push([curr.x, curr.y]);
+    curr = curr.next;
+  } while (curr !== this.first);
+
+  return points;
+};
+
+
+
+
+/**
+ * Utility method for logging points
+ *
+ * @param  {[type]} sPoints [description]
+ * @param  {[type]} cPoints [description]
+ * @return {[type]}         [description]
+ */
+Ring.prototype.log = function () {
+  console.log('POINTS');
+  console.log('-----------------');
+  var curr = this.first;
+  do {
+    curr.log();
+    curr = curr.next;
+  } while (curr !== this.first)
+  console.log('-----------------');
+};
+
+/**
+ * Utility method for logging intersecions and degenerate points
+ *
+ * @param  {[type]} sPoints [description]
+ * @return {[type]}         [description]
+ */
+Ring.prototype.logIntersections = function () {
+  console.log('-------------------');
+  console.log('INTERSECTION LIST: ');
+  console.log('-------------------');
+  var curr = this.first;
+  do {
+    if (curr.intersect || curr.degenerate) {
+      curr.log();
+    }
+    curr = curr.next;
+  } while ((curr !== this.first))
+  console.log('');
+};
+
+
+module.exports = Ring;
+
+},{"./vertex":33,"turf-is-clockwise":35}],30:[function(require,module,exports){
+var util = require('./util');
+var ghClipping = require('./greiner-hormann');
+
+function intersect(hulls, holes) {
+  var result = [];
+  for (var i = 0; i < hulls.length; i++) {
+    for (var j = 0; j < holes.length; j++) {
+      var test = ghClipping(hulls[i], holes[j], true, true);
+      if (Array.isArray(test)) {
+        result = result.concat(test);
+      }
+    }
+  }
+  return result;
+}
+
+function subtract(subject, clip, skiploop) {
+  skiploop = !!skiploop;
+  subject = util.clone(subject);
+  clip = util.clone(clip);
+
+  var sHulls = util.outerHulls(subject);
+  var cHulls = util.outerHulls(clip);
+  var cHoles = util.holes(clip);
+
+  // TODO:
+  // If there are any holes in the subject, subtract those as well
+  // If there are any holes in the clip, which overlap the original
+  // subject, these should be unioned in. This means we'll have to
+  // check polygon within-ness for each clip hole
+
+  // first intersect any holes in clip against the hulls in the subject.
+  // If there are results from these, then these holes overlap the subject,
+  // meaning they (or some part of them) will be saved in the final output as
+  // outer hulls
+  if (cHoles.length > 0) {
+    cHoles = intersect(sHulls, cHoles);
+  }
+
+  if (util.isPolygon(subject)) {
+    subject = [subject];
+  } else {
+    subject = util.wrapToPolygons(subject);
+  }
+
+  for (var i = 0; i < cHulls.length; i++) {
+    var ilen = subject.length;
+    for (var j = 0; j < subject.length; j++) {
+      var test = ghClipping(subject[j][0], cHulls[i], false, true);
+      if (test.length === 0) {
+        subject.splice(j, 1);
+        j--;
+        continue;
+      }
+
+      subject[j][0] = test[0][0];
+
+      // Copy in each hole (if there were any) for the primary hull
+      for (var k = 1; k < test[0].length; k++) {
+        subject[j].push(test[0][k]);
+      }
+
+      // If there are any additional polygons in the result,
+      // they were newly created by intersecting this hole.
+      // Push the new polygon (hull and any holes) straight
+      // into the intersect list
+      for (var l = 1; l < test.length; l++) {
+        subject.splice(j + l, null, test[l]);
+      }
+      j += (test.length - 1);
+    }
+
+    // If the length has changed, this hole created
+    // new intersection polygons, which means it's not a hole
+    // anymore (it crossed the polys, now it's boundary is
+    // part of the new intersection hulls). Therefore, we
+    // remove this hole from the list so it won't be returned.
+    if (ilen !== subject.length) {
+      cHulls.splice(i, 1);
+      i--;
+    }
+  }
+
+  // Union remaining clip-polygon holes if they exist.
+  if (cHoles.length > 0) {
+    subject = subject.concat(util.wrapToPolygons(cHoles));
+  }
+
+  // Re-cut everything against the subject's holes to be
+  // 100% certain they don't change any information in the output
+  var sHoles = util.unionRings(util.holes(subject), []);
+
+  if (sHoles.length > 0 && !skiploop) {
+    return subtract(util.wrapToPolygons(util.outerHulls(subject)), util.wrapToPolygons(sHoles), true);
+  }
+
+  return subject;
+}
+
+
+module.exports = subtract;
+
+},{"./greiner-hormann":27,"./util":32}],31:[function(require,module,exports){
+var utils = require('./util');
+var subtract = require('./subtract');
+
+/**
+ * Iteratively join all rings in the passed set.
+ *
+ * @param  {array} rings An array of polygon rings
+ * @return {[type]}       [description]
+ */
+
+
+/**
+ * Method for subtracting hulls from holes. This is used
+ * before calculating the union to ensure correctly shaped
+ * holes in all of the input polygons
+ *
+ * @param  {[type]} coords [description]
+ * @param  {[type]} j      [description]
+ * @param  {[type]} i      [description]
+ * @return {[type]}        [description]
+ */
+function clipHoles(coords, hullIdx, holeIdx) {
+  var hulls = utils.outerHulls(coords[hullIdx]);
+  var holes = utils.holes(coords[holeIdx]);
+  if (holes.length > 0) {
+    var newholes = subtract(utils.wrapToPolygons(holes), hulls);
+    coords[holeIdx].splice(1);
+    coords[holeIdx] = coords[holeIdx].concat(utils.outerHulls(newholes));
+  }
+}
+
+// TODO: make this support polys + holes. Right now
+// it takes an array of rings, not array of polys.
+//
+// TODO: think about the function signature here? Should it be
+// traditional "union A + B", or is passing a set of things to union more useful
+//
+// TODO: think about using the approach here: http://blog.cleverelephant.ca/2009/01/must-faster-unions-in-postgis-14.html
+// to make things faster for complex / very degenerate sets
+module.exports = function (coords, coords2) {
+  if (typeof coords2 !== 'undefined' && coords2 !== null) {
+    // TODO: make this more robust. This will fail in some cases
+    if (!utils.isMultiPolygon(coords)) {
+      coords = [coords];
+    }
+    if (!utils.isMultiPolygon(coords2)) {
+      coords2 = [coords2];
+    }
+    coords = coords.concat(coords2);
+  }
+
+  coords = utils.clone(coords);
+  // Preprocess the holes. This covers cases such as the one here:
+  // https://github.com/tchannel/greiner-hormann/issues/7
+  for (var i = 0; i < coords.length; i++) {
+    for (var j = i + 1; j < coords.length; j++) {
+      clipHoles(coords, j, i);
+      clipHoles(coords, i, j);
+    }
+  }
+
+  var hulls = utils.outerHulls(coords);
+  var holes = utils.holes(coords);
+  // Union all hulls. Holes is passed in, to handle cases where the union
+  // generates new holes (they'll be pushed into the holes array)
+  hulls = utils.wrapToPolygons(utils.unionRings(hulls, holes));
+
+  // Union all holes - If holes overlap, they should be joined
+  if (holes.length > 0) {
+    holes = utils.unionRings(holes);
+    holes = utils.wrapToPolygons(holes);
+    // Subtract all rings from the unioned set
+    return subtract(hulls, holes);
+  }
+
+  return hulls;
+};
+
+},{"./subtract":30,"./util":32}],32:[function(require,module,exports){
+if (!Array.isArray) {
+  Array.isArray = function (arg) {
+    return Object.prototype.toString.call(arg) === '[object Array]';
+  };
+}
+
+// deep clone an array of coordinates / polygons
+exports.clone = function cloneArray(array) {
+  var newArray = array.slice();
+
+  for (var i = 0; i < newArray.length; i++) {
+    if (Array.isArray(newArray[i])) {
+      newArray[i] = cloneArray(newArray[i]);
+    }
+  }
+
+  return newArray;
+};
+
+// Wrap an array of geometries to an array of polygons
+exports.wrapToPolygons = function (array) {
+  var wrapped = [];
+  for (var i = 0; i < array.length; i++) {
+    if (exports.isRing(array[i])) {
+      wrapped.push([array[i]]);
+    } else if (exports.isMultiPolygon(array[i])) {
+      wrapped.concat(array[i]);
+    } else if (exports.isPolygon(array[i])) {
+      wrapped.push(array[i]);
+    }
+  }
+  return wrapped;
+};
+
+// Unwrap polygons to an array of rings
+exports.unwrap = function (array) {
+  var unwrapped = [];
+  for (var i = 0; i < array.length; i++) {
+    for (var j = 0; j < array[i].length; j++) {
+      unwrapped.push(array[i][j]);
+    }
+  }
+};
+
+
+/**
+ * Count array depth (used to check for geom type)
+ *
+ * @param  {[type]} collection [description]
+ * @return {[type]}            [description]
+ */
+exports.depth = function (collection) {
+  function depth(collection, num) {
+    if (Array.isArray(collection)) {
+      return depth(collection[0], num + 1);
+    }
+    return num;
+  }
+
+  return depth(collection, 0);
+};
+
+
+exports.isMultiPolygon = function (poly) {
+  if (exports.depth(poly) === 4) {
+    return true;
+  }
+  return false;
+};
+
+
+exports.isPolygon = function (poly) {
+  if (exports.depth(poly) === 3) {
+    return true;
+  }
+  return false;
+};
+
+exports.isRing = function (poly) {
+  if (exports.depth(poly) === 2) {
+    return true;
+  }
+  return false;
+};
+
+/**
+ * Takes a list of polygons / multipolygons and returns only the outer hulls
+ *
+ * @param  {[type]} collection [description]
+ * @return {[type]}            [description]
+ */
+exports.outerHulls = function (collection) {
+  var hulls = [];
+
+  if (exports.isPolygon(collection)) {
+    return [collection[0]];
+  }
+
+  for (var i = 0; i < collection.length; i++) {
+    if (exports.isMultiPolygon(collection[i])) {
+      // Each polygon
+      for (var j = 0; j < collection[i].length; j++) {
+        hulls.push(collection[i][j][0]);
+      }
+    } else if (exports.isPolygon(collection[i])) {
+      hulls.push(collection[i][0]);
+    } else if (exports.isRing(collection[i])) {
+      hulls.push(collection[i]);
+    }
+  }
+
+  return hulls;
+};
+
+/**
+ * Takes a list of multipolygons / polygons and returns only the holes
+ *
+ * @param  {[type]} collection [description]
+ * @return {[type]}            [description]
+ */
+exports.holes = function (collection) {
+  var holes = [];
+
+  if (exports.isPolygon(collection)) {
+    return collection.slice(1);
+  }
+
+  for (var i = 0; i < collection.length; i++) {
+    if (exports.isMultiPolygon(collection[i])) {
+      // Each polygon
+      for (var j = 0; j < collection[i].length; j++) {
+        for (var k = 1; k < collection[i][j].length; k++) {
+          holes.push(collection[i][j][k]);
+        }
+      }
+    } else if (exports.isPolygon(collection[i])) {
+      for (var l = 1; l < collection[i].length; l++) {
+        holes.push(collection[i][l]);
+      }
+    }
+  }
+
+  return holes;
+};
+
+
+exports.pointsEqual = function (pt1, pt2) {
+  if (pt1[0] === pt2[0] && pt1[1] === pt2[1]) {
+    return true;
+  }
+  return false;
+};
+
+/**
+ * Iteratively join all rings in the passed set.
+ *
+ * @param  {array} rings An array of polygon rings
+ * @return {[type]}       [description]
+ */
+exports.unionRings = function (rings, holes) {
+  var ghClipping = require('./greiner-hormann');
+
+  for (var i = 0; i < rings.length; i++) {
+    for (var j = i + 1; j < rings.length; j++) {
+      if (i === j) {
+        continue;
+      }
+      var test = ghClipping(rings[i], rings[j], false, false);
+
+      // If the length is 1, we joined the two areas, so replace
+      // rings[i] with the new shape, and remove rings[j]
+      // Then reset the j iterator so we can make sure that none of
+      // the previous rings will now overlap the new rings[i]
+      if (test.length === 1) {
+        rings[i] = test[0][0];
+        rings.splice(j, 1);
+        j = i;
+
+        // If there are holes, copy them into the holes array.
+        for (var idx = 1; idx < test[0].length; idx++) {
+          holes.push(test[0][idx]);
+        }
+      }
+    }
+  }
+  return rings;
+};
+
+},{"./greiner-hormann":27}],33:[function(require,module,exports){
+function Vertex(x, y, alpha, intersect, degenerate) {
+  this.x = x;
+  this.y = y;
+  this.alpha = alpha || 0.0;
+  this.intersect = intersect || false;
+  this.entry = true; // Set to true by default, for degeneracy handling
+  this.checked = false;
+  this.degenerate = degenerate || false;
+  this.neighbor = null;
+  this.next = null;
+  this.prev = null;
+  this.type = null; // can be 'in', 'out', 'on'
+  this.remove = false;
+}
+
+/**
+ * Returns a string representing the types of the previous and next vertices.
+ * For example, if the prev vertex had type 'in' and the next had type 'out',
+ * the pairing would be 'in/out'. This matches the way pairs are referenced in
+ * the Greiner-Hormann Degeneracy paper.
+ *
+ * @return {String} the pairing description
+ */
+Vertex.prototype.pairing = function () {
+  return this.prev.type + '/' + this.next.type;
+};
+
+/**
+ * Returns a string representing the entry / exit flag of this vertex and it's neighbor
+ * For example, if the current vertex was flagged entry = true and it's neighbor was flagged
+ * entry = false, the entryPair would be 'en/ex' (short for 'entry/exit'). This matches the
+ * way flags are referenced in the Greiner-Hormann Degeneracy paper.
+ *
+ * @return {String} the entry/exit pair string
+ */
+Vertex.prototype.entryPair = function () {
+  var entry = this.entry ? 'en' : 'ex';
+  var nEntry = this.neighbor.entry ? 'en' : 'ex';
+
+  return entry + '/' + nEntry;
+};
+
+/**
+ * Determine if this vertex is equal to another
+ *
+ * @param  {Vertex} other the vertex to compare with
+ * @return {bool}   whether or not the vertices are equal
+ */
+Vertex.prototype.equals = function (other) {
+  if (this.x === other.x && this.y === other.y) {
+    return true;
+  }
+  return false;
+};
+
+/**
+ * Utility method to log the vertex, only for debugging
+ */
+Vertex.prototype.log = function () {
+  console.log(
+    'INTERSECT: ' + (this.intersect ? 'Yes' : 'No ') +
+    ' ENTRY: ' + (this.entry ? 'Yes' : 'No ') +
+    ' DEGEN: ' + (this.degenerate ? 'Yes' : 'No ') +
+    ' TYPE: ' + String(this.prev.type + ' ').slice(0, 3) +
+    ' / ' + String(this.type + ' ').slice(0, 3) +
+    ' / ' + String(this.next.type + ' ').slice(0, 3) +
+    ' ENTRY: ' + this.entryPair() +
+    ' ALPHA: ' + this.alpha.toPrecision(3) +
+    ' REMOVE: ' + (this.remove ? 'Yes' : 'No') + ' ' +
+    this.x + ', ' + this.y
+  );
+};
+
+
+module.exports = Vertex;
+
+},{}],34:[function(require,module,exports){
+module.exports = function (point, vs) {
+    // ray-casting algorithm based on
+    // http://www.ecse.rpi.edu/Homepages/wrf/Research/Short_Notes/pnpoly.html
+    
+    var x = point[0], y = point[1];
+    
+    var inside = false;
+    for (var i = 0, j = vs.length - 1; i < vs.length; j = i++) {
+        var xi = vs[i][0], yi = vs[i][1];
+        var xj = vs[j][0], yj = vs[j][1];
+        
+        var intersect = ((yi > y) != (yj > y))
+            && (x < (xj - xi) * (y - yi) / (yj - yi) + xi);
+        if (intersect) inside = !inside;
+    }
+    
+    return inside;
+};
+
+},{}],35:[function(require,module,exports){
+module.exports = function(ring){
+  var sum = 0;
+  var i = 1;
+  var len = ring.length;
+  var prev,cur;
+  while(i<len){
+    prev = cur||ring[0];
+    cur = ring[i];
+    sum += ((cur[0]-prev[0])*(cur[1]+prev[1]));
+    i++;
+  }
+  return sum > 0;
+}
+},{}],36:[function(require,module,exports){
 var xhr = require('xhr');
 
 module.exports = function (opts, cb) {
@@ -4629,7 +5915,7 @@ module.exports = function (opts, cb) {
     });
 };
 
-},{"xhr":27}],27:[function(require,module,exports){
+},{"xhr":37}],37:[function(require,module,exports){
 var window = require("global/window")
 var once = require("once")
 var parseHeaders = require('parse-headers')
@@ -4808,7 +6094,7 @@ function createXHR(options, callback) {
 
 function noop() {}
 
-},{"global/window":28,"once":29,"parse-headers":33}],28:[function(require,module,exports){
+},{"global/window":38,"once":39,"parse-headers":43}],38:[function(require,module,exports){
 (function (global){
 if (typeof window !== "undefined") {
     module.exports = window;
@@ -4821,7 +6107,7 @@ if (typeof window !== "undefined") {
 }
 
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{}],29:[function(require,module,exports){
+},{}],39:[function(require,module,exports){
 module.exports = once
 
 once.proto = once(function () {
@@ -4842,7 +6128,7 @@ function once (fn) {
   }
 }
 
-},{}],30:[function(require,module,exports){
+},{}],40:[function(require,module,exports){
 var isFunction = require('is-function')
 
 module.exports = forEach
@@ -4890,7 +6176,7 @@ function forEachObject(object, iterator, context) {
     }
 }
 
-},{"is-function":31}],31:[function(require,module,exports){
+},{"is-function":41}],41:[function(require,module,exports){
 module.exports = isFunction
 
 var toString = Object.prototype.toString
@@ -4907,7 +6193,7 @@ function isFunction (fn) {
       fn === window.prompt))
 };
 
-},{}],32:[function(require,module,exports){
+},{}],42:[function(require,module,exports){
 
 exports = module.exports = trim;
 
@@ -4923,7 +6209,7 @@ exports.right = function(str){
   return str.replace(/\s*$/, '');
 };
 
-},{}],33:[function(require,module,exports){
+},{}],43:[function(require,module,exports){
 var trim = require('trim')
   , forEach = require('for-each')
   , isArray = function(arg) {
@@ -4955,7 +6241,7 @@ module.exports = function (headers) {
 
   return result
 }
-},{"for-each":30,"trim":32}],34:[function(require,module,exports){
+},{"for-each":40,"trim":42}],44:[function(require,module,exports){
 'use strict'
 
 var pool = require('typedarray-pool')
@@ -5067,7 +6353,7 @@ function meshLaplacian(cells, positions) {
   return entries
 }
 
-},{"typedarray-pool":37}],35:[function(require,module,exports){
+},{"typedarray-pool":47}],45:[function(require,module,exports){
 /**
  * Bit twiddling hacks for JavaScript.
  *
@@ -5273,9 +6559,9 @@ exports.nextCombination = function(v) {
 }
 
 
-},{}],36:[function(require,module,exports){
+},{}],46:[function(require,module,exports){
 arguments[4][22][0].apply(exports,arguments)
-},{"dup":22}],37:[function(require,module,exports){
+},{"dup":22}],47:[function(require,module,exports){
 (function (global,Buffer){
 'use strict'
 
@@ -5492,7 +6778,7 @@ exports.clearCache = function clearCache() {
   }
 }
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {},require("buffer").Buffer)
-},{"bit-twiddle":35,"buffer":1,"dup":36}],38:[function(require,module,exports){
+},{"bit-twiddle":45,"buffer":1,"dup":46}],48:[function(require,module,exports){
 module.exports = reindex
 
 function reindex(array) {
@@ -5524,7 +6810,7 @@ function reindex(array) {
   }
 }
 
-},{}],39:[function(require,module,exports){
+},{}],49:[function(require,module,exports){
 //http://www.blackpawn.com/texts/pointinpoly/
 module.exports = function pointInTriangle(point, triangle) {
     //compute vectors & dot products
@@ -5546,7 +6832,7 @@ module.exports = function pointInTriangle(point, triangle) {
         v = (dot00*dot12 - dot01*dot02) * inv
     return u>=0 && v>=0 && (u+v < 1)
 }
-},{}],40:[function(require,module,exports){
+},{}],50:[function(require,module,exports){
 'use strict'
 
 module.exports = polyBool
@@ -5565,7 +6851,7 @@ function polyBool(a, b, op) {
   return pslg2poly(result.points, result.red.concat(result.blue))
 }
 
-},{"overlay-pslg":111,"poly-to-pslg":158,"pslg-to-poly":183}],41:[function(require,module,exports){
+},{"overlay-pslg":121,"poly-to-pslg":168,"pslg-to-poly":193}],51:[function(require,module,exports){
 "use strict"
 
 function compileSearch(funcName, predicate, reversed, extraArgs, earlyOut) {
@@ -5619,7 +6905,7 @@ module.exports = {
   eq: compileBoundsSearch("-", true, "EQ", true)
 }
 
-},{}],42:[function(require,module,exports){
+},{}],52:[function(require,module,exports){
 'use strict'
 
 var monotoneTriangulate = require('./lib/monotone')
@@ -5703,7 +6989,7 @@ function cdt2d(points, edges, options) {
   }
 }
 
-},{"./lib/delaunay":43,"./lib/filter":44,"./lib/monotone":45,"./lib/triangulation":46}],43:[function(require,module,exports){
+},{"./lib/delaunay":53,"./lib/filter":54,"./lib/monotone":55,"./lib/triangulation":56}],53:[function(require,module,exports){
 'use strict'
 
 var inCircle = require('robust-in-sphere')[4]
@@ -5820,7 +7106,7 @@ function delaunayRefine(points, triangulation) {
   }
 }
 
-},{"binary-search-bounds":41,"robust-in-sphere":47}],44:[function(require,module,exports){
+},{"binary-search-bounds":51,"robust-in-sphere":57}],54:[function(require,module,exports){
 'use strict'
 
 var bsearch = require('binary-search-bounds')
@@ -6002,7 +7288,7 @@ function classifyFaces(triangulation, target, infinity) {
   return result
 }
 
-},{"binary-search-bounds":41}],45:[function(require,module,exports){
+},{"binary-search-bounds":51}],55:[function(require,module,exports){
 'use strict'
 
 var bsearch = require('binary-search-bounds')
@@ -6191,7 +7477,7 @@ function monotoneTriangulate(points, edges) {
   return cells
 }
 
-},{"binary-search-bounds":41,"robust-orientation":58}],46:[function(require,module,exports){
+},{"binary-search-bounds":51,"robust-orientation":68}],56:[function(require,module,exports){
 'use strict'
 
 var bsearch = require('binary-search-bounds')
@@ -6297,7 +7583,7 @@ function createTriangulation(numVerts, edges) {
   return new Triangulation(stars, edges)
 }
 
-},{"binary-search-bounds":41}],47:[function(require,module,exports){
+},{"binary-search-bounds":51}],57:[function(require,module,exports){
 "use strict"
 
 var twoProduct = require("two-product")
@@ -6465,29 +7751,29 @@ function generateInSphereTest() {
 }
 
 generateInSphereTest()
-},{"robust-scale":49,"robust-subtract":50,"robust-sum":51,"two-product":52}],48:[function(require,module,exports){
+},{"robust-scale":59,"robust-subtract":60,"robust-sum":61,"two-product":62}],58:[function(require,module,exports){
 arguments[4][7][0].apply(exports,arguments)
-},{"dup":7}],49:[function(require,module,exports){
+},{"dup":7}],59:[function(require,module,exports){
 arguments[4][8][0].apply(exports,arguments)
-},{"dup":8,"two-product":52,"two-sum":48}],50:[function(require,module,exports){
+},{"dup":8,"two-product":62,"two-sum":58}],60:[function(require,module,exports){
 arguments[4][9][0].apply(exports,arguments)
-},{"dup":9}],51:[function(require,module,exports){
+},{"dup":9}],61:[function(require,module,exports){
 arguments[4][10][0].apply(exports,arguments)
-},{"dup":10}],52:[function(require,module,exports){
+},{"dup":10}],62:[function(require,module,exports){
 arguments[4][11][0].apply(exports,arguments)
-},{"dup":11}],53:[function(require,module,exports){
+},{"dup":11}],63:[function(require,module,exports){
 arguments[4][7][0].apply(exports,arguments)
-},{"dup":7}],54:[function(require,module,exports){
+},{"dup":7}],64:[function(require,module,exports){
 arguments[4][8][0].apply(exports,arguments)
-},{"dup":8,"two-product":57,"two-sum":53}],55:[function(require,module,exports){
+},{"dup":8,"two-product":67,"two-sum":63}],65:[function(require,module,exports){
 arguments[4][9][0].apply(exports,arguments)
-},{"dup":9}],56:[function(require,module,exports){
+},{"dup":9}],66:[function(require,module,exports){
 arguments[4][10][0].apply(exports,arguments)
-},{"dup":10}],57:[function(require,module,exports){
+},{"dup":10}],67:[function(require,module,exports){
 arguments[4][11][0].apply(exports,arguments)
-},{"dup":11}],58:[function(require,module,exports){
+},{"dup":11}],68:[function(require,module,exports){
 arguments[4][12][0].apply(exports,arguments)
-},{"dup":12,"robust-scale":54,"robust-subtract":55,"robust-sum":56,"two-product":57}],59:[function(require,module,exports){
+},{"dup":12,"robust-scale":64,"robust-subtract":65,"robust-sum":66,"two-product":67}],69:[function(require,module,exports){
 'use strict'
 
 module.exports = cleanPSLG
@@ -6849,7 +8135,7 @@ function cleanPSLG(points, edges, colors) {
   return modified
 }
 
-},{"./lib/rat-seg-intersect":60,"big-rat":64,"big-rat/cmp":62,"big-rat/to-float":79,"box-intersect":80,"compare-cell":90,"nextafter":91,"rat-vec":94,"robust-segment-intersect":103,"union-find":104}],60:[function(require,module,exports){
+},{"./lib/rat-seg-intersect":70,"big-rat":74,"big-rat/cmp":72,"big-rat/to-float":89,"box-intersect":90,"compare-cell":100,"nextafter":101,"rat-vec":104,"robust-segment-intersect":113,"union-find":114}],70:[function(require,module,exports){
 'use strict'
 
 //TODO: Move this to a separate module
@@ -6895,7 +8181,7 @@ function solveIntersection(a, b, c, d) {
   return rvAdd(a, rvMuls(ba, t))
 }
 
-},{"big-rat/div":63,"big-rat/mul":73,"big-rat/sign":77,"big-rat/sub":78,"big-rat/to-float":79,"rat-vec/add":93,"rat-vec/muls":95,"rat-vec/sub":96}],61:[function(require,module,exports){
+},{"big-rat/div":73,"big-rat/mul":83,"big-rat/sign":87,"big-rat/sub":88,"big-rat/to-float":89,"rat-vec/add":103,"rat-vec/muls":105,"rat-vec/sub":106}],71:[function(require,module,exports){
 'use strict'
 
 var rationalize = require('./lib/rationalize')
@@ -6908,7 +8194,7 @@ function add(a, b) {
     a[1].mul(b[1]))
 }
 
-},{"./lib/rationalize":71}],62:[function(require,module,exports){
+},{"./lib/rationalize":81}],72:[function(require,module,exports){
 'use strict'
 
 module.exports = cmp
@@ -6917,7 +8203,7 @@ function cmp(a, b) {
     return a[0].mul(b[1]).cmp(b[0].mul(a[1]))
 }
 
-},{}],63:[function(require,module,exports){
+},{}],73:[function(require,module,exports){
 'use strict'
 
 var rationalize = require('./lib/rationalize')
@@ -6928,7 +8214,7 @@ function div(a, b) {
   return rationalize(a[0].mul(b[1]), a[1].mul(b[0]))
 }
 
-},{"./lib/rationalize":71}],64:[function(require,module,exports){
+},{"./lib/rationalize":81}],74:[function(require,module,exports){
 'use strict'
 
 var isRat = require('./is-rat')
@@ -6990,7 +8276,7 @@ function makeRational(numer, denom) {
   return rationalize(a, b)
 }
 
-},{"./div":63,"./is-rat":65,"./lib/is-bn":69,"./lib/num-to-bn":70,"./lib/rationalize":71,"./lib/str-to-bn":72}],65:[function(require,module,exports){
+},{"./div":73,"./is-rat":75,"./lib/is-bn":79,"./lib/num-to-bn":80,"./lib/rationalize":81,"./lib/str-to-bn":82}],75:[function(require,module,exports){
 'use strict'
 
 var isBN = require('./lib/is-bn')
@@ -7001,7 +8287,7 @@ function isRat(x) {
   return Array.isArray(x) && x.length === 2 && isBN(x[0]) && isBN(x[1])
 }
 
-},{"./lib/is-bn":69}],66:[function(require,module,exports){
+},{"./lib/is-bn":79}],76:[function(require,module,exports){
 'use strict'
 
 var bn = require('bn.js')
@@ -7012,7 +8298,7 @@ function sign(x) {
   return x.cmp(new bn(0))
 }
 
-},{"bn.js":75}],67:[function(require,module,exports){
+},{"bn.js":85}],77:[function(require,module,exports){
 'use strict'
 
 module.exports = bn2num
@@ -7036,7 +8322,7 @@ function bn2num(b) {
   return b.sign ? -out : out
 }
 
-},{}],68:[function(require,module,exports){
+},{}],78:[function(require,module,exports){
 'use strict'
 
 var db = require('double-bits')
@@ -7057,7 +8343,7 @@ function ctzNumber(x) {
   return h + 32
 }
 
-},{"bit-twiddle":74,"double-bits":76}],69:[function(require,module,exports){
+},{"bit-twiddle":84,"double-bits":86}],79:[function(require,module,exports){
 'use strict'
 
 var BN = require('bn.js')
@@ -7070,7 +8356,7 @@ function isBN(x) {
   return x && typeof x === 'object' && Boolean(x.words)
 }
 
-},{"bn.js":75}],70:[function(require,module,exports){
+},{"bn.js":85}],80:[function(require,module,exports){
 'use strict'
 
 var BN = require('bn.js')
@@ -7087,7 +8373,7 @@ function num2bn(x) {
   }
 }
 
-},{"bn.js":75,"double-bits":76}],71:[function(require,module,exports){
+},{"bn.js":85,"double-bits":86}],81:[function(require,module,exports){
 'use strict'
 
 var num2bn = require('./num-to-bn')
@@ -7115,7 +8401,7 @@ function rationalize(numer, denom) {
   return [ numer, denom ]
 }
 
-},{"./bn-sign":66,"./num-to-bn":70}],72:[function(require,module,exports){
+},{"./bn-sign":76,"./num-to-bn":80}],82:[function(require,module,exports){
 'use strict'
 
 var BN = require('bn.js')
@@ -7126,7 +8412,7 @@ function str2BN(x) {
   return new BN(x)
 }
 
-},{"bn.js":75}],73:[function(require,module,exports){
+},{"bn.js":85}],83:[function(require,module,exports){
 'use strict'
 
 var rationalize = require('./lib/rationalize')
@@ -7137,9 +8423,9 @@ function mul(a, b) {
   return rationalize(a[0].mul(b[0]), a[1].mul(b[1]))
 }
 
-},{"./lib/rationalize":71}],74:[function(require,module,exports){
-arguments[4][35][0].apply(exports,arguments)
-},{"dup":35}],75:[function(require,module,exports){
+},{"./lib/rationalize":81}],84:[function(require,module,exports){
+arguments[4][45][0].apply(exports,arguments)
+},{"dup":45}],85:[function(require,module,exports){
 (function (module, exports) {
 
 'use strict';
@@ -9459,7 +10745,7 @@ Mont.prototype.invm = function invm(a) {
 
 })(typeof module === 'undefined' || module, this);
 
-},{}],76:[function(require,module,exports){
+},{}],86:[function(require,module,exports){
 (function (Buffer){
 var hasTypedArrays = false
 if(typeof Float64Array !== "undefined") {
@@ -9563,7 +10849,7 @@ module.exports.denormalized = function(n) {
   return !(hi & 0x7ff00000)
 }
 }).call(this,require("buffer").Buffer)
-},{"buffer":1}],77:[function(require,module,exports){
+},{"buffer":1}],87:[function(require,module,exports){
 'use strict'
 
 var bnsign = require('./lib/bn-sign')
@@ -9574,7 +10860,7 @@ function sign(x) {
   return bnsign(x[0]) * bnsign(x[1])
 }
 
-},{"./lib/bn-sign":66}],78:[function(require,module,exports){
+},{"./lib/bn-sign":76}],88:[function(require,module,exports){
 'use strict'
 
 var rationalize = require('./lib/rationalize')
@@ -9585,7 +10871,7 @@ function sub(a, b) {
   return rationalize(a[0].mul(b[1]).sub(a[1].mul(b[0])), a[1].mul(b[1]))
 }
 
-},{"./lib/rationalize":71}],79:[function(require,module,exports){
+},{"./lib/rationalize":81}],89:[function(require,module,exports){
 'use strict'
 
 var bn2num = require('./lib/bn-to-num')
@@ -9628,7 +10914,7 @@ function roundRat(f) {
   }
 }
 
-},{"./lib/bn-to-num":67,"./lib/ctz":68}],80:[function(require,module,exports){
+},{"./lib/bn-to-num":77,"./lib/ctz":78}],90:[function(require,module,exports){
 'use strict'
 
 module.exports = boxIntersectWrapper
@@ -9767,7 +11053,7 @@ function boxIntersectWrapper(arg0, arg1, arg2) {
       throw new Error('box-intersect: Invalid arguments')
   }
 }
-},{"./lib/intersect":82,"./lib/sweep":86,"typedarray-pool":89}],81:[function(require,module,exports){
+},{"./lib/intersect":92,"./lib/sweep":96,"typedarray-pool":99}],91:[function(require,module,exports){
 'use strict'
 
 var DIMENSION   = 'd'
@@ -9912,7 +11198,7 @@ function bruteForcePlanner(full) {
 
 exports.partial = bruteForcePlanner(false)
 exports.full    = bruteForcePlanner(true)
-},{}],82:[function(require,module,exports){
+},{}],92:[function(require,module,exports){
 'use strict'
 
 module.exports = boxIntersectIter
@@ -10407,7 +11693,7 @@ function boxIntersectIter(
     }
   }
 }
-},{"./brute":81,"./median":83,"./partition":84,"./sweep":86,"bit-twiddle":87,"typedarray-pool":89}],83:[function(require,module,exports){
+},{"./brute":91,"./median":93,"./partition":94,"./sweep":96,"bit-twiddle":97,"typedarray-pool":99}],93:[function(require,module,exports){
 'use strict'
 
 module.exports = findMedian
@@ -10550,7 +11836,7 @@ function findMedian(d, axis, start, end, boxes, ids) {
     start, mid, boxes, ids,
     boxes[elemSize*mid+axis])
 }
-},{"./partition":84}],84:[function(require,module,exports){
+},{"./partition":94}],94:[function(require,module,exports){
 'use strict'
 
 module.exports = genPartition
@@ -10571,7 +11857,7 @@ function genPartition(predicate, args) {
         .replace('$', predicate))
   return Function.apply(void 0, fargs)
 }
-},{}],85:[function(require,module,exports){
+},{}],95:[function(require,module,exports){
 'use strict';
 
 //This code is extracted from ndarray-sort
@@ -10808,7 +12094,7 @@ function quickSort(left, right, data) {
     quickSort(less, great, data);
   }
 }
-},{}],86:[function(require,module,exports){
+},{}],96:[function(require,module,exports){
 'use strict'
 
 module.exports = {
@@ -11243,13 +12529,13 @@ red_loop:
     }
   }
 }
-},{"./sort":85,"bit-twiddle":87,"typedarray-pool":89}],87:[function(require,module,exports){
-arguments[4][35][0].apply(exports,arguments)
-},{"dup":35}],88:[function(require,module,exports){
+},{"./sort":95,"bit-twiddle":97,"typedarray-pool":99}],97:[function(require,module,exports){
+arguments[4][45][0].apply(exports,arguments)
+},{"dup":45}],98:[function(require,module,exports){
 arguments[4][22][0].apply(exports,arguments)
-},{"dup":22}],89:[function(require,module,exports){
-arguments[4][37][0].apply(exports,arguments)
-},{"bit-twiddle":87,"buffer":1,"dup":37}],90:[function(require,module,exports){
+},{"dup":22}],99:[function(require,module,exports){
+arguments[4][47][0].apply(exports,arguments)
+},{"bit-twiddle":97,"buffer":1,"dup":47}],100:[function(require,module,exports){
 module.exports = compareCells
 
 var min = Math.min
@@ -11305,7 +12591,7 @@ function compareCells(a, b) {
   }
 }
 
-},{}],91:[function(require,module,exports){
+},{}],101:[function(require,module,exports){
 "use strict"
 
 var doubleBits = require("double-bits")
@@ -11348,9 +12634,9 @@ function nextafter(x, y) {
   }
   return doubleBits.pack(lo, hi)
 }
-},{"double-bits":92}],92:[function(require,module,exports){
-arguments[4][76][0].apply(exports,arguments)
-},{"buffer":1,"dup":76}],93:[function(require,module,exports){
+},{"double-bits":102}],102:[function(require,module,exports){
+arguments[4][86][0].apply(exports,arguments)
+},{"buffer":1,"dup":86}],103:[function(require,module,exports){
 'use strict'
 
 var bnadd = require('big-rat/add')
@@ -11366,7 +12652,7 @@ function add(a, b) {
   return r
 }
 
-},{"big-rat/add":61}],94:[function(require,module,exports){
+},{"big-rat/add":71}],104:[function(require,module,exports){
 'use strict'
 
 module.exports = float2rat
@@ -11381,7 +12667,7 @@ function float2rat(v) {
   return result
 }
 
-},{"big-rat":64}],95:[function(require,module,exports){
+},{"big-rat":74}],105:[function(require,module,exports){
 'use strict'
 
 var rat = require('big-rat')
@@ -11399,7 +12685,7 @@ function muls(a, x) {
   return r
 }
 
-},{"big-rat":64,"big-rat/mul":73}],96:[function(require,module,exports){
+},{"big-rat":74,"big-rat/mul":83}],106:[function(require,module,exports){
 'use strict'
 
 var bnsub = require('big-rat/sub')
@@ -11415,19 +12701,19 @@ function sub(a, b) {
   return r
 }
 
-},{"big-rat/sub":78}],97:[function(require,module,exports){
+},{"big-rat/sub":88}],107:[function(require,module,exports){
 arguments[4][7][0].apply(exports,arguments)
-},{"dup":7}],98:[function(require,module,exports){
+},{"dup":7}],108:[function(require,module,exports){
 arguments[4][8][0].apply(exports,arguments)
-},{"dup":8,"two-product":101,"two-sum":97}],99:[function(require,module,exports){
+},{"dup":8,"two-product":111,"two-sum":107}],109:[function(require,module,exports){
 arguments[4][9][0].apply(exports,arguments)
-},{"dup":9}],100:[function(require,module,exports){
+},{"dup":9}],110:[function(require,module,exports){
 arguments[4][10][0].apply(exports,arguments)
-},{"dup":10}],101:[function(require,module,exports){
+},{"dup":10}],111:[function(require,module,exports){
 arguments[4][11][0].apply(exports,arguments)
-},{"dup":11}],102:[function(require,module,exports){
+},{"dup":11}],112:[function(require,module,exports){
 arguments[4][12][0].apply(exports,arguments)
-},{"dup":12,"robust-scale":98,"robust-subtract":99,"robust-sum":100,"two-product":101}],103:[function(require,module,exports){
+},{"dup":12,"robust-scale":108,"robust-subtract":109,"robust-sum":110,"two-product":111}],113:[function(require,module,exports){
 "use strict"
 
 module.exports = segmentsIntersect
@@ -11475,7 +12761,7 @@ function segmentsIntersect(a0, a1, b0, b1) {
 
   return true
 }
-},{"robust-orientation":102}],104:[function(require,module,exports){
+},{"robust-orientation":112}],114:[function(require,module,exports){
 "use strict"; "use restrict";
 
 module.exports = UnionFind;
@@ -11538,7 +12824,7 @@ proto.link = function(x, y) {
     ++ranks[xr];
   }
 }
-},{}],105:[function(require,module,exports){
+},{}],115:[function(require,module,exports){
 'use strict'
 
 module.exports = boundary
@@ -11550,7 +12836,7 @@ function boundary(cells) {
   return reduce(bnd(cells))
 }
 
-},{"boundary-cells":106,"reduce-simplicial-complex":110}],106:[function(require,module,exports){
+},{"boundary-cells":116,"reduce-simplicial-complex":120}],116:[function(require,module,exports){
 "use strict"
 
 module.exports = boundary
@@ -11576,7 +12862,7 @@ function boundary(cells) {
   return result
 }
 
-},{}],107:[function(require,module,exports){
+},{}],117:[function(require,module,exports){
 'use strict'
 
 module.exports = orientation
@@ -11595,9 +12881,9 @@ function orientation(s) {
   return p
 }
 
-},{}],108:[function(require,module,exports){
-arguments[4][90][0].apply(exports,arguments)
-},{"dup":90}],109:[function(require,module,exports){
+},{}],118:[function(require,module,exports){
+arguments[4][100][0].apply(exports,arguments)
+},{"dup":100}],119:[function(require,module,exports){
 'use strict'
 
 var compareCells = require('compare-cell')
@@ -11609,7 +12895,7 @@ function compareOrientedCells(a, b) {
   return compareCells(a, b) || parity(a) - parity(b)
 }
 
-},{"cell-orientation":107,"compare-cell":108}],110:[function(require,module,exports){
+},{"cell-orientation":117,"compare-cell":118}],120:[function(require,module,exports){
 'use strict'
 
 var compareCell = require('compare-cell')
@@ -11642,7 +12928,7 @@ function reduceCellComplex(cells) {
   return cells
 }
 
-},{"cell-orientation":107,"compare-cell":108,"compare-oriented-cell":109}],111:[function(require,module,exports){
+},{"cell-orientation":117,"compare-cell":118,"compare-oriented-cell":119}],121:[function(require,module,exports){
 'use strict'
 
 var snapRound = require('clean-pslg')
@@ -11944,99 +13230,99 @@ function overlayPSLG(redPoints, redEdges, bluePoints, blueEdges, op) {
   }
 }
 
-},{"binary-search-bounds":41,"cdt2d":42,"clean-pslg":59,"simplicial-complex-boundary":105}],112:[function(require,module,exports){
-arguments[4][59][0].apply(exports,arguments)
-},{"./lib/rat-seg-intersect":113,"big-rat":117,"big-rat/cmp":115,"big-rat/to-float":132,"box-intersect":133,"compare-cell":143,"dup":59,"nextafter":144,"rat-vec":147,"robust-segment-intersect":156,"union-find":157}],113:[function(require,module,exports){
-arguments[4][60][0].apply(exports,arguments)
-},{"big-rat/div":116,"big-rat/mul":126,"big-rat/sign":130,"big-rat/sub":131,"big-rat/to-float":132,"dup":60,"rat-vec/add":146,"rat-vec/muls":148,"rat-vec/sub":149}],114:[function(require,module,exports){
-arguments[4][61][0].apply(exports,arguments)
-},{"./lib/rationalize":124,"dup":61}],115:[function(require,module,exports){
-arguments[4][62][0].apply(exports,arguments)
-},{"dup":62}],116:[function(require,module,exports){
-arguments[4][63][0].apply(exports,arguments)
-},{"./lib/rationalize":124,"dup":63}],117:[function(require,module,exports){
-arguments[4][64][0].apply(exports,arguments)
-},{"./div":116,"./is-rat":118,"./lib/is-bn":122,"./lib/num-to-bn":123,"./lib/rationalize":124,"./lib/str-to-bn":125,"dup":64}],118:[function(require,module,exports){
-arguments[4][65][0].apply(exports,arguments)
-},{"./lib/is-bn":122,"dup":65}],119:[function(require,module,exports){
-arguments[4][66][0].apply(exports,arguments)
-},{"bn.js":128,"dup":66}],120:[function(require,module,exports){
-arguments[4][67][0].apply(exports,arguments)
-},{"dup":67}],121:[function(require,module,exports){
-arguments[4][68][0].apply(exports,arguments)
-},{"bit-twiddle":127,"double-bits":129,"dup":68}],122:[function(require,module,exports){
+},{"binary-search-bounds":51,"cdt2d":52,"clean-pslg":69,"simplicial-complex-boundary":115}],122:[function(require,module,exports){
 arguments[4][69][0].apply(exports,arguments)
-},{"bn.js":128,"dup":69}],123:[function(require,module,exports){
+},{"./lib/rat-seg-intersect":123,"big-rat":127,"big-rat/cmp":125,"big-rat/to-float":142,"box-intersect":143,"compare-cell":153,"dup":69,"nextafter":154,"rat-vec":157,"robust-segment-intersect":166,"union-find":167}],123:[function(require,module,exports){
 arguments[4][70][0].apply(exports,arguments)
-},{"bn.js":128,"double-bits":129,"dup":70}],124:[function(require,module,exports){
+},{"big-rat/div":126,"big-rat/mul":136,"big-rat/sign":140,"big-rat/sub":141,"big-rat/to-float":142,"dup":70,"rat-vec/add":156,"rat-vec/muls":158,"rat-vec/sub":159}],124:[function(require,module,exports){
 arguments[4][71][0].apply(exports,arguments)
-},{"./bn-sign":119,"./num-to-bn":123,"dup":71}],125:[function(require,module,exports){
+},{"./lib/rationalize":134,"dup":71}],125:[function(require,module,exports){
 arguments[4][72][0].apply(exports,arguments)
-},{"bn.js":128,"dup":72}],126:[function(require,module,exports){
+},{"dup":72}],126:[function(require,module,exports){
 arguments[4][73][0].apply(exports,arguments)
-},{"./lib/rationalize":124,"dup":73}],127:[function(require,module,exports){
-arguments[4][35][0].apply(exports,arguments)
-},{"dup":35}],128:[function(require,module,exports){
+},{"./lib/rationalize":134,"dup":73}],127:[function(require,module,exports){
+arguments[4][74][0].apply(exports,arguments)
+},{"./div":126,"./is-rat":128,"./lib/is-bn":132,"./lib/num-to-bn":133,"./lib/rationalize":134,"./lib/str-to-bn":135,"dup":74}],128:[function(require,module,exports){
 arguments[4][75][0].apply(exports,arguments)
-},{"dup":75}],129:[function(require,module,exports){
+},{"./lib/is-bn":132,"dup":75}],129:[function(require,module,exports){
 arguments[4][76][0].apply(exports,arguments)
-},{"buffer":1,"dup":76}],130:[function(require,module,exports){
+},{"bn.js":138,"dup":76}],130:[function(require,module,exports){
 arguments[4][77][0].apply(exports,arguments)
-},{"./lib/bn-sign":119,"dup":77}],131:[function(require,module,exports){
+},{"dup":77}],131:[function(require,module,exports){
 arguments[4][78][0].apply(exports,arguments)
-},{"./lib/rationalize":124,"dup":78}],132:[function(require,module,exports){
+},{"bit-twiddle":137,"double-bits":139,"dup":78}],132:[function(require,module,exports){
 arguments[4][79][0].apply(exports,arguments)
-},{"./lib/bn-to-num":120,"./lib/ctz":121,"dup":79}],133:[function(require,module,exports){
+},{"bn.js":138,"dup":79}],133:[function(require,module,exports){
 arguments[4][80][0].apply(exports,arguments)
-},{"./lib/intersect":135,"./lib/sweep":139,"dup":80,"typedarray-pool":142}],134:[function(require,module,exports){
+},{"bn.js":138,"double-bits":139,"dup":80}],134:[function(require,module,exports){
 arguments[4][81][0].apply(exports,arguments)
-},{"dup":81}],135:[function(require,module,exports){
+},{"./bn-sign":129,"./num-to-bn":133,"dup":81}],135:[function(require,module,exports){
 arguments[4][82][0].apply(exports,arguments)
-},{"./brute":134,"./median":136,"./partition":137,"./sweep":139,"bit-twiddle":140,"dup":82,"typedarray-pool":142}],136:[function(require,module,exports){
+},{"bn.js":138,"dup":82}],136:[function(require,module,exports){
 arguments[4][83][0].apply(exports,arguments)
-},{"./partition":137,"dup":83}],137:[function(require,module,exports){
-arguments[4][84][0].apply(exports,arguments)
-},{"dup":84}],138:[function(require,module,exports){
+},{"./lib/rationalize":134,"dup":83}],137:[function(require,module,exports){
+arguments[4][45][0].apply(exports,arguments)
+},{"dup":45}],138:[function(require,module,exports){
 arguments[4][85][0].apply(exports,arguments)
 },{"dup":85}],139:[function(require,module,exports){
 arguments[4][86][0].apply(exports,arguments)
-},{"./sort":138,"bit-twiddle":140,"dup":86,"typedarray-pool":142}],140:[function(require,module,exports){
-arguments[4][35][0].apply(exports,arguments)
-},{"dup":35}],141:[function(require,module,exports){
-arguments[4][22][0].apply(exports,arguments)
-},{"dup":22}],142:[function(require,module,exports){
-arguments[4][37][0].apply(exports,arguments)
-},{"bit-twiddle":140,"buffer":1,"dup":37}],143:[function(require,module,exports){
+},{"buffer":1,"dup":86}],140:[function(require,module,exports){
+arguments[4][87][0].apply(exports,arguments)
+},{"./lib/bn-sign":129,"dup":87}],141:[function(require,module,exports){
+arguments[4][88][0].apply(exports,arguments)
+},{"./lib/rationalize":134,"dup":88}],142:[function(require,module,exports){
+arguments[4][89][0].apply(exports,arguments)
+},{"./lib/bn-to-num":130,"./lib/ctz":131,"dup":89}],143:[function(require,module,exports){
 arguments[4][90][0].apply(exports,arguments)
-},{"dup":90}],144:[function(require,module,exports){
+},{"./lib/intersect":145,"./lib/sweep":149,"dup":90,"typedarray-pool":152}],144:[function(require,module,exports){
 arguments[4][91][0].apply(exports,arguments)
-},{"double-bits":145,"dup":91}],145:[function(require,module,exports){
-arguments[4][76][0].apply(exports,arguments)
-},{"buffer":1,"dup":76}],146:[function(require,module,exports){
+},{"dup":91}],145:[function(require,module,exports){
+arguments[4][92][0].apply(exports,arguments)
+},{"./brute":144,"./median":146,"./partition":147,"./sweep":149,"bit-twiddle":150,"dup":92,"typedarray-pool":152}],146:[function(require,module,exports){
 arguments[4][93][0].apply(exports,arguments)
-},{"big-rat/add":114,"dup":93}],147:[function(require,module,exports){
+},{"./partition":147,"dup":93}],147:[function(require,module,exports){
 arguments[4][94][0].apply(exports,arguments)
-},{"big-rat":117,"dup":94}],148:[function(require,module,exports){
+},{"dup":94}],148:[function(require,module,exports){
 arguments[4][95][0].apply(exports,arguments)
-},{"big-rat":117,"big-rat/mul":126,"dup":95}],149:[function(require,module,exports){
+},{"dup":95}],149:[function(require,module,exports){
 arguments[4][96][0].apply(exports,arguments)
-},{"big-rat/sub":131,"dup":96}],150:[function(require,module,exports){
-arguments[4][7][0].apply(exports,arguments)
-},{"dup":7}],151:[function(require,module,exports){
-arguments[4][8][0].apply(exports,arguments)
-},{"dup":8,"two-product":154,"two-sum":150}],152:[function(require,module,exports){
-arguments[4][9][0].apply(exports,arguments)
-},{"dup":9}],153:[function(require,module,exports){
-arguments[4][10][0].apply(exports,arguments)
-},{"dup":10}],154:[function(require,module,exports){
-arguments[4][11][0].apply(exports,arguments)
-},{"dup":11}],155:[function(require,module,exports){
-arguments[4][12][0].apply(exports,arguments)
-},{"dup":12,"robust-scale":151,"robust-subtract":152,"robust-sum":153,"two-product":154}],156:[function(require,module,exports){
+},{"./sort":148,"bit-twiddle":150,"dup":96,"typedarray-pool":152}],150:[function(require,module,exports){
+arguments[4][45][0].apply(exports,arguments)
+},{"dup":45}],151:[function(require,module,exports){
+arguments[4][22][0].apply(exports,arguments)
+},{"dup":22}],152:[function(require,module,exports){
+arguments[4][47][0].apply(exports,arguments)
+},{"bit-twiddle":150,"buffer":1,"dup":47}],153:[function(require,module,exports){
+arguments[4][100][0].apply(exports,arguments)
+},{"dup":100}],154:[function(require,module,exports){
+arguments[4][101][0].apply(exports,arguments)
+},{"double-bits":155,"dup":101}],155:[function(require,module,exports){
+arguments[4][86][0].apply(exports,arguments)
+},{"buffer":1,"dup":86}],156:[function(require,module,exports){
 arguments[4][103][0].apply(exports,arguments)
-},{"dup":103,"robust-orientation":155}],157:[function(require,module,exports){
+},{"big-rat/add":124,"dup":103}],157:[function(require,module,exports){
 arguments[4][104][0].apply(exports,arguments)
-},{"dup":104}],158:[function(require,module,exports){
+},{"big-rat":127,"dup":104}],158:[function(require,module,exports){
+arguments[4][105][0].apply(exports,arguments)
+},{"big-rat":127,"big-rat/mul":136,"dup":105}],159:[function(require,module,exports){
+arguments[4][106][0].apply(exports,arguments)
+},{"big-rat/sub":141,"dup":106}],160:[function(require,module,exports){
+arguments[4][7][0].apply(exports,arguments)
+},{"dup":7}],161:[function(require,module,exports){
+arguments[4][8][0].apply(exports,arguments)
+},{"dup":8,"two-product":164,"two-sum":160}],162:[function(require,module,exports){
+arguments[4][9][0].apply(exports,arguments)
+},{"dup":9}],163:[function(require,module,exports){
+arguments[4][10][0].apply(exports,arguments)
+},{"dup":10}],164:[function(require,module,exports){
+arguments[4][11][0].apply(exports,arguments)
+},{"dup":11}],165:[function(require,module,exports){
+arguments[4][12][0].apply(exports,arguments)
+},{"dup":12,"robust-scale":161,"robust-subtract":162,"robust-sum":163,"two-product":164}],166:[function(require,module,exports){
+arguments[4][113][0].apply(exports,arguments)
+},{"dup":113,"robust-orientation":165}],167:[function(require,module,exports){
+arguments[4][114][0].apply(exports,arguments)
+},{"dup":114}],168:[function(require,module,exports){
 'use strict'
 
 module.exports = polygonToPSLG
@@ -12093,55 +13379,55 @@ function polygonToPSLG(loops, options) {
   }
 }
 
-},{"clean-pslg":112}],159:[function(require,module,exports){
-arguments[4][42][0].apply(exports,arguments)
-},{"./lib/delaunay":160,"./lib/filter":161,"./lib/monotone":162,"./lib/triangulation":163,"dup":42}],160:[function(require,module,exports){
-arguments[4][43][0].apply(exports,arguments)
-},{"binary-search-bounds":164,"dup":43,"robust-in-sphere":165}],161:[function(require,module,exports){
-arguments[4][44][0].apply(exports,arguments)
-},{"binary-search-bounds":164,"dup":44}],162:[function(require,module,exports){
-arguments[4][45][0].apply(exports,arguments)
-},{"binary-search-bounds":164,"dup":45,"robust-orientation":176}],163:[function(require,module,exports){
-arguments[4][46][0].apply(exports,arguments)
-},{"binary-search-bounds":164,"dup":46}],164:[function(require,module,exports){
-arguments[4][41][0].apply(exports,arguments)
-},{"dup":41}],165:[function(require,module,exports){
-arguments[4][47][0].apply(exports,arguments)
-},{"dup":47,"robust-scale":167,"robust-subtract":168,"robust-sum":169,"two-product":170}],166:[function(require,module,exports){
+},{"clean-pslg":122}],169:[function(require,module,exports){
+arguments[4][52][0].apply(exports,arguments)
+},{"./lib/delaunay":170,"./lib/filter":171,"./lib/monotone":172,"./lib/triangulation":173,"dup":52}],170:[function(require,module,exports){
+arguments[4][53][0].apply(exports,arguments)
+},{"binary-search-bounds":174,"dup":53,"robust-in-sphere":175}],171:[function(require,module,exports){
+arguments[4][54][0].apply(exports,arguments)
+},{"binary-search-bounds":174,"dup":54}],172:[function(require,module,exports){
+arguments[4][55][0].apply(exports,arguments)
+},{"binary-search-bounds":174,"dup":55,"robust-orientation":186}],173:[function(require,module,exports){
+arguments[4][56][0].apply(exports,arguments)
+},{"binary-search-bounds":174,"dup":56}],174:[function(require,module,exports){
+arguments[4][51][0].apply(exports,arguments)
+},{"dup":51}],175:[function(require,module,exports){
+arguments[4][57][0].apply(exports,arguments)
+},{"dup":57,"robust-scale":177,"robust-subtract":178,"robust-sum":179,"two-product":180}],176:[function(require,module,exports){
 arguments[4][7][0].apply(exports,arguments)
-},{"dup":7}],167:[function(require,module,exports){
+},{"dup":7}],177:[function(require,module,exports){
 arguments[4][8][0].apply(exports,arguments)
-},{"dup":8,"two-product":170,"two-sum":166}],168:[function(require,module,exports){
+},{"dup":8,"two-product":180,"two-sum":176}],178:[function(require,module,exports){
 arguments[4][9][0].apply(exports,arguments)
-},{"dup":9}],169:[function(require,module,exports){
+},{"dup":9}],179:[function(require,module,exports){
 arguments[4][10][0].apply(exports,arguments)
-},{"dup":10}],170:[function(require,module,exports){
+},{"dup":10}],180:[function(require,module,exports){
 arguments[4][11][0].apply(exports,arguments)
-},{"dup":11}],171:[function(require,module,exports){
+},{"dup":11}],181:[function(require,module,exports){
 arguments[4][7][0].apply(exports,arguments)
-},{"dup":7}],172:[function(require,module,exports){
+},{"dup":7}],182:[function(require,module,exports){
 arguments[4][8][0].apply(exports,arguments)
-},{"dup":8,"two-product":175,"two-sum":171}],173:[function(require,module,exports){
+},{"dup":8,"two-product":185,"two-sum":181}],183:[function(require,module,exports){
 arguments[4][9][0].apply(exports,arguments)
-},{"dup":9}],174:[function(require,module,exports){
+},{"dup":9}],184:[function(require,module,exports){
 arguments[4][10][0].apply(exports,arguments)
-},{"dup":10}],175:[function(require,module,exports){
+},{"dup":10}],185:[function(require,module,exports){
 arguments[4][11][0].apply(exports,arguments)
-},{"dup":11}],176:[function(require,module,exports){
+},{"dup":11}],186:[function(require,module,exports){
 arguments[4][12][0].apply(exports,arguments)
-},{"dup":12,"robust-scale":172,"robust-subtract":173,"robust-sum":174,"two-product":175}],177:[function(require,module,exports){
-arguments[4][105][0].apply(exports,arguments)
-},{"boundary-cells":178,"dup":105,"reduce-simplicial-complex":182}],178:[function(require,module,exports){
-arguments[4][106][0].apply(exports,arguments)
-},{"dup":106}],179:[function(require,module,exports){
-arguments[4][107][0].apply(exports,arguments)
-},{"dup":107}],180:[function(require,module,exports){
-arguments[4][90][0].apply(exports,arguments)
-},{"dup":90}],181:[function(require,module,exports){
-arguments[4][109][0].apply(exports,arguments)
-},{"cell-orientation":179,"compare-cell":180,"dup":109}],182:[function(require,module,exports){
-arguments[4][110][0].apply(exports,arguments)
-},{"cell-orientation":179,"compare-cell":180,"compare-oriented-cell":181,"dup":110}],183:[function(require,module,exports){
+},{"dup":12,"robust-scale":182,"robust-subtract":183,"robust-sum":184,"two-product":185}],187:[function(require,module,exports){
+arguments[4][115][0].apply(exports,arguments)
+},{"boundary-cells":188,"dup":115,"reduce-simplicial-complex":192}],188:[function(require,module,exports){
+arguments[4][116][0].apply(exports,arguments)
+},{"dup":116}],189:[function(require,module,exports){
+arguments[4][117][0].apply(exports,arguments)
+},{"dup":117}],190:[function(require,module,exports){
+arguments[4][100][0].apply(exports,arguments)
+},{"dup":100}],191:[function(require,module,exports){
+arguments[4][119][0].apply(exports,arguments)
+},{"cell-orientation":189,"compare-cell":190,"dup":119}],192:[function(require,module,exports){
+arguments[4][120][0].apply(exports,arguments)
+},{"cell-orientation":189,"compare-cell":190,"compare-oriented-cell":191,"dup":120}],193:[function(require,module,exports){
 'use strict'
 
 var cdt2d     = require('cdt2d')
@@ -12186,12 +13472,12 @@ function pslgToPolygon(points, edges) {
   return loops
 }
 
-},{"cdt2d":159,"simplicial-complex-boundary":177}],184:[function(require,module,exports){
+},{"cdt2d":169,"simplicial-complex-boundary":187}],194:[function(require,module,exports){
 // expose module classes
 
 exports.intersect = require('./lib/intersect');
 exports.shape = require('./lib/IntersectionParams').newShape;
-},{"./lib/IntersectionParams":186,"./lib/intersect":187}],185:[function(require,module,exports){
+},{"./lib/IntersectionParams":196,"./lib/intersect":197}],195:[function(require,module,exports){
 /**
  *  Intersection
  */
@@ -12230,7 +13516,7 @@ Intersection.prototype.appendPoints = function(points) {
 
 module.exports = Intersection;
 
-},{}],186:[function(require,module,exports){
+},{}],196:[function(require,module,exports){
 var Point2D = require('kld-affine').Point2D;
 
 
@@ -13132,7 +14418,7 @@ RelativeSmoothCurveto3.prototype.getIntersectionParams = function() {
 
 module.exports = IntersectionParams;
 
-},{"kld-affine":188}],187:[function(require,module,exports){
+},{"kld-affine":198}],197:[function(require,module,exports){
 /**
  *
  *  Intersection.js
@@ -13838,14 +15124,14 @@ module.exports = intersect;
  
 
 
-},{"./Intersection":185,"./IntersectionParams":186,"kld-affine":188,"kld-polynomial":192}],188:[function(require,module,exports){
+},{"./Intersection":195,"./IntersectionParams":196,"kld-affine":198,"kld-polynomial":202}],198:[function(require,module,exports){
 // expose classes
 
 exports.Point2D = require('./lib/Point2D');
 exports.Vector2D = require('./lib/Vector2D');
 exports.Matrix2D = require('./lib/Matrix2D');
 
-},{"./lib/Matrix2D":189,"./lib/Point2D":190,"./lib/Vector2D":191}],189:[function(require,module,exports){
+},{"./lib/Matrix2D":199,"./lib/Point2D":200,"./lib/Vector2D":201}],199:[function(require,module,exports){
 /**
  *
  *   Matrix2D.js
@@ -14271,7 +15557,7 @@ Matrix2D.prototype.toString = function() {
 if (typeof module !== "undefined") {
     module.exports = Matrix2D;
 }
-},{}],190:[function(require,module,exports){
+},{}],200:[function(require,module,exports){
 /**
  *
  *   Point2D.js
@@ -14448,7 +15734,7 @@ if (typeof module !== "undefined") {
     module.exports = Point2D;
 }
 
-},{}],191:[function(require,module,exports){
+},{}],201:[function(require,module,exports){
 /**
  *
  *   Vector2D.js
@@ -14684,13 +15970,13 @@ if (typeof module !== "undefined") {
     module.exports = Vector2D;
 }
 
-},{}],192:[function(require,module,exports){
+},{}],202:[function(require,module,exports){
 // expose classes
 
 exports.Polynomial = require('./lib/Polynomial');
 exports.SqrtPolynomial = require('./lib/SqrtPolynomial');
 
-},{"./lib/Polynomial":193,"./lib/SqrtPolynomial":194}],193:[function(require,module,exports){
+},{"./lib/Polynomial":203,"./lib/SqrtPolynomial":204}],203:[function(require,module,exports){
 /**
  *
  *   Polynomial.js
@@ -15322,7 +16608,7 @@ if (typeof module !== "undefined") {
     module.exports = Polynomial;
 }
 
-},{}],194:[function(require,module,exports){
+},{}],204:[function(require,module,exports){
 /**
  *
  *   SqrtPolynomial.js
@@ -15384,7 +16670,7 @@ if (typeof module !== "undefined") {
     module.exports = SqrtPolynomial;
 }
 
-},{"./Polynomial":193}],195:[function(require,module,exports){
+},{"./Polynomial":203}],205:[function(require,module,exports){
 var parseSVG = require('parse-svg-path')
 var getContours = require('svg-path-contours')
 var cdt2d = require('cdt2d')
@@ -15508,7 +16794,7 @@ function denestPolyline (nested) {
   }
 }
 
-},{"bound-points":196,"cdt2d":197,"clean-pslg":215,"normalize-path-scale":261,"object-assign":263,"parse-svg-path":264,"random-float":265,"simplify-path":267,"svg-path-contours":269}],196:[function(require,module,exports){
+},{"bound-points":206,"cdt2d":207,"clean-pslg":225,"normalize-path-scale":271,"object-assign":273,"parse-svg-path":274,"random-float":275,"simplify-path":277,"svg-path-contours":279}],206:[function(require,module,exports){
 'use strict'
 
 module.exports = findBounds
@@ -15531,135 +16817,135 @@ function findBounds(points) {
   }
   return [lo, hi]
 }
-},{}],197:[function(require,module,exports){
-arguments[4][42][0].apply(exports,arguments)
-},{"./lib/delaunay":198,"./lib/filter":199,"./lib/monotone":200,"./lib/triangulation":201,"dup":42}],198:[function(require,module,exports){
-arguments[4][43][0].apply(exports,arguments)
-},{"binary-search-bounds":202,"dup":43,"robust-in-sphere":203}],199:[function(require,module,exports){
-arguments[4][44][0].apply(exports,arguments)
-},{"binary-search-bounds":202,"dup":44}],200:[function(require,module,exports){
-arguments[4][45][0].apply(exports,arguments)
-},{"binary-search-bounds":202,"dup":45,"robust-orientation":214}],201:[function(require,module,exports){
-arguments[4][46][0].apply(exports,arguments)
-},{"binary-search-bounds":202,"dup":46}],202:[function(require,module,exports){
-arguments[4][41][0].apply(exports,arguments)
-},{"dup":41}],203:[function(require,module,exports){
-arguments[4][47][0].apply(exports,arguments)
-},{"dup":47,"robust-scale":205,"robust-subtract":206,"robust-sum":207,"two-product":208}],204:[function(require,module,exports){
+},{}],207:[function(require,module,exports){
+arguments[4][52][0].apply(exports,arguments)
+},{"./lib/delaunay":208,"./lib/filter":209,"./lib/monotone":210,"./lib/triangulation":211,"dup":52}],208:[function(require,module,exports){
+arguments[4][53][0].apply(exports,arguments)
+},{"binary-search-bounds":212,"dup":53,"robust-in-sphere":213}],209:[function(require,module,exports){
+arguments[4][54][0].apply(exports,arguments)
+},{"binary-search-bounds":212,"dup":54}],210:[function(require,module,exports){
+arguments[4][55][0].apply(exports,arguments)
+},{"binary-search-bounds":212,"dup":55,"robust-orientation":224}],211:[function(require,module,exports){
+arguments[4][56][0].apply(exports,arguments)
+},{"binary-search-bounds":212,"dup":56}],212:[function(require,module,exports){
+arguments[4][51][0].apply(exports,arguments)
+},{"dup":51}],213:[function(require,module,exports){
+arguments[4][57][0].apply(exports,arguments)
+},{"dup":57,"robust-scale":215,"robust-subtract":216,"robust-sum":217,"two-product":218}],214:[function(require,module,exports){
 arguments[4][7][0].apply(exports,arguments)
-},{"dup":7}],205:[function(require,module,exports){
+},{"dup":7}],215:[function(require,module,exports){
 arguments[4][8][0].apply(exports,arguments)
-},{"dup":8,"two-product":208,"two-sum":204}],206:[function(require,module,exports){
+},{"dup":8,"two-product":218,"two-sum":214}],216:[function(require,module,exports){
 arguments[4][9][0].apply(exports,arguments)
-},{"dup":9}],207:[function(require,module,exports){
+},{"dup":9}],217:[function(require,module,exports){
 arguments[4][10][0].apply(exports,arguments)
-},{"dup":10}],208:[function(require,module,exports){
+},{"dup":10}],218:[function(require,module,exports){
 arguments[4][11][0].apply(exports,arguments)
-},{"dup":11}],209:[function(require,module,exports){
+},{"dup":11}],219:[function(require,module,exports){
 arguments[4][7][0].apply(exports,arguments)
-},{"dup":7}],210:[function(require,module,exports){
+},{"dup":7}],220:[function(require,module,exports){
 arguments[4][8][0].apply(exports,arguments)
-},{"dup":8,"two-product":213,"two-sum":209}],211:[function(require,module,exports){
+},{"dup":8,"two-product":223,"two-sum":219}],221:[function(require,module,exports){
 arguments[4][9][0].apply(exports,arguments)
-},{"dup":9}],212:[function(require,module,exports){
+},{"dup":9}],222:[function(require,module,exports){
 arguments[4][10][0].apply(exports,arguments)
-},{"dup":10}],213:[function(require,module,exports){
+},{"dup":10}],223:[function(require,module,exports){
 arguments[4][11][0].apply(exports,arguments)
-},{"dup":11}],214:[function(require,module,exports){
+},{"dup":11}],224:[function(require,module,exports){
 arguments[4][12][0].apply(exports,arguments)
-},{"dup":12,"robust-scale":210,"robust-subtract":211,"robust-sum":212,"two-product":213}],215:[function(require,module,exports){
-arguments[4][59][0].apply(exports,arguments)
-},{"./lib/rat-seg-intersect":216,"big-rat":220,"big-rat/cmp":218,"big-rat/to-float":235,"box-intersect":236,"compare-cell":246,"dup":59,"nextafter":247,"rat-vec":250,"robust-segment-intersect":259,"union-find":260}],216:[function(require,module,exports){
-arguments[4][60][0].apply(exports,arguments)
-},{"big-rat/div":219,"big-rat/mul":229,"big-rat/sign":233,"big-rat/sub":234,"big-rat/to-float":235,"dup":60,"rat-vec/add":249,"rat-vec/muls":251,"rat-vec/sub":252}],217:[function(require,module,exports){
-arguments[4][61][0].apply(exports,arguments)
-},{"./lib/rationalize":227,"dup":61}],218:[function(require,module,exports){
-arguments[4][62][0].apply(exports,arguments)
-},{"dup":62}],219:[function(require,module,exports){
-arguments[4][63][0].apply(exports,arguments)
-},{"./lib/rationalize":227,"dup":63}],220:[function(require,module,exports){
-arguments[4][64][0].apply(exports,arguments)
-},{"./div":219,"./is-rat":221,"./lib/is-bn":225,"./lib/num-to-bn":226,"./lib/rationalize":227,"./lib/str-to-bn":228,"dup":64}],221:[function(require,module,exports){
-arguments[4][65][0].apply(exports,arguments)
-},{"./lib/is-bn":225,"dup":65}],222:[function(require,module,exports){
-arguments[4][66][0].apply(exports,arguments)
-},{"bn.js":231,"dup":66}],223:[function(require,module,exports){
-arguments[4][67][0].apply(exports,arguments)
-},{"dup":67}],224:[function(require,module,exports){
-arguments[4][68][0].apply(exports,arguments)
-},{"bit-twiddle":230,"double-bits":232,"dup":68}],225:[function(require,module,exports){
+},{"dup":12,"robust-scale":220,"robust-subtract":221,"robust-sum":222,"two-product":223}],225:[function(require,module,exports){
 arguments[4][69][0].apply(exports,arguments)
-},{"bn.js":231,"dup":69}],226:[function(require,module,exports){
+},{"./lib/rat-seg-intersect":226,"big-rat":230,"big-rat/cmp":228,"big-rat/to-float":245,"box-intersect":246,"compare-cell":256,"dup":69,"nextafter":257,"rat-vec":260,"robust-segment-intersect":269,"union-find":270}],226:[function(require,module,exports){
 arguments[4][70][0].apply(exports,arguments)
-},{"bn.js":231,"double-bits":232,"dup":70}],227:[function(require,module,exports){
+},{"big-rat/div":229,"big-rat/mul":239,"big-rat/sign":243,"big-rat/sub":244,"big-rat/to-float":245,"dup":70,"rat-vec/add":259,"rat-vec/muls":261,"rat-vec/sub":262}],227:[function(require,module,exports){
 arguments[4][71][0].apply(exports,arguments)
-},{"./bn-sign":222,"./num-to-bn":226,"dup":71}],228:[function(require,module,exports){
+},{"./lib/rationalize":237,"dup":71}],228:[function(require,module,exports){
 arguments[4][72][0].apply(exports,arguments)
-},{"bn.js":231,"dup":72}],229:[function(require,module,exports){
+},{"dup":72}],229:[function(require,module,exports){
 arguments[4][73][0].apply(exports,arguments)
-},{"./lib/rationalize":227,"dup":73}],230:[function(require,module,exports){
-arguments[4][35][0].apply(exports,arguments)
-},{"dup":35}],231:[function(require,module,exports){
+},{"./lib/rationalize":237,"dup":73}],230:[function(require,module,exports){
+arguments[4][74][0].apply(exports,arguments)
+},{"./div":229,"./is-rat":231,"./lib/is-bn":235,"./lib/num-to-bn":236,"./lib/rationalize":237,"./lib/str-to-bn":238,"dup":74}],231:[function(require,module,exports){
 arguments[4][75][0].apply(exports,arguments)
-},{"dup":75}],232:[function(require,module,exports){
+},{"./lib/is-bn":235,"dup":75}],232:[function(require,module,exports){
 arguments[4][76][0].apply(exports,arguments)
-},{"buffer":1,"dup":76}],233:[function(require,module,exports){
+},{"bn.js":241,"dup":76}],233:[function(require,module,exports){
 arguments[4][77][0].apply(exports,arguments)
-},{"./lib/bn-sign":222,"dup":77}],234:[function(require,module,exports){
+},{"dup":77}],234:[function(require,module,exports){
 arguments[4][78][0].apply(exports,arguments)
-},{"./lib/rationalize":227,"dup":78}],235:[function(require,module,exports){
+},{"bit-twiddle":240,"double-bits":242,"dup":78}],235:[function(require,module,exports){
 arguments[4][79][0].apply(exports,arguments)
-},{"./lib/bn-to-num":223,"./lib/ctz":224,"dup":79}],236:[function(require,module,exports){
+},{"bn.js":241,"dup":79}],236:[function(require,module,exports){
 arguments[4][80][0].apply(exports,arguments)
-},{"./lib/intersect":238,"./lib/sweep":242,"dup":80,"typedarray-pool":245}],237:[function(require,module,exports){
+},{"bn.js":241,"double-bits":242,"dup":80}],237:[function(require,module,exports){
 arguments[4][81][0].apply(exports,arguments)
-},{"dup":81}],238:[function(require,module,exports){
+},{"./bn-sign":232,"./num-to-bn":236,"dup":81}],238:[function(require,module,exports){
 arguments[4][82][0].apply(exports,arguments)
-},{"./brute":237,"./median":239,"./partition":240,"./sweep":242,"bit-twiddle":243,"dup":82,"typedarray-pool":245}],239:[function(require,module,exports){
+},{"bn.js":241,"dup":82}],239:[function(require,module,exports){
 arguments[4][83][0].apply(exports,arguments)
-},{"./partition":240,"dup":83}],240:[function(require,module,exports){
-arguments[4][84][0].apply(exports,arguments)
-},{"dup":84}],241:[function(require,module,exports){
+},{"./lib/rationalize":237,"dup":83}],240:[function(require,module,exports){
+arguments[4][45][0].apply(exports,arguments)
+},{"dup":45}],241:[function(require,module,exports){
 arguments[4][85][0].apply(exports,arguments)
 },{"dup":85}],242:[function(require,module,exports){
 arguments[4][86][0].apply(exports,arguments)
-},{"./sort":241,"bit-twiddle":243,"dup":86,"typedarray-pool":245}],243:[function(require,module,exports){
-arguments[4][35][0].apply(exports,arguments)
-},{"dup":35}],244:[function(require,module,exports){
-arguments[4][22][0].apply(exports,arguments)
-},{"dup":22}],245:[function(require,module,exports){
-arguments[4][37][0].apply(exports,arguments)
-},{"bit-twiddle":243,"buffer":1,"dup":37}],246:[function(require,module,exports){
+},{"buffer":1,"dup":86}],243:[function(require,module,exports){
+arguments[4][87][0].apply(exports,arguments)
+},{"./lib/bn-sign":232,"dup":87}],244:[function(require,module,exports){
+arguments[4][88][0].apply(exports,arguments)
+},{"./lib/rationalize":237,"dup":88}],245:[function(require,module,exports){
+arguments[4][89][0].apply(exports,arguments)
+},{"./lib/bn-to-num":233,"./lib/ctz":234,"dup":89}],246:[function(require,module,exports){
 arguments[4][90][0].apply(exports,arguments)
-},{"dup":90}],247:[function(require,module,exports){
+},{"./lib/intersect":248,"./lib/sweep":252,"dup":90,"typedarray-pool":255}],247:[function(require,module,exports){
 arguments[4][91][0].apply(exports,arguments)
-},{"double-bits":248,"dup":91}],248:[function(require,module,exports){
-arguments[4][76][0].apply(exports,arguments)
-},{"buffer":1,"dup":76}],249:[function(require,module,exports){
+},{"dup":91}],248:[function(require,module,exports){
+arguments[4][92][0].apply(exports,arguments)
+},{"./brute":247,"./median":249,"./partition":250,"./sweep":252,"bit-twiddle":253,"dup":92,"typedarray-pool":255}],249:[function(require,module,exports){
 arguments[4][93][0].apply(exports,arguments)
-},{"big-rat/add":217,"dup":93}],250:[function(require,module,exports){
+},{"./partition":250,"dup":93}],250:[function(require,module,exports){
 arguments[4][94][0].apply(exports,arguments)
-},{"big-rat":220,"dup":94}],251:[function(require,module,exports){
+},{"dup":94}],251:[function(require,module,exports){
 arguments[4][95][0].apply(exports,arguments)
-},{"big-rat":220,"big-rat/mul":229,"dup":95}],252:[function(require,module,exports){
+},{"dup":95}],252:[function(require,module,exports){
 arguments[4][96][0].apply(exports,arguments)
-},{"big-rat/sub":234,"dup":96}],253:[function(require,module,exports){
-arguments[4][7][0].apply(exports,arguments)
-},{"dup":7}],254:[function(require,module,exports){
-arguments[4][8][0].apply(exports,arguments)
-},{"dup":8,"two-product":257,"two-sum":253}],255:[function(require,module,exports){
-arguments[4][9][0].apply(exports,arguments)
-},{"dup":9}],256:[function(require,module,exports){
-arguments[4][10][0].apply(exports,arguments)
-},{"dup":10}],257:[function(require,module,exports){
-arguments[4][11][0].apply(exports,arguments)
-},{"dup":11}],258:[function(require,module,exports){
-arguments[4][12][0].apply(exports,arguments)
-},{"dup":12,"robust-scale":254,"robust-subtract":255,"robust-sum":256,"two-product":257}],259:[function(require,module,exports){
+},{"./sort":251,"bit-twiddle":253,"dup":96,"typedarray-pool":255}],253:[function(require,module,exports){
+arguments[4][45][0].apply(exports,arguments)
+},{"dup":45}],254:[function(require,module,exports){
+arguments[4][22][0].apply(exports,arguments)
+},{"dup":22}],255:[function(require,module,exports){
+arguments[4][47][0].apply(exports,arguments)
+},{"bit-twiddle":253,"buffer":1,"dup":47}],256:[function(require,module,exports){
+arguments[4][100][0].apply(exports,arguments)
+},{"dup":100}],257:[function(require,module,exports){
+arguments[4][101][0].apply(exports,arguments)
+},{"double-bits":258,"dup":101}],258:[function(require,module,exports){
+arguments[4][86][0].apply(exports,arguments)
+},{"buffer":1,"dup":86}],259:[function(require,module,exports){
 arguments[4][103][0].apply(exports,arguments)
-},{"dup":103,"robust-orientation":258}],260:[function(require,module,exports){
+},{"big-rat/add":227,"dup":103}],260:[function(require,module,exports){
 arguments[4][104][0].apply(exports,arguments)
-},{"dup":104}],261:[function(require,module,exports){
+},{"big-rat":230,"dup":104}],261:[function(require,module,exports){
+arguments[4][105][0].apply(exports,arguments)
+},{"big-rat":230,"big-rat/mul":239,"dup":105}],262:[function(require,module,exports){
+arguments[4][106][0].apply(exports,arguments)
+},{"big-rat/sub":244,"dup":106}],263:[function(require,module,exports){
+arguments[4][7][0].apply(exports,arguments)
+},{"dup":7}],264:[function(require,module,exports){
+arguments[4][8][0].apply(exports,arguments)
+},{"dup":8,"two-product":267,"two-sum":263}],265:[function(require,module,exports){
+arguments[4][9][0].apply(exports,arguments)
+},{"dup":9}],266:[function(require,module,exports){
+arguments[4][10][0].apply(exports,arguments)
+},{"dup":10}],267:[function(require,module,exports){
+arguments[4][11][0].apply(exports,arguments)
+},{"dup":11}],268:[function(require,module,exports){
+arguments[4][12][0].apply(exports,arguments)
+},{"dup":12,"robust-scale":264,"robust-subtract":265,"robust-sum":266,"two-product":267}],269:[function(require,module,exports){
+arguments[4][113][0].apply(exports,arguments)
+},{"dup":113,"robust-orientation":268}],270:[function(require,module,exports){
+arguments[4][114][0].apply(exports,arguments)
+},{"dup":114}],271:[function(require,module,exports){
 var getBounds = require('bound-points')
 var unlerp = require('unlerp')
 
@@ -15692,11 +16978,11 @@ function normalizePathScale (positions, bounds) {
   }
   return positions
 }
-},{"bound-points":196,"unlerp":262}],262:[function(require,module,exports){
+},{"bound-points":206,"unlerp":272}],272:[function(require,module,exports){
 module.exports = function range(min, max, value) {
   return (value - min) / (max - min)
 }
-},{}],263:[function(require,module,exports){
+},{}],273:[function(require,module,exports){
 /* eslint-disable no-unused-vars */
 'use strict';
 var hasOwnProperty = Object.prototype.hasOwnProperty;
@@ -15737,7 +17023,7 @@ module.exports = Object.assign || function (target, source) {
 	return to;
 };
 
-},{}],264:[function(require,module,exports){
+},{}],274:[function(require,module,exports){
 
 module.exports = parse
 
@@ -15794,7 +17080,7 @@ function parseValues(args){
 	return args ? args.map(Number) : []
 }
 
-},{}],265:[function(require,module,exports){
+},{}],275:[function(require,module,exports){
 'use strict';
 module.exports = function (min, max) {
 	if (max === undefined) {
@@ -15809,7 +17095,7 @@ module.exports = function (min, max) {
 	return Math.random() * (max - min) + min;
 };
 
-},{}],266:[function(require,module,exports){
+},{}],276:[function(require,module,exports){
 // square distance from a point to a segment
 function getSqSegDist(p, p1, p2) {
     var x = p1[0],
@@ -15873,7 +17159,7 @@ module.exports = function simplifyDouglasPeucker(points, tolerance) {
     return simplified;
 }
 
-},{}],267:[function(require,module,exports){
+},{}],277:[function(require,module,exports){
 var simplifyRadialDist = require('./radial-distance')
 var simplifyDouglasPeucker = require('./douglas-peucker')
 
@@ -15886,7 +17172,7 @@ module.exports = function simplify(points, tolerance) {
 
 module.exports.radialDistance = simplifyRadialDist;
 module.exports.douglasPeucker = simplifyDouglasPeucker;
-},{"./douglas-peucker":266,"./radial-distance":268}],268:[function(require,module,exports){
+},{"./douglas-peucker":276,"./radial-distance":278}],278:[function(require,module,exports){
 function getSqDist(p1, p2) {
     var dx = p1[0] - p2[0],
         dy = p1[1] - p2[1];
@@ -15918,7 +17204,7 @@ module.exports = function simplifyRadialDist(points, tolerance) {
 
     return newPoints;
 }
-},{}],269:[function(require,module,exports){
+},{}],279:[function(require,module,exports){
 var bezier = require('adaptive-bezier-curve')
 var abs = require('abs-svg-path')
 var norm = require('normalize-svg-path')
@@ -15964,7 +17250,7 @@ module.exports = function contours(svg, scale) {
         paths.push(points)
     return paths
 }
-},{"abs-svg-path":270,"adaptive-bezier-curve":272,"normalize-svg-path":273,"vec2-copy":274}],270:[function(require,module,exports){
+},{"abs-svg-path":280,"adaptive-bezier-curve":282,"normalize-svg-path":283,"vec2-copy":284}],280:[function(require,module,exports){
 
 module.exports = absolutize
 
@@ -16033,7 +17319,7 @@ function absolutize(path){
 	})
 }
 
-},{}],271:[function(require,module,exports){
+},{}],281:[function(require,module,exports){
 function clone(point) { //TODO: use gl-vec2 for this
     return [point[0], point[1]]
 }
@@ -16232,9 +17518,9 @@ module.exports = function createBezierBuilder(opt) {
     }
 }
 
-},{}],272:[function(require,module,exports){
+},{}],282:[function(require,module,exports){
 module.exports = require('./function')()
-},{"./function":271}],273:[function(require,module,exports){
+},{"./function":281}],283:[function(require,module,exports){
 
 var π = Math.PI
 var _120 = radians(120)
@@ -16436,13 +17722,13 @@ function radians(degress){
 	return degress * (π / 180)
 }
 
-},{}],274:[function(require,module,exports){
+},{}],284:[function(require,module,exports){
 module.exports = function vec2Copy(out, a) {
     out[0] = a[0]
     out[1] = a[1]
     return out
 }
-},{}],275:[function(require,module,exports){
+},{}],285:[function(require,module,exports){
 var inherits = require('inherits')
 
 module.exports = function(THREE) {
@@ -16496,7 +17782,7 @@ module.exports = function(THREE) {
 
     return Complex
 }
-},{"inherits":276}],276:[function(require,module,exports){
+},{"inherits":286}],286:[function(require,module,exports){
 if (typeof Object.create === 'function') {
   // implementation from standard node.js 'util' module
   module.exports = function inherits(ctor, superCtor) {
@@ -16521,7 +17807,7 @@ if (typeof Object.create === 'function') {
   }
 }
 
-},{}],277:[function(require,module,exports){
+},{}],287:[function(require,module,exports){
 module.exports = unindex
 
 function unindex(positions, cells, out) {
@@ -16575,7 +17861,7 @@ function unindex(positions, cells, out) {
   return out
 }
 
-},{}],278:[function(require,module,exports){
+},{}],288:[function(require,module,exports){
 window.loadSvg = require('load-svg')
 window.parsePath = require('extract-svg-path').parse
 window.svgMesh3d = require('svg-mesh-3d')
@@ -16589,5 +17875,5 @@ window.svgIntersections = require('svg-intersections');
 window.polygonBoolean = require('2d-polygon-boolean');
 window.polybool = require('poly-bool');
 window.inside = require('point-in-triangle');
-
-},{"2d-polygon-boolean":5,"csr-matrix":20,"draw-triangles-2d":23,"extract-svg-path":24,"load-svg":26,"mesh-laplacian":34,"mesh-reindex":38,"point-in-triangle":39,"poly-bool":40,"svg-intersections":184,"svg-mesh-3d":195,"three-simplicial-complex":275,"unindex-mesh":277}]},{},[278]);
+window.ghClip = require('gh-clipping-algorithm');
+},{"2d-polygon-boolean":5,"csr-matrix":20,"draw-triangles-2d":23,"extract-svg-path":24,"gh-clipping-algorithm":26,"load-svg":36,"mesh-laplacian":44,"mesh-reindex":48,"point-in-triangle":49,"poly-bool":50,"svg-intersections":194,"svg-mesh-3d":205,"three-simplicial-complex":285,"unindex-mesh":287}]},{},[288]);

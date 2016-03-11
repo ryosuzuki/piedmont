@@ -9,9 +9,9 @@ var material = new THREE.MeshBasicMaterial({
 
 function drawObjects () {
   // size = 2
-  var r = 1
-  var geometry = new THREE.BoxGeometry(size, size, size, r, r, r)
-  // var geometry = new THREE.CylinderGeometry(size, size, size*2, 30)
+  var r = 10
+  // var geometry = new THREE.BoxGeometry(size, size, size, r, r, r)
+  var geometry = new THREE.CylinderGeometry(size, size, size*2, 30)
   mesh = new THREE.Mesh(geometry, material);
   mesh.geometry.verticesNeedUpdate = true;
   mesh.dynamic = true;
@@ -22,42 +22,15 @@ var ng = new THREE.Geometry();
 
 function createSvg () {
   loadSvg('/public/assets/donald.svg', function (err, svg) {
-    var hoge = paper.project.importSVG(svg)
-    hoge = hoge.children[0]
-    // hoge.importSVG(svg)
-    window.svg = svg;
-
-    var group = paper.project.importSVG(svg);
-    var path = new Path();
-    path.strokeColor = 'red';
-    var points = [[0,0], [0, 150], [150, 0]]
-    for (var i=0; i<points.length; i++) {
-      var point = points[i];
-      var next = points[(i+1)%points.length];
-      path.moveTo(new Point(point[0], point[1]))
-      path.lineTo(new Point(next[0], next[1]))
-    }
-
-    var style = {
-      fillColor: new paper.Color(1, 1, 0, 0.5),
-      strokeColor: new paper.Color(0, 0, 0),
-      strokeWidth: 1.5
-    };
-    var bool = path.unite(group.children[0], path)
-    // bool.style = style;
-
-    int = path.subtract(hoge)
-    console.log(int)
-    // int.style = style;
-    paper.view.draw()
-
     var d = $('path', svg).attr('d');
-    // var d = "M 120, 120 m -70, 0 a 70,70 0 1,0 150,0 a 70,70 0 1,0 -150,0";
+    var d = "M 120, 120 m -70, 0 a 70,70 0 1,0 150,0 a 70,70 0 1,0 -150,0";
     var m = svgMesh3d(d, {
       scale: 10,
       simplify: 1,
       randomization: false
     })
+
+    window.m = m
     var complex = reindex(unindex(m.positions, m.cells));
     var geometry = new createGeom(complex)
     geometry.vertices = geometry.vertices.map( function (vertex) {
@@ -87,33 +60,40 @@ function drawSVG (points) {
   path.closed = true;
   paper.view.draw();
 
-  var d = $(path.exportSVG()).attr('d')
-  m = svgMesh3d(d, {
-    scale: 10,
-    simplify: 1,
-    randomization: false
-  })
-  console.log(m)
+  // var d = $(path.exportSVG()).attr('d')
+  // m = svgMesh3d(d, {
+  //   scale: 10,
+  //   simplify: 1,
+  //   randomization: false
+  // })
+  // console.log(m)
 
-  complex = reindex(unindex(m.positions, m.cells));
-  var geometry = new createGeom(complex)
-  var mesh = new THREE.Mesh(geometry, material)
-  scene.add(mesh);
-  return geometry;
+  // complex = reindex(unindex(m.positions, m.cells));
+  // var geometry = new createGeom(complex)
+  // var mesh = new THREE.Mesh(geometry, material)
+  // scene.add(mesh);
+  // return geometry;
 }
 
 function replaceObject (svgMesh) {
-  var positions = svgMesh.positions;
   var geometry = mesh.geometry;
   var vertices = geometry.vertices;
   var faces = geometry.faces;
   var faceVertexUvs = geometry.faceVertexUvs[0];
-  positions = positions.map(function (p) {
-    return [p[0] * 0.5, p[1] * 0.5]
-  })
   paths = []
   var count = 0;
   intersect = []
+
+  var positions = svgMesh.positions;
+  positions = positions.map(function(p) {
+    return [(p[1]+1.0)/2, (p[0]+1.0)/2];
+  })
+  // positions = positions.map(function (p) {
+  //   return [p[0] * 0.5, p[1] * 0.5]
+  // })
+  positions.push(positions[0])
+  window.positions = positions;
+
   for (var i=0; i<faces.length; i++) {
     var face = faces[i];
     var uv = faceVertexUvs[i];
@@ -127,12 +107,15 @@ function replaceObject (svgMesh) {
       ng = result.ng;
       continue;
     }
-    window.positions = positions;
     triangle = uv.map( function (v) {
       return [v.x, v.y];
     })
-    points = polygonBoolean(triangle, positions, 'not')[0]
-    inner_points = points.filter( function (p) {
+    triangle.push(triangle[0])
+    // points = ghClip.intersect(triangle, positions)
+    points = greinerHormann.intersection(triangle, positions)
+    if (!points) continue;
+    // points = polygonBoolean(triangle, positions, 'not')[0]
+    inner_points = points[0].filter( function (p) {
       // remove face vertices
       if (p[0] == uv[0].x && p[1] == uv[0].y) return false;
       if (p[0] == uv[1].x && p[1] == uv[1].y) return false;
@@ -140,7 +123,6 @@ function replaceObject (svgMesh) {
       // return inside(p, triangle);
       return true;
     })
-
 
     inner_points = inner_points.map(function (p) {
       var k = 0.1;
@@ -152,7 +134,7 @@ function replaceObject (svgMesh) {
       var B = [p[0] - uv[2].x, p[1] - uv[2].y];
       var x = numeric.solve(A, B)
       var a = x[0], b = x[1]
-      // console.log({ a: a, b: b })
+      console.log({ a: a, b: b })
       // convert uv to xyz with a, b, 1-a-b
       var ip = new THREE.Vector3();
       ip.x = a*va.x + b*vb.x + (1-a-b)*vc.x;
