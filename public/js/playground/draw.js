@@ -22,9 +22,8 @@ var ng = new THREE.Geometry();
 
 function createSvg () {
   loadSvg('/public/assets/mickey.svg', function (err, svg) {
-    console.log(svg);
     var d = $('path', svg).attr('d');
-    // var d = "M 120, 120 m -70, 0 a 70,70 0 1,0 150,0 a 70,70 0 1,0 -150,0";
+    var d = "M 120, 120 m -70, 0 a 70,70 0 1,0 150,0 a 70,70 0 1,0 -150,0";
     var m = svgMesh3d(d, {
       scale: 10,
       simplify: 1,
@@ -94,74 +93,66 @@ function replaceObject (svgMesh) {
     var vb = vertices[face.b];
     var vc = vertices[face.c];
 
-    if (a.z !== b.z || b.z !== c.z || a.z < 0) {
+    // if (va.z !== vb.z || vb.z !== vc.z || va.z < 0) {
       var result = addFace(ng, geometry, i)
       ng = result.ng;
-      continue;
-    }
+    //   continue;
+    // }
     var triangle = uv.map( function (v) {
       return [v.x, v.y];
     })
     points = polygonBoolean(triangle, positions, 'not')[0]
-    inner_points = points.filter( function (point) {
+    inner_points = points.filter( function (p) {
       // remove face vertices
-      if (point[0] == uv[0].x && point[1] == uv[0].y) return false;
-      if (point[0] == uv[1].x && point[1] == uv[1].y) return false;
-      if (point[0] == uv[2].x && point[1] == uv[2].y) return false;
+      if (p[0] == uv[0].x && p[1] == uv[0].y) return false;
+      if (p[0] == uv[1].x && p[1] == uv[1].y) return false;
+      if (p[0] == uv[2].x && p[1] == uv[2].y) return false;
       return true;
     })
 
-    inner_points.map(function (p) {
-      var k = 1;
+    inner_points = inner_points.map(function (p) {
+      var k = 0.1;
       // calculate , b, 1-a-b
-
+      var A = [
+        [uv[0].x - uv[2].x, uv[1].x - uv[2].x],
+        [uv[0].y - uv[2].y, uv[1].y - uv[2].y]
+      ];
+      var B = [p[0] - uv[2].x, p[1] - uv[2].y];
+      var x = numeric.solve(A, B)
+      var a = x[0], b = x[1]
+      // console.log({ a: a, b: b })
       // convert uv to xyz with a, b, 1-a-b
-      var p = new THREE.Vector3();
-      p.x = a*va.x + b*vb.x + (1-a-b)*vc.x;
-      p.y = a*va.y + b*vb.y + (1-a-b)*vc.y;
-      p.z = a*va.z + b*vb.z + (1-a-b)*vc.z;
+      var ip = new THREE.Vector3();
+      ip.x = a*va.x + b*vb.x + (1-a-b)*vc.x;
+      ip.y = a*va.y + b*vb.y + (1-a-b)*vc.y;
+      ip.z = a*va.z + b*vb.z + (1-a-b)*vc.z;
 
       var op = new THREE.Vector3();
-      op.x = p.x + k*normal.x;
-      op.y = p.y + k*normal.y;
-      op.z = p.z + k*normal.z;
-      return { p: p, op: op };
+      op.x = ip.x + k*normal.x;
+      op.y = ip.y + k*normal.y;
+      op.z = ip.z + k*normal.z;
+      return { p: p, inner: ip, outer: op };
     })
 
-    function uv2xyz (p, ) {
-
-    }
-
-    console.log(inner_points.length)
-    for (var j=0; j<inner_points.length; j++) {
-      var pp;
-      if (j-1 < 0) {
-        pp = inner_points[inner_points.length-1]
-      } else {
-        pp = inner_points[j-1]
-      }
+    for (var j=1; j<inner_points.length-1; j++) {
       var p = inner_points[j];
-      var np = inner_points[(j+1)%inner_points.length]
+      var np = inner_points[j+1];
       var num = ng.vertices.length;
       // v[i], v'[i], v[i+1]
-
-
-
-      ng.vertices.push(new THREE.Vector3(p[0], p[1], size))
-      ng.vertices.push(new THREE.Vector3(p[0], p[1], size*1.2))
-      ng.vertices.push(new THREE.Vector3(np[0], np[1], size))
+      ng.vertices.push(p.inner);
+      ng.vertices.push(p.outer);
+      ng.vertices.push(np.inner);
       ng.faces.push(new THREE.Face3(num, num+1, num+2))
 
       var num = ng.vertices.length;
-      // v[i], v'[i], v'[i-1]
-      ng.vertices.push(new THREE.Vector3(p[0], p[1], size))
-      ng.vertices.push(new THREE.Vector3(p[0], p[1], size*1.2))
-      ng.vertices.push(new THREE.Vector3(pp[0], pp[1], size*1.2))
+      // v'[i], v[i+1], v'[i+1]
+      ng.vertices.push(p.outer);
+      ng.vertices.push(np.inner);
+      ng.vertices.push(np.outer);
       ng.faces.push(new THREE.Face3(num, num+1, num+2))
     }
-
     count++;
-    // console.log(count)
+    console.log(count)
     // var og = drawSVG(points);
     // for (var k=0; k<og.faces.length; k++) {
     //   var result = addFace(ng, og, k)
@@ -187,7 +178,7 @@ function replaceObject (svgMesh) {
   //   // console.log(e)
   // }
 
-  scene.remove(mesh)
+  // scene.remove(mesh)
   nm = new THREE.Mesh(ng, material);
   nm.geometry.verticesNeedUpdate = true;
   nm.dynamic = true;
