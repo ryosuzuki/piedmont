@@ -10,6 +10,7 @@ var Point;
 $(function () {
   paper.setup('canvas');
   Point = paper.Point;
+  Path = paper.Path;
   Q.fcall(init())
   .then(drawObjects())
   .then(createSvg())
