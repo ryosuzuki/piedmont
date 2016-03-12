@@ -9,7 +9,8 @@ var ng = new THREE.Geometry();
 function drawObjects () {
   var size = 2;
   var r = 8;
-  var geometry = new THREE.BoxGeometry(size, size, size, r, r, r)
+  // var geometry = new THREE.BoxGeometry(size, size, size, r, r, r)
+  var geometry = new THREE.CylinderGeometry(size, size, size, 30)
   mesh = new THREE.Mesh(geometry, material);
   mesh.geometry.verticesNeedUpdate = true;
   mesh.dynamic = true;
@@ -17,7 +18,7 @@ function drawObjects () {
 }
 
 function createSvg () {
-  loadSvg('/public/assets/donald.svg', function (err, svg) {
+  loadSvg('/public/assets/mickey-2.svg', function (err, svg) {
     // console.log(svg);
     var d = $('path', svg).attr('d');
     // var d = "M 120, 120 m -70, 0 a 70,70 0 1,0 150,0 a 70,70 0 1,0 -150,0";
@@ -84,13 +85,13 @@ function replaceObject (svgMesh) {
   intersect = []
   for (var i=0; i<faces.length; i++) {
     var face = faces[i];
-    var a = vertices[face.a];
-    var b = vertices[face.b];
-    var c = vertices[face.c];
+    var va = vertices[face.a];
+    var vb = vertices[face.b];
+    var vc = vertices[face.c];
     var triangle = [
-      [a.x, a.y],
-      [b.x, b.y],
-      [c.x, c.y]
+      [va.x, va.z],
+      [vb.x, vb.z],
+      [vc.x, vc.z]
     ]
     var points = polygonBoolean(triangle, positions, 'not')
     if (points.length > 1) {
@@ -98,19 +99,19 @@ function replaceObject (svgMesh) {
     } else {
       points = points[0]
     }
-    if (points.length <= 3 || a.z < 0) {
+    if (points.length <= 3 || va.y < 0) {
       var test = greinerHormann.intersection(positions, triangle)
-      if (test && test.length < 3 && a.z > 0) {
+      if (test && test.length < 3 && va.y > 0) {
         var area = areaPolygon(test[0])
         var triArea = areaPolygon(triangle)
         if (area/triArea > 0.5) continue;
         console.log(area/triArea)
       }
-      if (a.z < 1) continue;
+      // if (va.z < 1) continue;
       var num = ng.vertices.length;
-      ng.vertices.push(a)
-      ng.vertices.push(b)
-      ng.vertices.push(c)
+      ng.vertices.push(va)
+      ng.vertices.push(vb)
+      ng.vertices.push(vc)
       ng.faces.push(new THREE.Face3(num, num+1, num+2))
     } else {
       var test = greinerHormann.diff(triangle, positions)
@@ -129,10 +130,10 @@ function replaceObject (svgMesh) {
           var a = nuv[nf[j][0]]
           var b = nuv[nf[j][1]]
           var c = nuv[nf[j][2]]
-          ng.vertices.push(new THREE.Vector3(a[0], a[1], size));
-          ng.vertices.push(new THREE.Vector3(b[0], b[1], size));
-          ng.vertices.push(new THREE.Vector3(c[0], c[1], size));
-          ng.faces.push(new THREE.Face3(num, num+1, num+2))
+          ng.vertices.push(new THREE.Vector3(a[0], size, a[1]));
+          ng.vertices.push(new THREE.Vector3(b[0], size, b[1]));
+          ng.vertices.push(new THREE.Vector3(c[0], size, c[1]));
+          ng.faces.push(new THREE.Face3(num+2, num+1, num))
         }
       }
       count++;
