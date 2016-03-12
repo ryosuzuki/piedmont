@@ -1,15 +1,23 @@
 var objects = [];
-
 var material = new THREE.MeshBasicMaterial({
   color: 0x00ffff,
   side: THREE.DoubleSide,
-  wireframe: true,
+  // wireframe: true,
 })
 
 var ng = new THREE.Geometry();
+function drawObjects () {
+  var size = 2;
+  var r = 8;
+  var geometry = new THREE.BoxGeometry(size, size, size, r, r, r)
+  mesh = new THREE.Mesh(geometry, material);
+  mesh.geometry.verticesNeedUpdate = true;
+  mesh.dynamic = true;
+  scene.add(mesh);
+}
 
 function createSvg () {
-  loadSvg('/public/assets/mickey-2.svg', function (err, svg) {
+  loadSvg('/public/assets/donald.svg', function (err, svg) {
     // console.log(svg);
     var d = $('path', svg).attr('d');
     // var d = "M 120, 120 m -70, 0 a 70,70 0 1,0 150,0 a 70,70 0 1,0 -150,0";
@@ -32,19 +40,6 @@ function createSvg () {
     replaceObject(m);
   })
 }
-
-var latice;
-function drawObjects () {
-  var size = 2;
-  var r = 15;
-  latice = size / r;
-  var geometry = new THREE.BoxGeometry(size, size, size, r, r, r)
-  mesh = new THREE.Mesh(geometry, material);
-  mesh.geometry.verticesNeedUpdate = true;
-  mesh.dynamic = true;
-  scene.add(mesh);
-}
-
 
 function drawSVG (points) {
   // console.log(points.length)
@@ -72,20 +67,7 @@ function drawSVG (points) {
   }
   path2.closed = true;
   paper.view.draw();
-
   return d;
-
-  // m = svgMesh3d(d, {
-  //   scale: 10,
-  //   simplify: 1,
-  //   randomization: false
-  // })
-  // // m.positions.map( function (p) { return [p[0]*0.5, p[1]*0.5]})
-  // complex = reindex(unindex(m.positions, m.cells));
-  // var geometry = new createGeom(complex)
-  // // var mesh = new THREE.Mesh(geometry, material)
-  // // scene.add(mesh);
-  // return geometry;
 }
 
 function replaceObject (svgMesh) {
@@ -105,39 +87,26 @@ function replaceObject (svgMesh) {
     var a = vertices[face.a];
     var b = vertices[face.b];
     var c = vertices[face.c];
-    if (a.z !== b.z || b.z !== c.z || a.z < 0) {
-      // var result = addFace(ng, geometry, i)
-      // ng = result.ng;
-      // continue;
-    }
-    triangle = [
+    var triangle = [
       [a.x, a.y],
       [b.x, b.y],
       [c.x, c.y]
     ]
-    points = polygonBoolean(triangle, positions, 'not')
-    var hoge = points;
+    var points = polygonBoolean(triangle, positions, 'not')
     if (points.length > 1) {
       points = (points[0].length < points[1].length) ? points[0] : points[1]
     } else {
       points = points[0]
     }
-    // console.log(count)
-    // if (count < 3) {
     if (points.length <= 3 || a.z < 0) {
       var test = greinerHormann.intersection(positions, triangle)
       if (test && test.length < 3 && a.z > 0) {
-        if (test.length > 1) continue;
-        if (test[0].length <= 3) continue;
         var area = areaPolygon(test[0])
         var triArea = areaPolygon(triangle)
-        console.log(area/triArea)
         if (area/triArea > 0.5) continue;
-        // continue;
+        console.log(area/triArea)
       }
       if (a.z < 1) continue;
-      // console.log('geojo')
-      // continue;
       var num = ng.vertices.length;
       ng.vertices.push(a)
       ng.vertices.push(b)
@@ -145,46 +114,29 @@ function replaceObject (svgMesh) {
       ng.faces.push(new THREE.Face3(num, num+1, num+2))
     } else {
       var test = greinerHormann.diff(triangle, positions)
-      // console.log(test)
-      count++;
-      // if (count < 35) continue;
-
       for (var k=0; k<test.length; k++) {
         var points = test[k]
         var d = drawSVG(points);
-        var hoge = svgMesh3d(d, {
+        var bndMesh = svgMesh3d(d, {
           scale: 1,
           simplify: Math.pow(10, -3),
           customize: true,
         })
-
-        var nuv = hoge.positions;
-
-        window.nuv = nuv;
-        var nf = hoge.cells;
-        window.nf = nf;
+        var nuv = bndMesh.positions;
+        var nf = bndMesh.cells;
         for (var j=0; j<nf.length; j++) {
           var num = ng.vertices.length;
           var a = nuv[nf[j][0]]
           var b = nuv[nf[j][1]]
           var c = nuv[nf[j][2]]
-          // if (!inside(c, triangle)) console.log(c);
-          var limit = 10*latice;
-          if ( Math.abs(a[0] - triangle[0][0]) > limit
-            || Math.abs(a[1] - triangle[0][1]) > limit
-            || Math.abs(b[0] - triangle[0][0]) > limit
-            || Math.abs(b[1] - triangle[0][1]) > limit
-            || Math.abs(c[0] - triangle[0][0]) > limit
-            || Math.abs(c[1] - triangle[0][1]) > limit) {
-            continue;
-          }
           ng.vertices.push(new THREE.Vector3(a[0], a[1], size));
           ng.vertices.push(new THREE.Vector3(b[0], b[1], size));
           ng.vertices.push(new THREE.Vector3(c[0], c[1], size));
           ng.faces.push(new THREE.Face3(num, num+1, num+2))
         }
       }
-
+      count++;
+      console.log(count);
 
       // var nf = cdt2d(nuv)
       // var nf = triangulate(nuv)
