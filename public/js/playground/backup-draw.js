@@ -6,19 +6,31 @@ var material = new THREE.MeshBasicMaterial({
   wireframe: true,
 })
 
+
+function drawObjects () {
+  // size = 2
+  var r = 2
+  var geometry = new THREE.BoxGeometry(size, size, size, r, r, r)
+  // var geometry = new THREE.CylinderGeometry(size, size, size*2, 30)
+  mesh = new THREE.Mesh(geometry, material);
+  mesh.geometry.verticesNeedUpdate = true;
+  mesh.dynamic = true;
+  scene.add(mesh);
+}
+
 var ng = new THREE.Geometry();
 
 function createSvg () {
-  loadSvg('/public/assets/mickey.svg', function (err, svg) {
-    // console.log(svg);
+  loadSvg('/public/assets/donald.svg', function (err, svg) {
     var d = $('path', svg).attr('d');
-    // var d = "M 120, 120 m -70, 0 a 70,70 0 1,0 150,0 a 70,70 0 1,0 -150,0";
+    var d = "M 120, 120 m -70, 0 a 70,70 0 1,0 150,0 a 70,70 0 1,0 -150,0";
     var m = svgMesh3d(d, {
-      scale: 1,
-      simplify: 0.01,
+      scale: 10,
+      simplify: 1,
       randomization: false
     })
 
+    window.m = m
     var complex = reindex(unindex(m.positions, m.cells));
     var geometry = new createGeom(complex)
     geometry.vertices = geometry.vertices.map( function (vertex) {
@@ -32,20 +44,9 @@ function createSvg () {
   })
 }
 
-function drawObjects () {
-  var size = 2;
-  var r = 1;
-  var geometry = new THREE.BoxGeometry(size, size, size, r, r, r)
-  mesh = new THREE.Mesh(geometry, material);
-  mesh.geometry.verticesNeedUpdate = true;
-  mesh.dynamic = true;
-  scene.add(mesh);
-}
-
-
 function drawSVG (points) {
   points = points.map(function(p) { return [(p[1]+1.5)*100, (p[0]+1.5)*100]})
-  path = new paper.Path();
+  var path = new Path();
   path.strokeColor = 'black';
   for (var i=0; i<points.length; i++) {
     var point = points[i];
@@ -53,6 +54,7 @@ function drawSVG (points) {
     path.moveTo(new Point(point[0], point[1]))
     path.lineTo(new Point(next[0], next[1]))
   }
+  path.rotate(-90)
   path.closed = true;
   paper.view.draw();
 
@@ -62,104 +64,134 @@ function drawSVG (points) {
   //   simplify: 1,
   //   randomization: false
   // })
-  // // m.positions.map( function (p) { return [p[0]*0.5, p[1]*0.5]})
+  // console.log(m)
+
   // complex = reindex(unindex(m.positions, m.cells));
   // var geometry = new createGeom(complex)
-  // // var mesh = new THREE.Mesh(geometry, material)
-  // // scene.add(mesh);
+  // var mesh = new THREE.Mesh(geometry, material)
+  // scene.add(mesh);
   // return geometry;
 }
 
 function replaceObject (svgMesh) {
-  var positions = svgMesh.positions;
   var geometry = mesh.geometry;
   var vertices = geometry.vertices;
   var faces = geometry.faces;
-  positions = positions.map(function (p) {
-    return [p[0] * 0.5, p[1] * 0.5]
-  })
-  window.positions = positions;
+  var faceVertexUvs = geometry.faceVertexUvs[0];
   paths = []
   var count = 0;
   intersect = []
+
+  var positions = svgMesh.positions;
+  positions = positions.map(function(p) {
+    return [(p[1]+1.0)/2, (p[0]+1.0)/2];
+  })
+  // positions = positions.map(function (p) {
+  //   return [p[0] * 0.5, p[1] * 0.5]
+  // })
+  positions.push(positions[0])
+  window.positions = positions;
+
   for (var i=0; i<faces.length; i++) {
     var face = faces[i];
-    var a = vertices[face.a];
-    var b = vertices[face.b];
-    var c = vertices[face.c];
-    if (a.z !== b.z || b.z !== c.z || a.z < 0) {
-      // var result = addFace(ng, geometry, i)
-      // ng = result.ng;
-      // continue;
-    }
-    triangle = [
-      [a.x, a.y],
-      [b.x, b.y],
-      [c.x, c.y]
-    ]
-    points = polygonBoolean(triangle, positions, 'not')
-    var hoge = points;
-    if (points.length > 1) {
-      points = (points[0].length < points[1].length) ? points[0] : points[1]
-    } else {
-      points = points[0]
-    }
-    count++;
-    // if (count < 3) {
-    if (points.length <= 3 || a.z < 0) {
-      var test = greinerHormann.intersection(positions, triangle)
-      if (test && a.z > 0) continue;
-      // continue;
-      var num = ng.vertices.length;
-      ng.vertices.push(a)
-      ng.vertices.push(b)
-      ng.vertices.push(c)
-      ng.faces.push(new THREE.Face3(num, num+1, num+2))
-    } else {
-      // console.log(hoge)
-      // var test = greinerHormann.intersection(positions, triangle)
-      // if (test) continue;
-      var test = greinerHormann.diff(triangle, positions)
-      // console.log(test)
-      if (test) {
-        if (test.length > 1) {
-          points = (test[0].length > test[1].length) ? test[0] : test[1]
-        } else {
-          points = test[0]
-        }
-      }
-      // if (points.length > 60) continue;
-      var nuv = points;
-      var nf = Delaunay.triangulate(nuv);
-      console.log(nf)
-      var po = []
-      for(var j=0; j<nf.length/3; j++) {
-        var num = ng.vertices.length;
-        var a = nuv[nf[3*j]]
-        var b = nuv[nf[3*j+1]]
-        var c = nuv[nf[3*j+2]]
-        ng.vertices.push(new THREE.Vector3(a[0], a[1], size));
-        ng.vertices.push(new THREE.Vector3(b[0], b[1], size));
-        ng.vertices.push(new THREE.Vector3(c[0], c[1], size));
-        ng.faces.push(new THREE.Face3(num+2, num+1, num))
-        po.push(a)
-        po.push(b)
-        po.push(c)
-      }
-      var og = drawSVG(po);
-    }
+    var uv = faceVertexUvs[i];
+    var normal = face.normal;
+    var va = vertices[face.a];
+    var vb = vertices[face.b];
+    var vc = vertices[face.c];
 
-
-
-      // console.log(og.vertices)
-      // for (var k=0; k<og.faces.length; k++) {
-      //   var result = addFace(ng, og, k)
-      //   ng = result.ng;
-      //   intersect = _.union(intersect, result.intersect);
-      // }
-      // break;
+    // if (normal.y !== 1) {
+    //   var result = addFace(ng, geometry, i)
+    //   ng = result.ng;
+    //   continue;
     // }
+    triangle = uv.map( function (v) {
+      return [v.x, v.y];
+    })
+    // triangle.push(triangle[0])
+    // // points = ghClip.intersect(triangle, positions)
+    points = greinerHormann.diff(triangle, positions)
+    if (!points) continue;
+    console.log(points)
+    // window.hoge = points
+    // var nuv = points[0]
+    // var nf = Delaunay.triangulate(nuv);
+    // for (var j=0; j<nf.length/3; j++) {
+    //   var ci = nf[j];
+    //   var a = nuv[nf[3*j]]
+    //   var b = nuv[nf[3*j+1]]
+    //   var c = nuv[nf[3*j+2]]
+    //   var num = ng.vertices.length;
+    //   ng.vertices.push(new THREE.Vector3(a[0], size, a[1]));
+    //   ng.vertices.push(new THREE.Vector3(b[0], size, b[1]));
+    //   ng.vertices.push(new THREE.Vector3(c[0], size, c[1]));
+    //   ng.faces.push(new THREE.Face3(num, num+1, num+2))
+    // }
+    // points = polygonBoolean(triangle, positions, 'not')[0]
 
+    /*
+    inner_points = points[0].filter( function (p) {
+      // remove face vertices
+      if (p[0] == uv[0].x && p[1] == uv[0].y) return false;
+      if (p[0] == uv[1].x && p[1] == uv[1].y) return false;
+      if (p[0] == uv[2].x && p[1] == uv[2].y) return false;
+      // return inside(p, triangle);
+      return true;
+    })
+
+    inner_points = inner_points.map(function (p) {
+      var k = 0.1;
+      // calculate , b, 1-a-b
+      var A = [
+        [uv[0].x - uv[2].x, uv[1].x - uv[2].x],
+        [uv[0].y - uv[2].y, uv[1].y - uv[2].y]
+      ];
+      var B = [p[0] - uv[2].x, p[1] - uv[2].y];
+      var x = numeric.solve(A, B)
+      var a = x[0], b = x[1]
+      console.log({ a: a, b: b })
+      // convert uv to xyz with a, b, 1-a-b
+      var ip = new THREE.Vector3();
+      ip.x = a*va.x + b*vb.x + (1-a-b)*vc.x;
+      ip.y = a*va.y + b*vb.y + (1-a-b)*vc.y;
+      ip.z = a*va.z + b*vb.z + (1-a-b)*vc.z;
+
+      var op = new THREE.Vector3();
+      op.x = ip.x + k*normal.x;
+      op.y = ip.y + k*normal.y;
+      op.z = ip.z + k*normal.z;
+      return { p: p, inner: ip, outer: op };
+    })
+
+    for (var j=1; j<inner_points.length-1; j++) {
+      var p = inner_points[j];
+      var np = inner_points[j+1];
+      var num = ng.vertices.length;
+      // v[i], v'[i], v[i+1]
+      ng.vertices.push(p.inner);
+      ng.vertices.push(p.outer);
+      ng.vertices.push(np.inner);
+      ng.faces.push(new THREE.Face3(num, num+1, num+2))
+
+      var num = ng.vertices.length;
+      // v'[i], v[i+1], v'[i+1]
+      ng.vertices.push(p.outer);
+      ng.vertices.push(np.inner);
+      ng.vertices.push(np.outer);
+      ng.faces.push(new THREE.Face3(num, num+1, num+2))
+    }
+    */
+
+    // if (inner_points.length > 0) break;
+    count++;
+    // console.log(count)
+    // break
+    var og = drawSVG(points[0]);
+    // for (var k=0; k<og.faces.length; k++) {
+    //   var result = addFace(ng, og, k)
+    //   ng = result.ng;
+    //   intersect = _.union(intersect, result.intersect);
+    // }
   }
 
   // computeUniq(ng)
@@ -179,7 +211,7 @@ function replaceObject (svgMesh) {
   //   // console.log(e)
   // }
 
-  scene.remove(mesh)
+  // scene.remove(mesh)
   nm = new THREE.Mesh(ng, material);
   nm.geometry.verticesNeedUpdate = true;
   nm.dynamic = true;
@@ -187,6 +219,8 @@ function replaceObject (svgMesh) {
   nm.receiveShadow = true;
   scene.add(nm);
 }
+
+
 
 function addFace (ng, og, fi) {
   var intersect = []
@@ -221,6 +255,7 @@ function exportSTL () {
   var blob = new Blob([stlString], {type: 'text/plain'});
   saveAs(blob, 'demo.stl');
 }
+
 
 /*
 var sign = function (p1, p2, p3) {
