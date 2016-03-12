@@ -13,3 +13,4 @@ window.polybool = require('poly-bool');
 window.inside = require('point-in-triangle');
 window.ghClip = require('gh-clipping-algorithm');
 window.triangulate = require('delaunay-triangulate');
+window.cdt2d = require('cdt2d');

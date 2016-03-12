@@ -30,6 +30,7 @@
     "2d-polygon-boolean": "^1.0.1",
     "browserify": "^11.1.0",
     "bunny": "^1.0.1",
+    "cdt2d": "^1.0.0",
     "co-views": "^2.1.0",
     "csr-matrix": "^1.0.0",
     "delaunay-triangulate": "^1.1.6",
