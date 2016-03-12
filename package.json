@@ -28,6 +28,7 @@
   "homepage": "https://github.com/ryosuzuki/piedmont",
   "dependencies": {
     "2d-polygon-boolean": "^1.0.1",
+    "area-polygon": "^1.0.1",
     "bound-points": "^1.0.0",
     "browserify": "^11.1.0",
     "bunny": "^1.0.1",

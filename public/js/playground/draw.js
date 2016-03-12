@@ -3,13 +3,13 @@ var objects = [];
 var material = new THREE.MeshBasicMaterial({
   color: 0x00ffff,
   side: THREE.DoubleSide,
-  // wireframe: true,
+  wireframe: true,
 })
 
 var ng = new THREE.Geometry();
 
 function createSvg () {
-  loadSvg('/public/assets/mickey.svg', function (err, svg) {
+  loadSvg('/public/assets/mickey-2.svg', function (err, svg) {
     // console.log(svg);
     var d = $('path', svg).attr('d');
     // var d = "M 120, 120 m -70, 0 a 70,70 0 1,0 150,0 a 70,70 0 1,0 -150,0";
@@ -129,8 +129,10 @@ function replaceObject (svgMesh) {
       if (test && test.length < 3 && a.z > 0) {
         if (test.length > 1) continue;
         if (test[0].length <= 3) continue;
-        console.log(test)
-        console.log(triangle)
+        var area = areaPolygon(test[0])
+        var triArea = areaPolygon(triangle)
+        console.log(area/triArea)
+        if (area/triArea > 0.5) continue;
         // continue;
       }
       if (a.z < 1) continue;
