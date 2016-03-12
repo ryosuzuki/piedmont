@@ -25,6 +25,7 @@ function loadObjects () {
 }
 
 function drawObjects () {
+  // drawBox()
   // drawCylinder();
   // drawRing();
   drawSTL();
@@ -73,8 +74,8 @@ function drawSTL () {
   xhr.onerror = function(e) {
     console.log(e);
   }
-  xhr.open( "GET", '/public/assets/mini_knight.stl', true );
-  // xhr.open( "GET", 'assets/R2-D2.stl', true );
+  // xhr.open( "GET", '/public/assets/test-1.stl', true );
+  xhr.open( "GET", '/public/assets/noah-4.stl', true );
   xhr.responseType = "arraybuffer";
   xhr.send( null );
 }
@@ -100,7 +101,7 @@ function drawCylinder () {
 
 function drawBox () {
   box = new THREE.Mesh(
-    new THREE.BoxGeometry(size, size, size),
+    new THREE.BoxGeometry(size, size, size, 10, 10, 10),
     new THREE.MeshBasicMaterial({vertexColors: THREE.FaceColors })
   );
   box.geometry.verticesNeedUpdate = true;
@@ -111,6 +112,8 @@ function drawBox () {
   objects.push(box);
   window.geometry = box.geometry
   mesh = box;
+  mesh.material.color.set(new THREE.Color('blue'))
+  loadObjects();
 }
 
 

@@ -10,8 +10,8 @@ var material = new THREE.MeshBasicMaterial({
 function drawObjects () {
   // size = 2
   var r = 10
-  // var geometry = new THREE.BoxGeometry(size, size, size, r, r, r)
-  var geometry = new THREE.CylinderGeometry(size, size, size*2, 30)
+  var geometry = new THREE.BoxGeometry(size, size, size, r, r, r)
+  // var geometry = new THREE.CylinderGeometry(size, size, size*2, 30)
   mesh = new THREE.Mesh(geometry, material);
   mesh.geometry.verticesNeedUpdate = true;
   mesh.dynamic = true;

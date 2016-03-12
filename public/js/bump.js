@@ -28,7 +28,7 @@ function replaceObject (svgMesh) {
 
   var positions = svgMesh.positions;
   positions = positions.map(function(p) {
-    return [(p[1]+1.0)/3, (p[0]+1.0)/3];
+    return [(p[1]+1.0)/5, (p[0]+1.0)/5];
   })
   positions.push(positions[0])
   window.positions = positions;
@@ -57,7 +57,7 @@ function replaceObject (svgMesh) {
       return true;
     })
     inner_points = inner_points.map(function (p) {
-      var k = size*1.2;
+      var k = size*0.1;
       // calculate , b, 1-a-b
       var A = [
         [uv[0].x - uv[2].x, uv[1].x - uv[2].x],
