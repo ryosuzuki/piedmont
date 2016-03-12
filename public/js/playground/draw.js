@@ -34,7 +34,7 @@ function createSvg () {
 
 function drawObjects () {
   var size = 2;
-  var r = 1;
+  var r = 18;
   var geometry = new THREE.BoxGeometry(size, size, size, r, r, r)
   mesh = new THREE.Mesh(geometry, material);
   mesh.geometry.verticesNeedUpdate = true;
@@ -130,6 +130,40 @@ function replaceObject (svgMesh) {
       }
       // if (points.length > 60) continue;
       var nuv = points;
+      nuv.pop()
+      console.log(nuv)
+      var contour = nuv.map( function (uv) {
+        return new poly2tri.Point(uv[0], uv[1])
+      })
+      var swctx = new poly2tri.SweepContext(contour);
+      swctx.triangulate()
+      var nf = swctx.getTriangles();
+      var po = [];
+      // for (var j=0; j<nf.length; j++) {
+      //   var f = nf[j];
+      //   var p = f.getPoints();
+      //   console.log(p)
+      // }
+      /*
+      var nf = triangulate(nuv)
+      console.log(nf)
+      var po = []
+      for (var j=0; j<nf.length; j++) {
+        var a = nuv[nf[j][0]]
+        var b = nuv[nf[j][1]]
+        var c = nuv[nf[j][2]]
+        ng.vertices.push(new THREE.Vector3(a[0], a[1], size));
+        ng.vertices.push(new THREE.Vector3(b[0], b[1], size));
+        ng.vertices.push(new THREE.Vector3(c[0], c[1], size));
+        ng.faces.push(new THREE.Face3(num+2, num+1, num))
+        po.push(a)
+        po.push(b)
+        po.push(c)
+      }
+      var og = drawSVG(po);
+      */
+
+      /*
       var nf = Delaunay.triangulate(nuv);
       console.log(nf)
       var po = []
@@ -147,6 +181,7 @@ function replaceObject (svgMesh) {
         po.push(c)
       }
       var og = drawSVG(po);
+      */
     }
 
 

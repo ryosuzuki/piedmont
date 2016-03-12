@@ -4538,6 +4538,1297 @@ function dupe(count, value) {
 
 module.exports = dupe
 },{}],23:[function(require,module,exports){
+"use strict"
+
+//High level idea:
+// 1. Use Clarkson's incremental construction to find convex hull
+// 2. Point location in triangulation by jump and walk
+
+module.exports = incrementalConvexHull
+
+var orient = require("robust-orientation")
+var compareCell = require("simplicial-complex").compareCells
+
+function compareInt(a, b) {
+  return a - b
+}
+
+function Simplex(vertices, adjacent, boundary) {
+  this.vertices = vertices
+  this.adjacent = adjacent
+  this.boundary = boundary
+  this.lastVisited = -1
+}
+
+Simplex.prototype.flip = function() {
+  var t = this.vertices[0]
+  this.vertices[0] = this.vertices[1]
+  this.vertices[1] = t
+  var u = this.adjacent[0]
+  this.adjacent[0] = this.adjacent[1]
+  this.adjacent[1] = u
+}
+
+function GlueFacet(vertices, cell, index) {
+  this.vertices = vertices
+  this.cell = cell
+  this.index = index
+}
+
+function compareGlue(a, b) {
+  return compareCell(a.vertices, b.vertices)
+}
+
+function bakeOrient(d) {
+  var code = ["function orient(){var tuple=this.tuple;return test("]
+  for(var i=0; i<=d; ++i) {
+    if(i > 0) {
+      code.push(",")
+    }
+    code.push("tuple[", i, "]")
+  }
+  code.push(")}return orient")
+  var proc = new Function("test", code.join(""))
+  var test = orient[d+1]
+  if(!test) {
+    test = orient
+  }
+  return proc(test)
+}
+
+var BAKED = []
+
+function Triangulation(dimension, vertices, simplices) {
+  this.dimension = dimension
+  this.vertices = vertices
+  this.simplices = simplices
+  this.interior = simplices.filter(function(c) {
+    return !c.boundary
+  })
+
+  this.tuple = new Array(dimension+1)
+  for(var i=0; i<=dimension; ++i) {
+    this.tuple[i] = this.vertices[i]
+  }
+
+  var o = BAKED[dimension]
+  if(!o) {
+    o = BAKED[dimension] = bakeOrient(dimension)
+  }
+  this.orient = o
+}
+
+var proto = Triangulation.prototype
+
+//Degenerate situation where we are on boundary, but coplanar to face
+proto.handleBoundaryDegeneracy = function(cell, point) {
+  var d = this.dimension
+  var n = this.vertices.length - 1
+  var tuple = this.tuple
+  var verts = this.vertices
+
+  //Dumb solution: Just do dfs from boundary cell until we find any peak, or terminate
+  var toVisit = [ cell ]
+  cell.lastVisited = -n
+  while(toVisit.length > 0) {
+    cell = toVisit.pop()
+    var cellVerts = cell.vertices
+    var cellAdj = cell.adjacent
+    for(var i=0; i<=d; ++i) {
+      var neighbor = cellAdj[i]
+      if(!neighbor.boundary || neighbor.lastVisited <= -n) {
+        continue
+      }
+      var nv = neighbor.vertices
+      for(var j=0; j<=d; ++j) {
+        var vv = nv[j]
+        if(vv < 0) {
+          tuple[j] = point
+        } else {
+          tuple[j] = verts[vv]
+        }
+      }
+      var o = this.orient()
+      if(o > 0) {
+        return neighbor
+      }
+      neighbor.lastVisited = -n
+      if(o === 0) {
+        toVisit.push(neighbor)
+      }
+    }
+  }
+  return null
+}
+
+proto.walk = function(point, random) {
+  //Alias local properties
+  var n = this.vertices.length - 1
+  var d = this.dimension
+  var verts = this.vertices
+  var tuple = this.tuple
+
+  //Compute initial jump cell
+  var initIndex = random ? (this.interior.length * Math.random())|0 : (this.interior.length-1)
+  var cell = this.interior[ initIndex ]
+
+  //Start walking
+outerLoop:
+  while(!cell.boundary) {
+    var cellVerts = cell.vertices
+    var cellAdj = cell.adjacent
+
+    for(var i=0; i<=d; ++i) {
+      tuple[i] = verts[cellVerts[i]]
+    }
+    cell.lastVisited = n
+
+    //Find farthest adjacent cell
+    for(var i=0; i<=d; ++i) {
+      var neighbor = cellAdj[i]
+      if(neighbor.lastVisited >= n) {
+        continue
+      }
+      var prev = tuple[i]
+      tuple[i] = point
+      var o = this.orient()
+      tuple[i] = prev
+      if(o < 0) {
+        cell = neighbor
+        continue outerLoop
+      } else {
+        if(!neighbor.boundary) {
+          neighbor.lastVisited = n
+        } else {
+          neighbor.lastVisited = -n
+        }
+      }
+    }
+    return
+  }
+
+  return cell
+}
+
+proto.addPeaks = function(point, cell) {
+  var n = this.vertices.length - 1
+  var d = this.dimension
+  var verts = this.vertices
+  var tuple = this.tuple
+  var interior = this.interior
+  var simplices = this.simplices
+
+  //Walking finished at boundary, time to add peaks
+  var tovisit = [ cell ]
+
+  //Stretch initial boundary cell into a peak
+  cell.lastVisited = n
+  cell.vertices[cell.vertices.indexOf(-1)] = n
+  cell.boundary = false
+  interior.push(cell)
+
+  //Record a list of all new boundaries created by added peaks so we can glue them together when we are all done
+  var glueFacets = []
+
+  //Do a traversal of the boundary walking outward from starting peak
+  while(tovisit.length > 0) {
+    //Pop off peak and walk over adjacent cells
+    var cell = tovisit.pop()
+    var cellVerts = cell.vertices
+    var cellAdj = cell.adjacent
+    var indexOfN = cellVerts.indexOf(n)
+    if(indexOfN < 0) {
+      continue
+    }
+
+    for(var i=0; i<=d; ++i) {
+      if(i === indexOfN) {
+        continue
+      }
+
+      //For each boundary neighbor of the cell
+      var neighbor = cellAdj[i]
+      if(!neighbor.boundary || neighbor.lastVisited >= n) {
+        continue
+      }
+
+      var nv = neighbor.vertices
+
+      //Test if neighbor is a peak
+      if(neighbor.lastVisited !== -n) {      
+        //Compute orientation of p relative to each boundary peak
+        var indexOfNeg1 = 0
+        for(var j=0; j<=d; ++j) {
+          if(nv[j] < 0) {
+            indexOfNeg1 = j
+            tuple[j] = point
+          } else {
+            tuple[j] = verts[nv[j]]
+          }
+        }
+        var o = this.orient()
+
+        //Test if neighbor cell is also a peak
+        if(o > 0) {
+          nv[indexOfNeg1] = n
+          neighbor.boundary = false
+          interior.push(neighbor)
+          tovisit.push(neighbor)
+          neighbor.lastVisited = n
+          continue
+        } else {
+          neighbor.lastVisited = -n
+        }
+      }
+
+      var na = neighbor.adjacent
+
+      //Otherwise, replace neighbor with new face
+      var vverts = cellVerts.slice()
+      var vadj = cellAdj.slice()
+      var ncell = new Simplex(vverts, vadj, true)
+      simplices.push(ncell)
+
+      //Connect to neighbor
+      var opposite = na.indexOf(cell)
+      if(opposite < 0) {
+        continue
+      }
+      na[opposite] = ncell
+      vadj[indexOfN] = neighbor
+
+      //Connect to cell
+      vverts[i] = -1
+      vadj[i] = cell
+      cellAdj[i] = ncell
+
+      //Flip facet
+      ncell.flip()
+
+      //Add to glue list
+      for(var j=0; j<=d; ++j) {
+        var uu = vverts[j]
+        if(uu < 0 || uu === n) {
+          continue
+        }
+        var nface = new Array(d-1)
+        var nptr = 0
+        for(var k=0; k<=d; ++k) {
+          var vv = vverts[k]
+          if(vv < 0 || k === j) {
+            continue
+          }
+          nface[nptr++] = vv
+        }
+        glueFacets.push(new GlueFacet(nface, ncell, j))
+      }
+    }
+  }
+
+  //Glue boundary facets together
+  glueFacets.sort(compareGlue)
+
+  for(var i=0; i+1<glueFacets.length; i+=2) {
+    var a = glueFacets[i]
+    var b = glueFacets[i+1]
+    var ai = a.index
+    var bi = b.index
+    if(ai < 0 || bi < 0) {
+      continue
+    }
+    a.cell.adjacent[a.index] = b.cell
+    b.cell.adjacent[b.index] = a.cell
+  }
+}
+
+proto.insert = function(point, random) {
+  //Add point
+  var verts = this.vertices
+  verts.push(point)
+
+  var cell = this.walk(point, random)
+  if(!cell) {
+    return
+  }
+
+  //Alias local properties
+  var d = this.dimension
+  var tuple = this.tuple
+
+  //Degenerate case: If point is coplanar to cell, then walk until we find a non-degenerate boundary
+  for(var i=0; i<=d; ++i) {
+    var vv = cell.vertices[i]
+    if(vv < 0) {
+      tuple[i] = point
+    } else {
+      tuple[i] = verts[vv]
+    }
+  }
+  var o = this.orient(tuple)
+  if(o < 0) {
+    return
+  } else if(o === 0) {
+    cell = this.handleBoundaryDegeneracy(cell, point)
+    if(!cell) {
+      return
+    }
+  }
+
+  //Add peaks
+  this.addPeaks(point, cell)
+}
+
+//Extract all boundary cells
+proto.boundary = function() {
+  var d = this.dimension
+  var boundary = []
+  var cells = this.simplices
+  var nc = cells.length
+  for(var i=0; i<nc; ++i) {
+    var c = cells[i]
+    if(c.boundary) {
+      var bcell = new Array(d)
+      var cv = c.vertices
+      var ptr = 0
+      var parity = 0
+      for(var j=0; j<=d; ++j) {
+        if(cv[j] >= 0) {
+          bcell[ptr++] = cv[j]
+        } else {
+          parity = j&1
+        }
+      }
+      if(parity === (d&1)) {
+        var t = bcell[0]
+        bcell[0] = bcell[1]
+        bcell[1] = t
+      }
+      boundary.push(bcell)
+    }
+  }
+  return boundary
+}
+
+function incrementalConvexHull(points, randomSearch) {
+  var n = points.length
+  if(n === 0) {
+    throw new Error("Must have at least d+1 points")
+  }
+  var d = points[0].length
+  if(n <= d) {
+    throw new Error("Must input at least d+1 points")
+  }
+
+  //FIXME: This could be degenerate, but need to select d+1 non-coplanar points to bootstrap process
+  var initialSimplex = points.slice(0, d+1)
+
+  //Make sure initial simplex is positively oriented
+  var o = orient.apply(void 0, initialSimplex)
+  if(o === 0) {
+    throw new Error("Input not in general position")
+  }
+  var initialCoords = new Array(d+1)
+  for(var i=0; i<=d; ++i) {
+    initialCoords[i] = i
+  }
+  if(o < 0) {
+    initialCoords[0] = 1
+    initialCoords[1] = 0
+  }
+
+  //Create initial topological index, glue pointers together (kind of messy)
+  var initialCell = new Simplex(initialCoords, new Array(d+1), false)
+  var boundary = initialCell.adjacent
+  var list = new Array(d+2)
+  for(var i=0; i<=d; ++i) {
+    var verts = initialCoords.slice()
+    for(var j=0; j<=d; ++j) {
+      if(j === i) {
+        verts[j] = -1
+      }
+    }
+    var t = verts[0]
+    verts[0] = verts[1]
+    verts[1] = t
+    var cell = new Simplex(verts, new Array(d+1), true)
+    boundary[i] = cell
+    list[i] = cell
+  }
+  list[d+1] = initialCell
+  for(var i=0; i<=d; ++i) {
+    var verts = boundary[i].vertices
+    var adj = boundary[i].adjacent
+    for(var j=0; j<=d; ++j) {
+      var v = verts[j]
+      if(v < 0) {
+        adj[j] = initialCell
+        continue
+      }
+      for(var k=0; k<=d; ++k) {
+        if(boundary[k].vertices.indexOf(v) < 0) {
+          adj[j] = boundary[k]
+        }
+      }
+    }
+  }
+
+  //Initialize triangles
+  var triangles = new Triangulation(d, initialSimplex, list)
+
+  //Insert remaining points
+  var useRandom = !!randomSearch
+  for(var i=d+1; i<n; ++i) {
+    triangles.insert(points[i], useRandom)
+  }
+  
+  //Extract boundary cells
+  return triangles.boundary()
+}
+},{"robust-orientation":29,"simplicial-complex":32}],24:[function(require,module,exports){
+arguments[4][7][0].apply(exports,arguments)
+},{"dup":7}],25:[function(require,module,exports){
+arguments[4][8][0].apply(exports,arguments)
+},{"dup":8,"two-product":28,"two-sum":24}],26:[function(require,module,exports){
+arguments[4][9][0].apply(exports,arguments)
+},{"dup":9}],27:[function(require,module,exports){
+arguments[4][10][0].apply(exports,arguments)
+},{"dup":10}],28:[function(require,module,exports){
+arguments[4][11][0].apply(exports,arguments)
+},{"dup":11}],29:[function(require,module,exports){
+arguments[4][12][0].apply(exports,arguments)
+},{"dup":12,"robust-scale":25,"robust-subtract":26,"robust-sum":27,"two-product":28}],30:[function(require,module,exports){
+/**
+ * Bit twiddling hacks for JavaScript.
+ *
+ * Author: Mikola Lysenko
+ *
+ * Ported from Stanford bit twiddling hack library:
+ *    http://graphics.stanford.edu/~seander/bithacks.html
+ */
+
+"use strict"; "use restrict";
+
+//Number of bits in an integer
+var INT_BITS = 32;
+
+//Constants
+exports.INT_BITS  = INT_BITS;
+exports.INT_MAX   =  0x7fffffff;
+exports.INT_MIN   = -1<<(INT_BITS-1);
+
+//Returns -1, 0, +1 depending on sign of x
+exports.sign = function(v) {
+  return (v > 0) - (v < 0);
+}
+
+//Computes absolute value of integer
+exports.abs = function(v) {
+  var mask = v >> (INT_BITS-1);
+  return (v ^ mask) - mask;
+}
+
+//Computes minimum of integers x and y
+exports.min = function(x, y) {
+  return y ^ ((x ^ y) & -(x < y));
+}
+
+//Computes maximum of integers x and y
+exports.max = function(x, y) {
+  return x ^ ((x ^ y) & -(x < y));
+}
+
+//Checks if a number is a power of two
+exports.isPow2 = function(v) {
+  return !(v & (v-1)) && (!!v);
+}
+
+//Computes log base 2 of v
+exports.log2 = function(v) {
+  var r, shift;
+  r =     (v > 0xFFFF) << 4; v >>>= r;
+  shift = (v > 0xFF  ) << 3; v >>>= shift; r |= shift;
+  shift = (v > 0xF   ) << 2; v >>>= shift; r |= shift;
+  shift = (v > 0x3   ) << 1; v >>>= shift; r |= shift;
+  return r | (v >> 1);
+}
+
+//Computes log base 10 of v
+exports.log10 = function(v) {
+  return  (v >= 1000000000) ? 9 : (v >= 100000000) ? 8 : (v >= 10000000) ? 7 :
+          (v >= 1000000) ? 6 : (v >= 100000) ? 5 : (v >= 10000) ? 4 :
+          (v >= 1000) ? 3 : (v >= 100) ? 2 : (v >= 10) ? 1 : 0;
+}
+
+//Counts number of bits
+exports.popCount = function(v) {
+  v = v - ((v >>> 1) & 0x55555555);
+  v = (v & 0x33333333) + ((v >>> 2) & 0x33333333);
+  return ((v + (v >>> 4) & 0xF0F0F0F) * 0x1010101) >>> 24;
+}
+
+//Counts number of trailing zeros
+function countTrailingZeros(v) {
+  var c = 32;
+  v &= -v;
+  if (v) c--;
+  if (v & 0x0000FFFF) c -= 16;
+  if (v & 0x00FF00FF) c -= 8;
+  if (v & 0x0F0F0F0F) c -= 4;
+  if (v & 0x33333333) c -= 2;
+  if (v & 0x55555555) c -= 1;
+  return c;
+}
+exports.countTrailingZeros = countTrailingZeros;
+
+//Rounds to next power of 2
+exports.nextPow2 = function(v) {
+  v += v === 0;
+  --v;
+  v |= v >>> 1;
+  v |= v >>> 2;
+  v |= v >>> 4;
+  v |= v >>> 8;
+  v |= v >>> 16;
+  return v + 1;
+}
+
+//Rounds down to previous power of 2
+exports.prevPow2 = function(v) {
+  v |= v >>> 1;
+  v |= v >>> 2;
+  v |= v >>> 4;
+  v |= v >>> 8;
+  v |= v >>> 16;
+  return v - (v>>>1);
+}
+
+//Computes parity of word
+exports.parity = function(v) {
+  v ^= v >>> 16;
+  v ^= v >>> 8;
+  v ^= v >>> 4;
+  v &= 0xf;
+  return (0x6996 >>> v) & 1;
+}
+
+var REVERSE_TABLE = new Array(256);
+
+(function(tab) {
+  for(var i=0; i<256; ++i) {
+    var v = i, r = i, s = 7;
+    for (v >>>= 1; v; v >>>= 1) {
+      r <<= 1;
+      r |= v & 1;
+      --s;
+    }
+    tab[i] = (r << s) & 0xff;
+  }
+})(REVERSE_TABLE);
+
+//Reverse bits in a 32 bit word
+exports.reverse = function(v) {
+  return  (REVERSE_TABLE[ v         & 0xff] << 24) |
+          (REVERSE_TABLE[(v >>> 8)  & 0xff] << 16) |
+          (REVERSE_TABLE[(v >>> 16) & 0xff] << 8)  |
+           REVERSE_TABLE[(v >>> 24) & 0xff];
+}
+
+//Interleave bits of 2 coordinates with 16 bits.  Useful for fast quadtree codes
+exports.interleave2 = function(x, y) {
+  x &= 0xFFFF;
+  x = (x | (x << 8)) & 0x00FF00FF;
+  x = (x | (x << 4)) & 0x0F0F0F0F;
+  x = (x | (x << 2)) & 0x33333333;
+  x = (x | (x << 1)) & 0x55555555;
+
+  y &= 0xFFFF;
+  y = (y | (y << 8)) & 0x00FF00FF;
+  y = (y | (y << 4)) & 0x0F0F0F0F;
+  y = (y | (y << 2)) & 0x33333333;
+  y = (y | (y << 1)) & 0x55555555;
+
+  return x | (y << 1);
+}
+
+//Extracts the nth interleaved component
+exports.deinterleave2 = function(v, n) {
+  v = (v >>> n) & 0x55555555;
+  v = (v | (v >>> 1))  & 0x33333333;
+  v = (v | (v >>> 2))  & 0x0F0F0F0F;
+  v = (v | (v >>> 4))  & 0x00FF00FF;
+  v = (v | (v >>> 16)) & 0x000FFFF;
+  return (v << 16) >> 16;
+}
+
+
+//Interleave bits of 3 coordinates, each with 10 bits.  Useful for fast octree codes
+exports.interleave3 = function(x, y, z) {
+  x &= 0x3FF;
+  x  = (x | (x<<16)) & 4278190335;
+  x  = (x | (x<<8))  & 251719695;
+  x  = (x | (x<<4))  & 3272356035;
+  x  = (x | (x<<2))  & 1227133513;
+
+  y &= 0x3FF;
+  y  = (y | (y<<16)) & 4278190335;
+  y  = (y | (y<<8))  & 251719695;
+  y  = (y | (y<<4))  & 3272356035;
+  y  = (y | (y<<2))  & 1227133513;
+  x |= (y << 1);
+  
+  z &= 0x3FF;
+  z  = (z | (z<<16)) & 4278190335;
+  z  = (z | (z<<8))  & 251719695;
+  z  = (z | (z<<4))  & 3272356035;
+  z  = (z | (z<<2))  & 1227133513;
+  
+  return x | (z << 2);
+}
+
+//Extracts nth interleaved component of a 3-tuple
+exports.deinterleave3 = function(v, n) {
+  v = (v >>> n)       & 1227133513;
+  v = (v | (v>>>2))   & 3272356035;
+  v = (v | (v>>>4))   & 251719695;
+  v = (v | (v>>>8))   & 4278190335;
+  v = (v | (v>>>16))  & 0x3FF;
+  return (v<<22)>>22;
+}
+
+//Computes next combination in colexicographic order (this is mistakenly called nextPermutation on the bit twiddling hacks page)
+exports.nextCombination = function(v) {
+  var t = v | (v - 1);
+  return (t + 1) | (((~t & -~t) - 1) >>> (countTrailingZeros(v) + 1));
+}
+
+
+},{}],31:[function(require,module,exports){
+"use strict"; "use restrict";
+
+module.exports = UnionFind;
+
+function UnionFind(count) {
+  this.roots = new Array(count);
+  this.ranks = new Array(count);
+  
+  for(var i=0; i<count; ++i) {
+    this.roots[i] = i;
+    this.ranks[i] = 0;
+  }
+}
+
+var proto = UnionFind.prototype
+
+Object.defineProperty(proto, "length", {
+  "get": function() {
+    return this.roots.length
+  }
+})
+
+proto.makeSet = function() {
+  var n = this.roots.length;
+  this.roots.push(n);
+  this.ranks.push(0);
+  return n;
+}
+
+proto.find = function(x) {
+  var x0 = x
+  var roots = this.roots;
+  while(roots[x] !== x) {
+    x = roots[x]
+  }
+  while(roots[x0] !== x) {
+    var y = roots[x0]
+    roots[x0] = x
+    x0 = y
+  }
+  return x;
+}
+
+proto.link = function(x, y) {
+  var xr = this.find(x)
+    , yr = this.find(y);
+  if(xr === yr) {
+    return;
+  }
+  var ranks = this.ranks
+    , roots = this.roots
+    , xd    = ranks[xr]
+    , yd    = ranks[yr];
+  if(xd < yd) {
+    roots[xr] = yr;
+  } else if(yd < xd) {
+    roots[yr] = xr;
+  } else {
+    roots[yr] = xr;
+    ++ranks[xr];
+  }
+}
+},{}],32:[function(require,module,exports){
+"use strict"; "use restrict";
+
+var bits      = require("bit-twiddle")
+  , UnionFind = require("union-find")
+
+//Returns the dimension of a cell complex
+function dimension(cells) {
+  var d = 0
+    , max = Math.max
+  for(var i=0, il=cells.length; i<il; ++i) {
+    d = max(d, cells[i].length)
+  }
+  return d-1
+}
+exports.dimension = dimension
+
+//Counts the number of vertices in faces
+function countVertices(cells) {
+  var vc = -1
+    , max = Math.max
+  for(var i=0, il=cells.length; i<il; ++i) {
+    var c = cells[i]
+    for(var j=0, jl=c.length; j<jl; ++j) {
+      vc = max(vc, c[j])
+    }
+  }
+  return vc+1
+}
+exports.countVertices = countVertices
+
+//Returns a deep copy of cells
+function cloneCells(cells) {
+  var ncells = new Array(cells.length)
+  for(var i=0, il=cells.length; i<il; ++i) {
+    ncells[i] = cells[i].slice(0)
+  }
+  return ncells
+}
+exports.cloneCells = cloneCells
+
+//Ranks a pair of cells up to permutation
+function compareCells(a, b) {
+  var n = a.length
+    , t = a.length - b.length
+    , min = Math.min
+  if(t) {
+    return t
+  }
+  switch(n) {
+    case 0:
+      return 0;
+    case 1:
+      return a[0] - b[0];
+    case 2:
+      var d = a[0]+a[1]-b[0]-b[1]
+      if(d) {
+        return d
+      }
+      return min(a[0],a[1]) - min(b[0],b[1])
+    case 3:
+      var l1 = a[0]+a[1]
+        , m1 = b[0]+b[1]
+      d = l1+a[2] - (m1+b[2])
+      if(d) {
+        return d
+      }
+      var l0 = min(a[0], a[1])
+        , m0 = min(b[0], b[1])
+        , d  = min(l0, a[2]) - min(m0, b[2])
+      if(d) {
+        return d
+      }
+      return min(l0+a[2], l1) - min(m0+b[2], m1)
+    
+    //TODO: Maybe optimize n=4 as well?
+    
+    default:
+      var as = a.slice(0)
+      as.sort()
+      var bs = b.slice(0)
+      bs.sort()
+      for(var i=0; i<n; ++i) {
+        t = as[i] - bs[i]
+        if(t) {
+          return t
+        }
+      }
+      return 0
+  }
+}
+exports.compareCells = compareCells
+
+function compareZipped(a, b) {
+  return compareCells(a[0], b[0])
+}
+
+//Puts a cell complex into normal order for the purposes of findCell queries
+function normalize(cells, attr) {
+  if(attr) {
+    var len = cells.length
+    var zipped = new Array(len)
+    for(var i=0; i<len; ++i) {
+      zipped[i] = [cells[i], attr[i]]
+    }
+    zipped.sort(compareZipped)
+    for(var i=0; i<len; ++i) {
+      cells[i] = zipped[i][0]
+      attr[i] = zipped[i][1]
+    }
+    return cells
+  } else {
+    cells.sort(compareCells)
+    return cells
+  }
+}
+exports.normalize = normalize
+
+//Removes all duplicate cells in the complex
+function unique(cells) {
+  if(cells.length === 0) {
+    return []
+  }
+  var ptr = 1
+    , len = cells.length
+  for(var i=1; i<len; ++i) {
+    var a = cells[i]
+    if(compareCells(a, cells[i-1])) {
+      if(i === ptr) {
+        ptr++
+        continue
+      }
+      cells[ptr++] = a
+    }
+  }
+  cells.length = ptr
+  return cells
+}
+exports.unique = unique;
+
+//Finds a cell in a normalized cell complex
+function findCell(cells, c) {
+  var lo = 0
+    , hi = cells.length-1
+    , r  = -1
+  while (lo <= hi) {
+    var mid = (lo + hi) >> 1
+      , s   = compareCells(cells[mid], c)
+    if(s <= 0) {
+      if(s === 0) {
+        r = mid
+      }
+      lo = mid + 1
+    } else if(s > 0) {
+      hi = mid - 1
+    }
+  }
+  return r
+}
+exports.findCell = findCell;
+
+//Builds an index for an n-cell.  This is more general than dual, but less efficient
+function incidence(from_cells, to_cells) {
+  var index = new Array(from_cells.length)
+  for(var i=0, il=index.length; i<il; ++i) {
+    index[i] = []
+  }
+  var b = []
+  for(var i=0, n=to_cells.length; i<n; ++i) {
+    var c = to_cells[i]
+    var cl = c.length
+    for(var k=1, kn=(1<<cl); k<kn; ++k) {
+      b.length = bits.popCount(k)
+      var l = 0
+      for(var j=0; j<cl; ++j) {
+        if(k & (1<<j)) {
+          b[l++] = c[j]
+        }
+      }
+      var idx=findCell(from_cells, b)
+      if(idx < 0) {
+        continue
+      }
+      while(true) {
+        index[idx++].push(i)
+        if(idx >= from_cells.length || compareCells(from_cells[idx], b) !== 0) {
+          break
+        }
+      }
+    }
+  }
+  return index
+}
+exports.incidence = incidence
+
+//Computes the dual of the mesh.  This is basically an optimized version of buildIndex for the situation where from_cells is just the list of vertices
+function dual(cells, vertex_count) {
+  if(!vertex_count) {
+    return incidence(unique(skeleton(cells, 0)), cells, 0)
+  }
+  var res = new Array(vertex_count)
+  for(var i=0; i<vertex_count; ++i) {
+    res[i] = []
+  }
+  for(var i=0, len=cells.length; i<len; ++i) {
+    var c = cells[i]
+    for(var j=0, cl=c.length; j<cl; ++j) {
+      res[c[j]].push(i)
+    }
+  }
+  return res
+}
+exports.dual = dual
+
+//Enumerates all cells in the complex
+function explode(cells) {
+  var result = []
+  for(var i=0, il=cells.length; i<il; ++i) {
+    var c = cells[i]
+      , cl = c.length|0
+    for(var j=1, jl=(1<<cl); j<jl; ++j) {
+      var b = []
+      for(var k=0; k<cl; ++k) {
+        if((j >>> k) & 1) {
+          b.push(c[k])
+        }
+      }
+      result.push(b)
+    }
+  }
+  return normalize(result)
+}
+exports.explode = explode
+
+//Enumerates all of the n-cells of a cell complex
+function skeleton(cells, n) {
+  if(n < 0) {
+    return []
+  }
+  var result = []
+    , k0     = (1<<(n+1))-1
+  for(var i=0; i<cells.length; ++i) {
+    var c = cells[i]
+    for(var k=k0; k<(1<<c.length); k=bits.nextCombination(k)) {
+      var b = new Array(n+1)
+        , l = 0
+      for(var j=0; j<c.length; ++j) {
+        if(k & (1<<j)) {
+          b[l++] = c[j]
+        }
+      }
+      result.push(b)
+    }
+  }
+  return normalize(result)
+}
+exports.skeleton = skeleton;
+
+//Computes the boundary of all cells, does not remove duplicates
+function boundary(cells) {
+  var res = []
+  for(var i=0,il=cells.length; i<il; ++i) {
+    var c = cells[i]
+    for(var j=0,cl=c.length; j<cl; ++j) {
+      var b = new Array(c.length-1)
+      for(var k=0, l=0; k<cl; ++k) {
+        if(k !== j) {
+          b[l++] = c[k]
+        }
+      }
+      res.push(b)
+    }
+  }
+  return normalize(res)
+}
+exports.boundary = boundary;
+
+//Computes connected components for a dense cell complex
+function connectedComponents_dense(cells, vertex_count) {
+  var labels = new UnionFind(vertex_count)
+  for(var i=0; i<cells.length; ++i) {
+    var c = cells[i]
+    for(var j=0; j<c.length; ++j) {
+      for(var k=j+1; k<c.length; ++k) {
+        labels.link(c[j], c[k])
+      }
+    }
+  }
+  var components = []
+    , component_labels = labels.ranks
+  for(var i=0; i<component_labels.length; ++i) {
+    component_labels[i] = -1
+  }
+  for(var i=0; i<cells.length; ++i) {
+    var l = labels.find(cells[i][0])
+    if(component_labels[l] < 0) {
+      component_labels[l] = components.length
+      components.push([cells[i].slice(0)])
+    } else {
+      components[component_labels[l]].push(cells[i].slice(0))
+    }
+  }
+  return components
+}
+
+//Computes connected components for a sparse graph
+function connectedComponents_sparse(cells) {
+  var vertices  = unique(normalize(skeleton(cells, 0)))
+    , labels    = new UnionFind(vertices.length)
+  for(var i=0; i<cells.length; ++i) {
+    var c = cells[i]
+    for(var j=0; j<c.length; ++j) {
+      var vj = findCell(vertices, [c[j]])
+      for(var k=j+1; k<c.length; ++k) {
+        labels.link(vj, findCell(vertices, [c[k]]))
+      }
+    }
+  }
+  var components        = []
+    , component_labels  = labels.ranks
+  for(var i=0; i<component_labels.length; ++i) {
+    component_labels[i] = -1
+  }
+  for(var i=0; i<cells.length; ++i) {
+    var l = labels.find(findCell(vertices, [cells[i][0]]));
+    if(component_labels[l] < 0) {
+      component_labels[l] = components.length
+      components.push([cells[i].slice(0)])
+    } else {
+      components[component_labels[l]].push(cells[i].slice(0))
+    }
+  }
+  return components
+}
+
+//Computes connected components for a cell complex
+function connectedComponents(cells, vertex_count) {
+  if(vertex_count) {
+    return connectedComponents_dense(cells, vertex_count)
+  }
+  return connectedComponents_sparse(cells)
+}
+exports.connectedComponents = connectedComponents
+
+},{"bit-twiddle":30,"union-find":31}],33:[function(require,module,exports){
+"use strict"
+
+function unique_pred(list, compare) {
+  var ptr = 1
+    , len = list.length
+    , a=list[0], b=list[0]
+  for(var i=1; i<len; ++i) {
+    b = a
+    a = list[i]
+    if(compare(a, b)) {
+      if(i === ptr) {
+        ptr++
+        continue
+      }
+      list[ptr++] = a
+    }
+  }
+  list.length = ptr
+  return list
+}
+
+function unique_eq(list) {
+  var ptr = 1
+    , len = list.length
+    , a=list[0], b = list[0]
+  for(var i=1; i<len; ++i, b=a) {
+    b = a
+    a = list[i]
+    if(a !== b) {
+      if(i === ptr) {
+        ptr++
+        continue
+      }
+      list[ptr++] = a
+    }
+  }
+  list.length = ptr
+  return list
+}
+
+function unique(list, compare, sorted) {
+  if(list.length === 0) {
+    return list
+  }
+  if(compare) {
+    if(!sorted) {
+      list.sort(compare)
+    }
+    return unique_pred(list, compare)
+  }
+  if(!sorted) {
+    list.sort()
+  }
+  return unique_eq(list)
+}
+
+module.exports = unique
+
+},{}],34:[function(require,module,exports){
+"use strict"
+
+var ch = require("incremental-convex-hull")
+var uniq = require("uniq")
+
+module.exports = triangulate
+
+function LiftedPoint(p, i) {
+  this.point = p
+  this.index = i
+}
+
+function compareLifted(a, b) {
+  var ap = a.point
+  var bp = b.point
+  var d = ap.length
+  for(var i=0; i<d; ++i) {
+    var s = bp[i] - ap[i]
+    if(s) {
+      return s
+    }
+  }
+  return 0
+}
+
+function triangulate1D(n, points, includePointAtInfinity) {
+  if(n === 1) {
+    if(includePointAtInfinity) {
+      return [ [-1, 0] ]
+    } else {
+      return []
+    }
+  }
+  var lifted = points.map(function(p, i) {
+    return [ p[0], i ]
+  })
+  lifted.sort(function(a,b) {
+    return a[0] - b[0]
+  })
+  var cells = new Array(n - 1)
+  for(var i=1; i<n; ++i) {
+    var a = lifted[i-1]
+    var b = lifted[i]
+    cells[i-1] = [ a[1], b[1] ]
+  }
+  if(includePointAtInfinity) {
+    cells.push(
+      [ -1, cells[0][1], ],
+      [ cells[n-1][1], -1 ])
+  }
+  return cells
+}
+
+function triangulate(points, includePointAtInfinity) {
+  var n = points.length
+  if(n === 0) {
+    return []
+  }
+  
+  var d = points[0].length
+  if(d < 1) {
+    return []
+  }
+
+  //Special case:  For 1D we can just sort the points
+  if(d === 1) {
+    return triangulate1D(n, points, includePointAtInfinity)
+  }
+  
+  //Lift points, sort
+  var lifted = new Array(n)
+  var upper = 1.0
+  for(var i=0; i<n; ++i) {
+    var p = points[i]
+    var x = new Array(d+1)
+    var l = 0.0
+    for(var j=0; j<d; ++j) {
+      var v = p[j]
+      x[j] = v
+      l += v * v
+    }
+    x[d] = l
+    lifted[i] = new LiftedPoint(x, i)
+    upper = Math.max(l, upper)
+  }
+  uniq(lifted, compareLifted)
+  
+  //Double points
+  n = lifted.length
+
+  //Create new list of points
+  var dpoints = new Array(n + d + 1)
+  var dindex = new Array(n + d + 1)
+
+  //Add steiner points at top
+  var u = (d+1) * (d+1) * upper
+  var y = new Array(d+1)
+  for(var i=0; i<=d; ++i) {
+    y[i] = 0.0
+  }
+  y[d] = u
+
+  dpoints[0] = y.slice()
+  dindex[0] = -1
+
+  for(var i=0; i<=d; ++i) {
+    var x = y.slice()
+    x[i] = 1
+    dpoints[i+1] = x
+    dindex[i+1] = -1
+  }
+
+  //Copy rest of the points over
+  for(var i=0; i<n; ++i) {
+    var h = lifted[i]
+    dpoints[i + d + 1] = h.point
+    dindex[i + d + 1] =  h.index
+  }
+
+  //Construct convex hull
+  var hull = ch(dpoints, false)
+  if(includePointAtInfinity) {
+    hull = hull.filter(function(cell) {
+      var count = 0
+      for(var j=0; j<=d; ++j) {
+        var v = dindex[cell[j]]
+        if(v < 0) {
+          if(++count >= 2) {
+            return false
+          }
+        }
+        cell[j] = v
+      }
+      return true
+    })
+  } else {
+    hull = hull.filter(function(cell) {
+      for(var i=0; i<=d; ++i) {
+        var v = dindex[cell[i]]
+        if(v < 0) {
+          return false
+        }
+        cell[i] = v
+      }
+      return true
+    })
+  }
+
+  if(d & 1) {
+    for(var i=0; i<hull.length; ++i) {
+      var h = hull[i]
+      var x = h[0]
+      h[0] = h[1]
+      h[1] = x
+    }
+  }
+
+  return hull
+}
+},{"incremental-convex-hull":23,"uniq":33}],35:[function(require,module,exports){
 module.exports = function drawTriangles(ctx, positions, cells, start, end) {
     var v = positions
     start = (start|0)
@@ -4554,7 +5845,7 @@ module.exports = function drawTriangles(ctx, positions, cells, start, end) {
         ctx.lineTo(v0[0], v0[1])
     }
 }
-},{}],24:[function(require,module,exports){
+},{}],36:[function(require,module,exports){
 var parseXml = require('xml-parse-from-string')
 
 function extractSvgPath (svgDoc) {
@@ -4582,7 +5873,7 @@ module.exports.parse = extractSvgPath
 //deprecated
 module.exports.fromString = extractSvgPath
 
-},{"xml-parse-from-string":25}],25:[function(require,module,exports){
+},{"xml-parse-from-string":37}],37:[function(require,module,exports){
 module.exports = (function xmlparser() {
   //common browsers
   if (typeof window.DOMParser !== 'undefined') {
@@ -4610,7 +5901,7 @@ module.exports = (function xmlparser() {
     return div
   }
 })()
-},{}],26:[function(require,module,exports){
+},{}],38:[function(require,module,exports){
 module.exports = {
   union: require('./lib/union'),
   intersect: require('./lib/intersect'),
@@ -4620,7 +5911,7 @@ module.exports = {
   utils: require('./lib/util')
 };
 
-},{"./lib/intersect":28,"./lib/subtract":30,"./lib/union":31,"./lib/util":32}],27:[function(require,module,exports){
+},{"./lib/intersect":40,"./lib/subtract":42,"./lib/union":43,"./lib/util":44}],39:[function(require,module,exports){
 var Ring = require('./ring');
 var Vertex = require('./vertex');
 var pip = require('point-in-polygon');
@@ -5192,7 +6483,7 @@ function lineIntersects(start1, end1, start2, end2) {
   }
 }
 
-},{"./ring":29,"./util":32,"./vertex":33,"point-in-polygon":34}],28:[function(require,module,exports){
+},{"./ring":41,"./util":44,"./vertex":45,"point-in-polygon":46}],40:[function(require,module,exports){
 var ghClipping = require('./greiner-hormann');
 var union = require('./union');
 var utils = require('./util');
@@ -5224,7 +6515,7 @@ module.exports = function (subject, clipper) {
   return result;
 };
 
-},{"./greiner-hormann":27,"./subtract":30,"./union":31,"./util":32}],29:[function(require,module,exports){
+},{"./greiner-hormann":39,"./subtract":42,"./union":43,"./util":44}],41:[function(require,module,exports){
 var Vertex = require('./vertex');
 var clockwise = require('turf-is-clockwise');
 
@@ -5414,7 +6705,7 @@ Ring.prototype.logIntersections = function () {
 
 module.exports = Ring;
 
-},{"./vertex":33,"turf-is-clockwise":35}],30:[function(require,module,exports){
+},{"./vertex":45,"turf-is-clockwise":47}],42:[function(require,module,exports){
 var util = require('./util');
 var ghClipping = require('./greiner-hormann');
 
@@ -5517,7 +6808,7 @@ function subtract(subject, clip, skiploop) {
 
 module.exports = subtract;
 
-},{"./greiner-hormann":27,"./util":32}],31:[function(require,module,exports){
+},{"./greiner-hormann":39,"./util":44}],43:[function(require,module,exports){
 var utils = require('./util');
 var subtract = require('./subtract');
 
@@ -5596,7 +6887,7 @@ module.exports = function (coords, coords2) {
   return hulls;
 };
 
-},{"./subtract":30,"./util":32}],32:[function(require,module,exports){
+},{"./subtract":42,"./util":44}],44:[function(require,module,exports){
 if (!Array.isArray) {
   Array.isArray = function (arg) {
     return Object.prototype.toString.call(arg) === '[object Array]';
@@ -5785,7 +7076,7 @@ exports.unionRings = function (rings, holes) {
   return rings;
 };
 
-},{"./greiner-hormann":27}],33:[function(require,module,exports){
+},{"./greiner-hormann":39}],45:[function(require,module,exports){
 function Vertex(x, y, alpha, intersect, degenerate) {
   this.x = x;
   this.y = y;
@@ -5862,7 +7153,7 @@ Vertex.prototype.log = function () {
 
 module.exports = Vertex;
 
-},{}],34:[function(require,module,exports){
+},{}],46:[function(require,module,exports){
 module.exports = function (point, vs) {
     // ray-casting algorithm based on
     // http://www.ecse.rpi.edu/Homepages/wrf/Research/Short_Notes/pnpoly.html
@@ -5882,7 +7173,7 @@ module.exports = function (point, vs) {
     return inside;
 };
 
-},{}],35:[function(require,module,exports){
+},{}],47:[function(require,module,exports){
 module.exports = function(ring){
   var sum = 0;
   var i = 1;
@@ -5896,7 +7187,7 @@ module.exports = function(ring){
   }
   return sum > 0;
 }
-},{}],36:[function(require,module,exports){
+},{}],48:[function(require,module,exports){
 var xhr = require('xhr');
 
 module.exports = function (opts, cb) {
@@ -5915,7 +7206,7 @@ module.exports = function (opts, cb) {
     });
 };
 
-},{"xhr":37}],37:[function(require,module,exports){
+},{"xhr":49}],49:[function(require,module,exports){
 var window = require("global/window")
 var once = require("once")
 var parseHeaders = require('parse-headers')
@@ -6094,7 +7385,7 @@ function createXHR(options, callback) {
 
 function noop() {}
 
-},{"global/window":38,"once":39,"parse-headers":43}],38:[function(require,module,exports){
+},{"global/window":50,"once":51,"parse-headers":55}],50:[function(require,module,exports){
 (function (global){
 if (typeof window !== "undefined") {
     module.exports = window;
@@ -6107,7 +7398,7 @@ if (typeof window !== "undefined") {
 }
 
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{}],39:[function(require,module,exports){
+},{}],51:[function(require,module,exports){
 module.exports = once
 
 once.proto = once(function () {
@@ -6128,7 +7419,7 @@ function once (fn) {
   }
 }
 
-},{}],40:[function(require,module,exports){
+},{}],52:[function(require,module,exports){
 var isFunction = require('is-function')
 
 module.exports = forEach
@@ -6176,7 +7467,7 @@ function forEachObject(object, iterator, context) {
     }
 }
 
-},{"is-function":41}],41:[function(require,module,exports){
+},{"is-function":53}],53:[function(require,module,exports){
 module.exports = isFunction
 
 var toString = Object.prototype.toString
@@ -6193,7 +7484,7 @@ function isFunction (fn) {
       fn === window.prompt))
 };
 
-},{}],42:[function(require,module,exports){
+},{}],54:[function(require,module,exports){
 
 exports = module.exports = trim;
 
@@ -6209,7 +7500,7 @@ exports.right = function(str){
   return str.replace(/\s*$/, '');
 };
 
-},{}],43:[function(require,module,exports){
+},{}],55:[function(require,module,exports){
 var trim = require('trim')
   , forEach = require('for-each')
   , isArray = function(arg) {
@@ -6241,7 +7532,7 @@ module.exports = function (headers) {
 
   return result
 }
-},{"for-each":40,"trim":42}],44:[function(require,module,exports){
+},{"for-each":52,"trim":54}],56:[function(require,module,exports){
 'use strict'
 
 var pool = require('typedarray-pool')
@@ -6353,215 +7644,11 @@ function meshLaplacian(cells, positions) {
   return entries
 }
 
-},{"typedarray-pool":47}],45:[function(require,module,exports){
-/**
- * Bit twiddling hacks for JavaScript.
- *
- * Author: Mikola Lysenko
- *
- * Ported from Stanford bit twiddling hack library:
- *    http://graphics.stanford.edu/~seander/bithacks.html
- */
-
-"use strict"; "use restrict";
-
-//Number of bits in an integer
-var INT_BITS = 32;
-
-//Constants
-exports.INT_BITS  = INT_BITS;
-exports.INT_MAX   =  0x7fffffff;
-exports.INT_MIN   = -1<<(INT_BITS-1);
-
-//Returns -1, 0, +1 depending on sign of x
-exports.sign = function(v) {
-  return (v > 0) - (v < 0);
-}
-
-//Computes absolute value of integer
-exports.abs = function(v) {
-  var mask = v >> (INT_BITS-1);
-  return (v ^ mask) - mask;
-}
-
-//Computes minimum of integers x and y
-exports.min = function(x, y) {
-  return y ^ ((x ^ y) & -(x < y));
-}
-
-//Computes maximum of integers x and y
-exports.max = function(x, y) {
-  return x ^ ((x ^ y) & -(x < y));
-}
-
-//Checks if a number is a power of two
-exports.isPow2 = function(v) {
-  return !(v & (v-1)) && (!!v);
-}
-
-//Computes log base 2 of v
-exports.log2 = function(v) {
-  var r, shift;
-  r =     (v > 0xFFFF) << 4; v >>>= r;
-  shift = (v > 0xFF  ) << 3; v >>>= shift; r |= shift;
-  shift = (v > 0xF   ) << 2; v >>>= shift; r |= shift;
-  shift = (v > 0x3   ) << 1; v >>>= shift; r |= shift;
-  return r | (v >> 1);
-}
-
-//Computes log base 10 of v
-exports.log10 = function(v) {
-  return  (v >= 1000000000) ? 9 : (v >= 100000000) ? 8 : (v >= 10000000) ? 7 :
-          (v >= 1000000) ? 6 : (v >= 100000) ? 5 : (v >= 10000) ? 4 :
-          (v >= 1000) ? 3 : (v >= 100) ? 2 : (v >= 10) ? 1 : 0;
-}
-
-//Counts number of bits
-exports.popCount = function(v) {
-  v = v - ((v >>> 1) & 0x55555555);
-  v = (v & 0x33333333) + ((v >>> 2) & 0x33333333);
-  return ((v + (v >>> 4) & 0xF0F0F0F) * 0x1010101) >>> 24;
-}
-
-//Counts number of trailing zeros
-function countTrailingZeros(v) {
-  var c = 32;
-  v &= -v;
-  if (v) c--;
-  if (v & 0x0000FFFF) c -= 16;
-  if (v & 0x00FF00FF) c -= 8;
-  if (v & 0x0F0F0F0F) c -= 4;
-  if (v & 0x33333333) c -= 2;
-  if (v & 0x55555555) c -= 1;
-  return c;
-}
-exports.countTrailingZeros = countTrailingZeros;
-
-//Rounds to next power of 2
-exports.nextPow2 = function(v) {
-  v += v === 0;
-  --v;
-  v |= v >>> 1;
-  v |= v >>> 2;
-  v |= v >>> 4;
-  v |= v >>> 8;
-  v |= v >>> 16;
-  return v + 1;
-}
-
-//Rounds down to previous power of 2
-exports.prevPow2 = function(v) {
-  v |= v >>> 1;
-  v |= v >>> 2;
-  v |= v >>> 4;
-  v |= v >>> 8;
-  v |= v >>> 16;
-  return v - (v>>>1);
-}
-
-//Computes parity of word
-exports.parity = function(v) {
-  v ^= v >>> 16;
-  v ^= v >>> 8;
-  v ^= v >>> 4;
-  v &= 0xf;
-  return (0x6996 >>> v) & 1;
-}
-
-var REVERSE_TABLE = new Array(256);
-
-(function(tab) {
-  for(var i=0; i<256; ++i) {
-    var v = i, r = i, s = 7;
-    for (v >>>= 1; v; v >>>= 1) {
-      r <<= 1;
-      r |= v & 1;
-      --s;
-    }
-    tab[i] = (r << s) & 0xff;
-  }
-})(REVERSE_TABLE);
-
-//Reverse bits in a 32 bit word
-exports.reverse = function(v) {
-  return  (REVERSE_TABLE[ v         & 0xff] << 24) |
-          (REVERSE_TABLE[(v >>> 8)  & 0xff] << 16) |
-          (REVERSE_TABLE[(v >>> 16) & 0xff] << 8)  |
-           REVERSE_TABLE[(v >>> 24) & 0xff];
-}
-
-//Interleave bits of 2 coordinates with 16 bits.  Useful for fast quadtree codes
-exports.interleave2 = function(x, y) {
-  x &= 0xFFFF;
-  x = (x | (x << 8)) & 0x00FF00FF;
-  x = (x | (x << 4)) & 0x0F0F0F0F;
-  x = (x | (x << 2)) & 0x33333333;
-  x = (x | (x << 1)) & 0x55555555;
-
-  y &= 0xFFFF;
-  y = (y | (y << 8)) & 0x00FF00FF;
-  y = (y | (y << 4)) & 0x0F0F0F0F;
-  y = (y | (y << 2)) & 0x33333333;
-  y = (y | (y << 1)) & 0x55555555;
-
-  return x | (y << 1);
-}
-
-//Extracts the nth interleaved component
-exports.deinterleave2 = function(v, n) {
-  v = (v >>> n) & 0x55555555;
-  v = (v | (v >>> 1))  & 0x33333333;
-  v = (v | (v >>> 2))  & 0x0F0F0F0F;
-  v = (v | (v >>> 4))  & 0x00FF00FF;
-  v = (v | (v >>> 16)) & 0x000FFFF;
-  return (v << 16) >> 16;
-}
-
-
-//Interleave bits of 3 coordinates, each with 10 bits.  Useful for fast octree codes
-exports.interleave3 = function(x, y, z) {
-  x &= 0x3FF;
-  x  = (x | (x<<16)) & 4278190335;
-  x  = (x | (x<<8))  & 251719695;
-  x  = (x | (x<<4))  & 3272356035;
-  x  = (x | (x<<2))  & 1227133513;
-
-  y &= 0x3FF;
-  y  = (y | (y<<16)) & 4278190335;
-  y  = (y | (y<<8))  & 251719695;
-  y  = (y | (y<<4))  & 3272356035;
-  y  = (y | (y<<2))  & 1227133513;
-  x |= (y << 1);
-  
-  z &= 0x3FF;
-  z  = (z | (z<<16)) & 4278190335;
-  z  = (z | (z<<8))  & 251719695;
-  z  = (z | (z<<4))  & 3272356035;
-  z  = (z | (z<<2))  & 1227133513;
-  
-  return x | (z << 2);
-}
-
-//Extracts nth interleaved component of a 3-tuple
-exports.deinterleave3 = function(v, n) {
-  v = (v >>> n)       & 1227133513;
-  v = (v | (v>>>2))   & 3272356035;
-  v = (v | (v>>>4))   & 251719695;
-  v = (v | (v>>>8))   & 4278190335;
-  v = (v | (v>>>16))  & 0x3FF;
-  return (v<<22)>>22;
-}
-
-//Computes next combination in colexicographic order (this is mistakenly called nextPermutation on the bit twiddling hacks page)
-exports.nextCombination = function(v) {
-  var t = v | (v - 1);
-  return (t + 1) | (((~t & -~t) - 1) >>> (countTrailingZeros(v) + 1));
-}
-
-
-},{}],46:[function(require,module,exports){
+},{"typedarray-pool":59}],57:[function(require,module,exports){
+arguments[4][30][0].apply(exports,arguments)
+},{"dup":30}],58:[function(require,module,exports){
 arguments[4][22][0].apply(exports,arguments)
-},{"dup":22}],47:[function(require,module,exports){
+},{"dup":22}],59:[function(require,module,exports){
 (function (global,Buffer){
 'use strict'
 
@@ -6778,7 +7865,7 @@ exports.clearCache = function clearCache() {
   }
 }
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {},require("buffer").Buffer)
-},{"bit-twiddle":45,"buffer":1,"dup":46}],48:[function(require,module,exports){
+},{"bit-twiddle":57,"buffer":1,"dup":58}],60:[function(require,module,exports){
 module.exports = reindex
 
 function reindex(array) {
@@ -6810,7 +7897,7 @@ function reindex(array) {
   }
 }
 
-},{}],49:[function(require,module,exports){
+},{}],61:[function(require,module,exports){
 //http://www.blackpawn.com/texts/pointinpoly/
 module.exports = function pointInTriangle(point, triangle) {
     //compute vectors & dot products
@@ -6832,7 +7919,7 @@ module.exports = function pointInTriangle(point, triangle) {
         v = (dot00*dot12 - dot01*dot02) * inv
     return u>=0 && v>=0 && (u+v < 1)
 }
-},{}],50:[function(require,module,exports){
+},{}],62:[function(require,module,exports){
 'use strict'
 
 module.exports = polyBool
@@ -6851,7 +7938,7 @@ function polyBool(a, b, op) {
   return pslg2poly(result.points, result.red.concat(result.blue))
 }
 
-},{"overlay-pslg":121,"poly-to-pslg":168,"pslg-to-poly":193}],51:[function(require,module,exports){
+},{"overlay-pslg":133,"poly-to-pslg":180,"pslg-to-poly":205}],63:[function(require,module,exports){
 "use strict"
 
 function compileSearch(funcName, predicate, reversed, extraArgs, earlyOut) {
@@ -6905,7 +7992,7 @@ module.exports = {
   eq: compileBoundsSearch("-", true, "EQ", true)
 }
 
-},{}],52:[function(require,module,exports){
+},{}],64:[function(require,module,exports){
 'use strict'
 
 var monotoneTriangulate = require('./lib/monotone')
@@ -6989,7 +8076,7 @@ function cdt2d(points, edges, options) {
   }
 }
 
-},{"./lib/delaunay":53,"./lib/filter":54,"./lib/monotone":55,"./lib/triangulation":56}],53:[function(require,module,exports){
+},{"./lib/delaunay":65,"./lib/filter":66,"./lib/monotone":67,"./lib/triangulation":68}],65:[function(require,module,exports){
 'use strict'
 
 var inCircle = require('robust-in-sphere')[4]
@@ -7106,7 +8193,7 @@ function delaunayRefine(points, triangulation) {
   }
 }
 
-},{"binary-search-bounds":51,"robust-in-sphere":57}],54:[function(require,module,exports){
+},{"binary-search-bounds":63,"robust-in-sphere":69}],66:[function(require,module,exports){
 'use strict'
 
 var bsearch = require('binary-search-bounds')
@@ -7288,7 +8375,7 @@ function classifyFaces(triangulation, target, infinity) {
   return result
 }
 
-},{"binary-search-bounds":51}],55:[function(require,module,exports){
+},{"binary-search-bounds":63}],67:[function(require,module,exports){
 'use strict'
 
 var bsearch = require('binary-search-bounds')
@@ -7477,7 +8564,7 @@ function monotoneTriangulate(points, edges) {
   return cells
 }
 
-},{"binary-search-bounds":51,"robust-orientation":68}],56:[function(require,module,exports){
+},{"binary-search-bounds":63,"robust-orientation":80}],68:[function(require,module,exports){
 'use strict'
 
 var bsearch = require('binary-search-bounds')
@@ -7583,7 +8670,7 @@ function createTriangulation(numVerts, edges) {
   return new Triangulation(stars, edges)
 }
 
-},{"binary-search-bounds":51}],57:[function(require,module,exports){
+},{"binary-search-bounds":63}],69:[function(require,module,exports){
 "use strict"
 
 var twoProduct = require("two-product")
@@ -7751,29 +8838,29 @@ function generateInSphereTest() {
 }
 
 generateInSphereTest()
-},{"robust-scale":59,"robust-subtract":60,"robust-sum":61,"two-product":62}],58:[function(require,module,exports){
+},{"robust-scale":71,"robust-subtract":72,"robust-sum":73,"two-product":74}],70:[function(require,module,exports){
 arguments[4][7][0].apply(exports,arguments)
-},{"dup":7}],59:[function(require,module,exports){
+},{"dup":7}],71:[function(require,module,exports){
 arguments[4][8][0].apply(exports,arguments)
-},{"dup":8,"two-product":62,"two-sum":58}],60:[function(require,module,exports){
+},{"dup":8,"two-product":74,"two-sum":70}],72:[function(require,module,exports){
 arguments[4][9][0].apply(exports,arguments)
-},{"dup":9}],61:[function(require,module,exports){
+},{"dup":9}],73:[function(require,module,exports){
 arguments[4][10][0].apply(exports,arguments)
-},{"dup":10}],62:[function(require,module,exports){
+},{"dup":10}],74:[function(require,module,exports){
 arguments[4][11][0].apply(exports,arguments)
-},{"dup":11}],63:[function(require,module,exports){
+},{"dup":11}],75:[function(require,module,exports){
 arguments[4][7][0].apply(exports,arguments)
-},{"dup":7}],64:[function(require,module,exports){
+},{"dup":7}],76:[function(require,module,exports){
 arguments[4][8][0].apply(exports,arguments)
-},{"dup":8,"two-product":67,"two-sum":63}],65:[function(require,module,exports){
+},{"dup":8,"two-product":79,"two-sum":75}],77:[function(require,module,exports){
 arguments[4][9][0].apply(exports,arguments)
-},{"dup":9}],66:[function(require,module,exports){
+},{"dup":9}],78:[function(require,module,exports){
 arguments[4][10][0].apply(exports,arguments)
-},{"dup":10}],67:[function(require,module,exports){
+},{"dup":10}],79:[function(require,module,exports){
 arguments[4][11][0].apply(exports,arguments)
-},{"dup":11}],68:[function(require,module,exports){
+},{"dup":11}],80:[function(require,module,exports){
 arguments[4][12][0].apply(exports,arguments)
-},{"dup":12,"robust-scale":64,"robust-subtract":65,"robust-sum":66,"two-product":67}],69:[function(require,module,exports){
+},{"dup":12,"robust-scale":76,"robust-subtract":77,"robust-sum":78,"two-product":79}],81:[function(require,module,exports){
 'use strict'
 
 module.exports = cleanPSLG
@@ -8135,7 +9222,7 @@ function cleanPSLG(points, edges, colors) {
   return modified
 }
 
-},{"./lib/rat-seg-intersect":70,"big-rat":74,"big-rat/cmp":72,"big-rat/to-float":89,"box-intersect":90,"compare-cell":100,"nextafter":101,"rat-vec":104,"robust-segment-intersect":113,"union-find":114}],70:[function(require,module,exports){
+},{"./lib/rat-seg-intersect":82,"big-rat":86,"big-rat/cmp":84,"big-rat/to-float":101,"box-intersect":102,"compare-cell":112,"nextafter":113,"rat-vec":116,"robust-segment-intersect":125,"union-find":126}],82:[function(require,module,exports){
 'use strict'
 
 //TODO: Move this to a separate module
@@ -8181,7 +9268,7 @@ function solveIntersection(a, b, c, d) {
   return rvAdd(a, rvMuls(ba, t))
 }
 
-},{"big-rat/div":73,"big-rat/mul":83,"big-rat/sign":87,"big-rat/sub":88,"big-rat/to-float":89,"rat-vec/add":103,"rat-vec/muls":105,"rat-vec/sub":106}],71:[function(require,module,exports){
+},{"big-rat/div":85,"big-rat/mul":95,"big-rat/sign":99,"big-rat/sub":100,"big-rat/to-float":101,"rat-vec/add":115,"rat-vec/muls":117,"rat-vec/sub":118}],83:[function(require,module,exports){
 'use strict'
 
 var rationalize = require('./lib/rationalize')
@@ -8194,7 +9281,7 @@ function add(a, b) {
     a[1].mul(b[1]))
 }
 
-},{"./lib/rationalize":81}],72:[function(require,module,exports){
+},{"./lib/rationalize":93}],84:[function(require,module,exports){
 'use strict'
 
 module.exports = cmp
@@ -8203,7 +9290,7 @@ function cmp(a, b) {
     return a[0].mul(b[1]).cmp(b[0].mul(a[1]))
 }
 
-},{}],73:[function(require,module,exports){
+},{}],85:[function(require,module,exports){
 'use strict'
 
 var rationalize = require('./lib/rationalize')
@@ -8214,7 +9301,7 @@ function div(a, b) {
   return rationalize(a[0].mul(b[1]), a[1].mul(b[0]))
 }
 
-},{"./lib/rationalize":81}],74:[function(require,module,exports){
+},{"./lib/rationalize":93}],86:[function(require,module,exports){
 'use strict'
 
 var isRat = require('./is-rat')
@@ -8276,7 +9363,7 @@ function makeRational(numer, denom) {
   return rationalize(a, b)
 }
 
-},{"./div":73,"./is-rat":75,"./lib/is-bn":79,"./lib/num-to-bn":80,"./lib/rationalize":81,"./lib/str-to-bn":82}],75:[function(require,module,exports){
+},{"./div":85,"./is-rat":87,"./lib/is-bn":91,"./lib/num-to-bn":92,"./lib/rationalize":93,"./lib/str-to-bn":94}],87:[function(require,module,exports){
 'use strict'
 
 var isBN = require('./lib/is-bn')
@@ -8287,7 +9374,7 @@ function isRat(x) {
   return Array.isArray(x) && x.length === 2 && isBN(x[0]) && isBN(x[1])
 }
 
-},{"./lib/is-bn":79}],76:[function(require,module,exports){
+},{"./lib/is-bn":91}],88:[function(require,module,exports){
 'use strict'
 
 var bn = require('bn.js')
@@ -8298,7 +9385,7 @@ function sign(x) {
   return x.cmp(new bn(0))
 }
 
-},{"bn.js":85}],77:[function(require,module,exports){
+},{"bn.js":97}],89:[function(require,module,exports){
 'use strict'
 
 module.exports = bn2num
@@ -8322,7 +9409,7 @@ function bn2num(b) {
   return b.sign ? -out : out
 }
 
-},{}],78:[function(require,module,exports){
+},{}],90:[function(require,module,exports){
 'use strict'
 
 var db = require('double-bits')
@@ -8343,7 +9430,7 @@ function ctzNumber(x) {
   return h + 32
 }
 
-},{"bit-twiddle":84,"double-bits":86}],79:[function(require,module,exports){
+},{"bit-twiddle":96,"double-bits":98}],91:[function(require,module,exports){
 'use strict'
 
 var BN = require('bn.js')
@@ -8356,7 +9443,7 @@ function isBN(x) {
   return x && typeof x === 'object' && Boolean(x.words)
 }
 
-},{"bn.js":85}],80:[function(require,module,exports){
+},{"bn.js":97}],92:[function(require,module,exports){
 'use strict'
 
 var BN = require('bn.js')
@@ -8373,7 +9460,7 @@ function num2bn(x) {
   }
 }
 
-},{"bn.js":85,"double-bits":86}],81:[function(require,module,exports){
+},{"bn.js":97,"double-bits":98}],93:[function(require,module,exports){
 'use strict'
 
 var num2bn = require('./num-to-bn')
@@ -8401,7 +9488,7 @@ function rationalize(numer, denom) {
   return [ numer, denom ]
 }
 
-},{"./bn-sign":76,"./num-to-bn":80}],82:[function(require,module,exports){
+},{"./bn-sign":88,"./num-to-bn":92}],94:[function(require,module,exports){
 'use strict'
 
 var BN = require('bn.js')
@@ -8412,7 +9499,7 @@ function str2BN(x) {
   return new BN(x)
 }
 
-},{"bn.js":85}],83:[function(require,module,exports){
+},{"bn.js":97}],95:[function(require,module,exports){
 'use strict'
 
 var rationalize = require('./lib/rationalize')
@@ -8423,9 +9510,9 @@ function mul(a, b) {
   return rationalize(a[0].mul(b[0]), a[1].mul(b[1]))
 }
 
-},{"./lib/rationalize":81}],84:[function(require,module,exports){
-arguments[4][45][0].apply(exports,arguments)
-},{"dup":45}],85:[function(require,module,exports){
+},{"./lib/rationalize":93}],96:[function(require,module,exports){
+arguments[4][30][0].apply(exports,arguments)
+},{"dup":30}],97:[function(require,module,exports){
 (function (module, exports) {
 
 'use strict';
@@ -10745,7 +11832,7 @@ Mont.prototype.invm = function invm(a) {
 
 })(typeof module === 'undefined' || module, this);
 
-},{}],86:[function(require,module,exports){
+},{}],98:[function(require,module,exports){
 (function (Buffer){
 var hasTypedArrays = false
 if(typeof Float64Array !== "undefined") {
@@ -10849,7 +11936,7 @@ module.exports.denormalized = function(n) {
   return !(hi & 0x7ff00000)
 }
 }).call(this,require("buffer").Buffer)
-},{"buffer":1}],87:[function(require,module,exports){
+},{"buffer":1}],99:[function(require,module,exports){
 'use strict'
 
 var bnsign = require('./lib/bn-sign')
@@ -10860,7 +11947,7 @@ function sign(x) {
   return bnsign(x[0]) * bnsign(x[1])
 }
 
-},{"./lib/bn-sign":76}],88:[function(require,module,exports){
+},{"./lib/bn-sign":88}],100:[function(require,module,exports){
 'use strict'
 
 var rationalize = require('./lib/rationalize')
@@ -10871,7 +11958,7 @@ function sub(a, b) {
   return rationalize(a[0].mul(b[1]).sub(a[1].mul(b[0])), a[1].mul(b[1]))
 }
 
-},{"./lib/rationalize":81}],89:[function(require,module,exports){
+},{"./lib/rationalize":93}],101:[function(require,module,exports){
 'use strict'
 
 var bn2num = require('./lib/bn-to-num')
@@ -10914,7 +12001,7 @@ function roundRat(f) {
   }
 }
 
-},{"./lib/bn-to-num":77,"./lib/ctz":78}],90:[function(require,module,exports){
+},{"./lib/bn-to-num":89,"./lib/ctz":90}],102:[function(require,module,exports){
 'use strict'
 
 module.exports = boxIntersectWrapper
@@ -11053,7 +12140,7 @@ function boxIntersectWrapper(arg0, arg1, arg2) {
       throw new Error('box-intersect: Invalid arguments')
   }
 }
-},{"./lib/intersect":92,"./lib/sweep":96,"typedarray-pool":99}],91:[function(require,module,exports){
+},{"./lib/intersect":104,"./lib/sweep":108,"typedarray-pool":111}],103:[function(require,module,exports){
 'use strict'
 
 var DIMENSION   = 'd'
@@ -11198,7 +12285,7 @@ function bruteForcePlanner(full) {
 
 exports.partial = bruteForcePlanner(false)
 exports.full    = bruteForcePlanner(true)
-},{}],92:[function(require,module,exports){
+},{}],104:[function(require,module,exports){
 'use strict'
 
 module.exports = boxIntersectIter
@@ -11693,7 +12780,7 @@ function boxIntersectIter(
     }
   }
 }
-},{"./brute":91,"./median":93,"./partition":94,"./sweep":96,"bit-twiddle":97,"typedarray-pool":99}],93:[function(require,module,exports){
+},{"./brute":103,"./median":105,"./partition":106,"./sweep":108,"bit-twiddle":109,"typedarray-pool":111}],105:[function(require,module,exports){
 'use strict'
 
 module.exports = findMedian
@@ -11836,7 +12923,7 @@ function findMedian(d, axis, start, end, boxes, ids) {
     start, mid, boxes, ids,
     boxes[elemSize*mid+axis])
 }
-},{"./partition":94}],94:[function(require,module,exports){
+},{"./partition":106}],106:[function(require,module,exports){
 'use strict'
 
 module.exports = genPartition
@@ -11857,7 +12944,7 @@ function genPartition(predicate, args) {
         .replace('$', predicate))
   return Function.apply(void 0, fargs)
 }
-},{}],95:[function(require,module,exports){
+},{}],107:[function(require,module,exports){
 'use strict';
 
 //This code is extracted from ndarray-sort
@@ -12094,7 +13181,7 @@ function quickSort(left, right, data) {
     quickSort(less, great, data);
   }
 }
-},{}],96:[function(require,module,exports){
+},{}],108:[function(require,module,exports){
 'use strict'
 
 module.exports = {
@@ -12529,13 +13616,13 @@ red_loop:
     }
   }
 }
-},{"./sort":95,"bit-twiddle":97,"typedarray-pool":99}],97:[function(require,module,exports){
-arguments[4][45][0].apply(exports,arguments)
-},{"dup":45}],98:[function(require,module,exports){
+},{"./sort":107,"bit-twiddle":109,"typedarray-pool":111}],109:[function(require,module,exports){
+arguments[4][30][0].apply(exports,arguments)
+},{"dup":30}],110:[function(require,module,exports){
 arguments[4][22][0].apply(exports,arguments)
-},{"dup":22}],99:[function(require,module,exports){
-arguments[4][47][0].apply(exports,arguments)
-},{"bit-twiddle":97,"buffer":1,"dup":47}],100:[function(require,module,exports){
+},{"dup":22}],111:[function(require,module,exports){
+arguments[4][59][0].apply(exports,arguments)
+},{"bit-twiddle":109,"buffer":1,"dup":59}],112:[function(require,module,exports){
 module.exports = compareCells
 
 var min = Math.min
@@ -12591,7 +13678,7 @@ function compareCells(a, b) {
   }
 }
 
-},{}],101:[function(require,module,exports){
+},{}],113:[function(require,module,exports){
 "use strict"
 
 var doubleBits = require("double-bits")
@@ -12634,9 +13721,9 @@ function nextafter(x, y) {
   }
   return doubleBits.pack(lo, hi)
 }
-},{"double-bits":102}],102:[function(require,module,exports){
-arguments[4][86][0].apply(exports,arguments)
-},{"buffer":1,"dup":86}],103:[function(require,module,exports){
+},{"double-bits":114}],114:[function(require,module,exports){
+arguments[4][98][0].apply(exports,arguments)
+},{"buffer":1,"dup":98}],115:[function(require,module,exports){
 'use strict'
 
 var bnadd = require('big-rat/add')
@@ -12652,7 +13739,7 @@ function add(a, b) {
   return r
 }
 
-},{"big-rat/add":71}],104:[function(require,module,exports){
+},{"big-rat/add":83}],116:[function(require,module,exports){
 'use strict'
 
 module.exports = float2rat
@@ -12667,7 +13754,7 @@ function float2rat(v) {
   return result
 }
 
-},{"big-rat":74}],105:[function(require,module,exports){
+},{"big-rat":86}],117:[function(require,module,exports){
 'use strict'
 
 var rat = require('big-rat')
@@ -12685,7 +13772,7 @@ function muls(a, x) {
   return r
 }
 
-},{"big-rat":74,"big-rat/mul":83}],106:[function(require,module,exports){
+},{"big-rat":86,"big-rat/mul":95}],118:[function(require,module,exports){
 'use strict'
 
 var bnsub = require('big-rat/sub')
@@ -12701,19 +13788,19 @@ function sub(a, b) {
   return r
 }
 
-},{"big-rat/sub":88}],107:[function(require,module,exports){
+},{"big-rat/sub":100}],119:[function(require,module,exports){
 arguments[4][7][0].apply(exports,arguments)
-},{"dup":7}],108:[function(require,module,exports){
+},{"dup":7}],120:[function(require,module,exports){
 arguments[4][8][0].apply(exports,arguments)
-},{"dup":8,"two-product":111,"two-sum":107}],109:[function(require,module,exports){
+},{"dup":8,"two-product":123,"two-sum":119}],121:[function(require,module,exports){
 arguments[4][9][0].apply(exports,arguments)
-},{"dup":9}],110:[function(require,module,exports){
+},{"dup":9}],122:[function(require,module,exports){
 arguments[4][10][0].apply(exports,arguments)
-},{"dup":10}],111:[function(require,module,exports){
+},{"dup":10}],123:[function(require,module,exports){
 arguments[4][11][0].apply(exports,arguments)
-},{"dup":11}],112:[function(require,module,exports){
+},{"dup":11}],124:[function(require,module,exports){
 arguments[4][12][0].apply(exports,arguments)
-},{"dup":12,"robust-scale":108,"robust-subtract":109,"robust-sum":110,"two-product":111}],113:[function(require,module,exports){
+},{"dup":12,"robust-scale":120,"robust-subtract":121,"robust-sum":122,"two-product":123}],125:[function(require,module,exports){
 "use strict"
 
 module.exports = segmentsIntersect
@@ -12761,70 +13848,9 @@ function segmentsIntersect(a0, a1, b0, b1) {
 
   return true
 }
-},{"robust-orientation":112}],114:[function(require,module,exports){
-"use strict"; "use restrict";
-
-module.exports = UnionFind;
-
-function UnionFind(count) {
-  this.roots = new Array(count);
-  this.ranks = new Array(count);
-  
-  for(var i=0; i<count; ++i) {
-    this.roots[i] = i;
-    this.ranks[i] = 0;
-  }
-}
-
-var proto = UnionFind.prototype
-
-Object.defineProperty(proto, "length", {
-  "get": function() {
-    return this.roots.length
-  }
-})
-
-proto.makeSet = function() {
-  var n = this.roots.length;
-  this.roots.push(n);
-  this.ranks.push(0);
-  return n;
-}
-
-proto.find = function(x) {
-  var x0 = x
-  var roots = this.roots;
-  while(roots[x] !== x) {
-    x = roots[x]
-  }
-  while(roots[x0] !== x) {
-    var y = roots[x0]
-    roots[x0] = x
-    x0 = y
-  }
-  return x;
-}
-
-proto.link = function(x, y) {
-  var xr = this.find(x)
-    , yr = this.find(y);
-  if(xr === yr) {
-    return;
-  }
-  var ranks = this.ranks
-    , roots = this.roots
-    , xd    = ranks[xr]
-    , yd    = ranks[yr];
-  if(xd < yd) {
-    roots[xr] = yr;
-  } else if(yd < xd) {
-    roots[yr] = xr;
-  } else {
-    roots[yr] = xr;
-    ++ranks[xr];
-  }
-}
-},{}],115:[function(require,module,exports){
+},{"robust-orientation":124}],126:[function(require,module,exports){
+arguments[4][31][0].apply(exports,arguments)
+},{"dup":31}],127:[function(require,module,exports){
 'use strict'
 
 module.exports = boundary
@@ -12836,7 +13862,7 @@ function boundary(cells) {
   return reduce(bnd(cells))
 }
 
-},{"boundary-cells":116,"reduce-simplicial-complex":120}],116:[function(require,module,exports){
+},{"boundary-cells":128,"reduce-simplicial-complex":132}],128:[function(require,module,exports){
 "use strict"
 
 module.exports = boundary
@@ -12862,7 +13888,7 @@ function boundary(cells) {
   return result
 }
 
-},{}],117:[function(require,module,exports){
+},{}],129:[function(require,module,exports){
 'use strict'
 
 module.exports = orientation
@@ -12881,9 +13907,9 @@ function orientation(s) {
   return p
 }
 
-},{}],118:[function(require,module,exports){
-arguments[4][100][0].apply(exports,arguments)
-},{"dup":100}],119:[function(require,module,exports){
+},{}],130:[function(require,module,exports){
+arguments[4][112][0].apply(exports,arguments)
+},{"dup":112}],131:[function(require,module,exports){
 'use strict'
 
 var compareCells = require('compare-cell')
@@ -12895,7 +13921,7 @@ function compareOrientedCells(a, b) {
   return compareCells(a, b) || parity(a) - parity(b)
 }
 
-},{"cell-orientation":117,"compare-cell":118}],120:[function(require,module,exports){
+},{"cell-orientation":129,"compare-cell":130}],132:[function(require,module,exports){
 'use strict'
 
 var compareCell = require('compare-cell')
@@ -12928,7 +13954,7 @@ function reduceCellComplex(cells) {
   return cells
 }
 
-},{"cell-orientation":117,"compare-cell":118,"compare-oriented-cell":119}],121:[function(require,module,exports){
+},{"cell-orientation":129,"compare-cell":130,"compare-oriented-cell":131}],133:[function(require,module,exports){
 'use strict'
 
 var snapRound = require('clean-pslg')
@@ -13230,99 +14256,99 @@ function overlayPSLG(redPoints, redEdges, bluePoints, blueEdges, op) {
   }
 }
 
-},{"binary-search-bounds":51,"cdt2d":52,"clean-pslg":69,"simplicial-complex-boundary":115}],122:[function(require,module,exports){
-arguments[4][69][0].apply(exports,arguments)
-},{"./lib/rat-seg-intersect":123,"big-rat":127,"big-rat/cmp":125,"big-rat/to-float":142,"box-intersect":143,"compare-cell":153,"dup":69,"nextafter":154,"rat-vec":157,"robust-segment-intersect":166,"union-find":167}],123:[function(require,module,exports){
-arguments[4][70][0].apply(exports,arguments)
-},{"big-rat/div":126,"big-rat/mul":136,"big-rat/sign":140,"big-rat/sub":141,"big-rat/to-float":142,"dup":70,"rat-vec/add":156,"rat-vec/muls":158,"rat-vec/sub":159}],124:[function(require,module,exports){
-arguments[4][71][0].apply(exports,arguments)
-},{"./lib/rationalize":134,"dup":71}],125:[function(require,module,exports){
-arguments[4][72][0].apply(exports,arguments)
-},{"dup":72}],126:[function(require,module,exports){
-arguments[4][73][0].apply(exports,arguments)
-},{"./lib/rationalize":134,"dup":73}],127:[function(require,module,exports){
-arguments[4][74][0].apply(exports,arguments)
-},{"./div":126,"./is-rat":128,"./lib/is-bn":132,"./lib/num-to-bn":133,"./lib/rationalize":134,"./lib/str-to-bn":135,"dup":74}],128:[function(require,module,exports){
-arguments[4][75][0].apply(exports,arguments)
-},{"./lib/is-bn":132,"dup":75}],129:[function(require,module,exports){
-arguments[4][76][0].apply(exports,arguments)
-},{"bn.js":138,"dup":76}],130:[function(require,module,exports){
-arguments[4][77][0].apply(exports,arguments)
-},{"dup":77}],131:[function(require,module,exports){
-arguments[4][78][0].apply(exports,arguments)
-},{"bit-twiddle":137,"double-bits":139,"dup":78}],132:[function(require,module,exports){
-arguments[4][79][0].apply(exports,arguments)
-},{"bn.js":138,"dup":79}],133:[function(require,module,exports){
-arguments[4][80][0].apply(exports,arguments)
-},{"bn.js":138,"double-bits":139,"dup":80}],134:[function(require,module,exports){
+},{"binary-search-bounds":63,"cdt2d":64,"clean-pslg":81,"simplicial-complex-boundary":127}],134:[function(require,module,exports){
 arguments[4][81][0].apply(exports,arguments)
-},{"./bn-sign":129,"./num-to-bn":133,"dup":81}],135:[function(require,module,exports){
+},{"./lib/rat-seg-intersect":135,"big-rat":139,"big-rat/cmp":137,"big-rat/to-float":154,"box-intersect":155,"compare-cell":165,"dup":81,"nextafter":166,"rat-vec":169,"robust-segment-intersect":178,"union-find":179}],135:[function(require,module,exports){
 arguments[4][82][0].apply(exports,arguments)
-},{"bn.js":138,"dup":82}],136:[function(require,module,exports){
+},{"big-rat/div":138,"big-rat/mul":148,"big-rat/sign":152,"big-rat/sub":153,"big-rat/to-float":154,"dup":82,"rat-vec/add":168,"rat-vec/muls":170,"rat-vec/sub":171}],136:[function(require,module,exports){
 arguments[4][83][0].apply(exports,arguments)
-},{"./lib/rationalize":134,"dup":83}],137:[function(require,module,exports){
-arguments[4][45][0].apply(exports,arguments)
-},{"dup":45}],138:[function(require,module,exports){
+},{"./lib/rationalize":146,"dup":83}],137:[function(require,module,exports){
+arguments[4][84][0].apply(exports,arguments)
+},{"dup":84}],138:[function(require,module,exports){
 arguments[4][85][0].apply(exports,arguments)
-},{"dup":85}],139:[function(require,module,exports){
+},{"./lib/rationalize":146,"dup":85}],139:[function(require,module,exports){
 arguments[4][86][0].apply(exports,arguments)
-},{"buffer":1,"dup":86}],140:[function(require,module,exports){
+},{"./div":138,"./is-rat":140,"./lib/is-bn":144,"./lib/num-to-bn":145,"./lib/rationalize":146,"./lib/str-to-bn":147,"dup":86}],140:[function(require,module,exports){
 arguments[4][87][0].apply(exports,arguments)
-},{"./lib/bn-sign":129,"dup":87}],141:[function(require,module,exports){
+},{"./lib/is-bn":144,"dup":87}],141:[function(require,module,exports){
 arguments[4][88][0].apply(exports,arguments)
-},{"./lib/rationalize":134,"dup":88}],142:[function(require,module,exports){
+},{"bn.js":150,"dup":88}],142:[function(require,module,exports){
 arguments[4][89][0].apply(exports,arguments)
-},{"./lib/bn-to-num":130,"./lib/ctz":131,"dup":89}],143:[function(require,module,exports){
+},{"dup":89}],143:[function(require,module,exports){
 arguments[4][90][0].apply(exports,arguments)
-},{"./lib/intersect":145,"./lib/sweep":149,"dup":90,"typedarray-pool":152}],144:[function(require,module,exports){
+},{"bit-twiddle":149,"double-bits":151,"dup":90}],144:[function(require,module,exports){
 arguments[4][91][0].apply(exports,arguments)
-},{"dup":91}],145:[function(require,module,exports){
+},{"bn.js":150,"dup":91}],145:[function(require,module,exports){
 arguments[4][92][0].apply(exports,arguments)
-},{"./brute":144,"./median":146,"./partition":147,"./sweep":149,"bit-twiddle":150,"dup":92,"typedarray-pool":152}],146:[function(require,module,exports){
+},{"bn.js":150,"double-bits":151,"dup":92}],146:[function(require,module,exports){
 arguments[4][93][0].apply(exports,arguments)
-},{"./partition":147,"dup":93}],147:[function(require,module,exports){
+},{"./bn-sign":141,"./num-to-bn":145,"dup":93}],147:[function(require,module,exports){
 arguments[4][94][0].apply(exports,arguments)
-},{"dup":94}],148:[function(require,module,exports){
+},{"bn.js":150,"dup":94}],148:[function(require,module,exports){
 arguments[4][95][0].apply(exports,arguments)
-},{"dup":95}],149:[function(require,module,exports){
-arguments[4][96][0].apply(exports,arguments)
-},{"./sort":148,"bit-twiddle":150,"dup":96,"typedarray-pool":152}],150:[function(require,module,exports){
-arguments[4][45][0].apply(exports,arguments)
-},{"dup":45}],151:[function(require,module,exports){
-arguments[4][22][0].apply(exports,arguments)
-},{"dup":22}],152:[function(require,module,exports){
-arguments[4][47][0].apply(exports,arguments)
-},{"bit-twiddle":150,"buffer":1,"dup":47}],153:[function(require,module,exports){
+},{"./lib/rationalize":146,"dup":95}],149:[function(require,module,exports){
+arguments[4][30][0].apply(exports,arguments)
+},{"dup":30}],150:[function(require,module,exports){
+arguments[4][97][0].apply(exports,arguments)
+},{"dup":97}],151:[function(require,module,exports){
+arguments[4][98][0].apply(exports,arguments)
+},{"buffer":1,"dup":98}],152:[function(require,module,exports){
+arguments[4][99][0].apply(exports,arguments)
+},{"./lib/bn-sign":141,"dup":99}],153:[function(require,module,exports){
 arguments[4][100][0].apply(exports,arguments)
-},{"dup":100}],154:[function(require,module,exports){
+},{"./lib/rationalize":146,"dup":100}],154:[function(require,module,exports){
 arguments[4][101][0].apply(exports,arguments)
-},{"double-bits":155,"dup":101}],155:[function(require,module,exports){
-arguments[4][86][0].apply(exports,arguments)
-},{"buffer":1,"dup":86}],156:[function(require,module,exports){
+},{"./lib/bn-to-num":142,"./lib/ctz":143,"dup":101}],155:[function(require,module,exports){
+arguments[4][102][0].apply(exports,arguments)
+},{"./lib/intersect":157,"./lib/sweep":161,"dup":102,"typedarray-pool":164}],156:[function(require,module,exports){
 arguments[4][103][0].apply(exports,arguments)
-},{"big-rat/add":124,"dup":103}],157:[function(require,module,exports){
+},{"dup":103}],157:[function(require,module,exports){
 arguments[4][104][0].apply(exports,arguments)
-},{"big-rat":127,"dup":104}],158:[function(require,module,exports){
+},{"./brute":156,"./median":158,"./partition":159,"./sweep":161,"bit-twiddle":162,"dup":104,"typedarray-pool":164}],158:[function(require,module,exports){
 arguments[4][105][0].apply(exports,arguments)
-},{"big-rat":127,"big-rat/mul":136,"dup":105}],159:[function(require,module,exports){
+},{"./partition":159,"dup":105}],159:[function(require,module,exports){
 arguments[4][106][0].apply(exports,arguments)
-},{"big-rat/sub":141,"dup":106}],160:[function(require,module,exports){
-arguments[4][7][0].apply(exports,arguments)
-},{"dup":7}],161:[function(require,module,exports){
-arguments[4][8][0].apply(exports,arguments)
-},{"dup":8,"two-product":164,"two-sum":160}],162:[function(require,module,exports){
-arguments[4][9][0].apply(exports,arguments)
-},{"dup":9}],163:[function(require,module,exports){
-arguments[4][10][0].apply(exports,arguments)
-},{"dup":10}],164:[function(require,module,exports){
-arguments[4][11][0].apply(exports,arguments)
-},{"dup":11}],165:[function(require,module,exports){
-arguments[4][12][0].apply(exports,arguments)
-},{"dup":12,"robust-scale":161,"robust-subtract":162,"robust-sum":163,"two-product":164}],166:[function(require,module,exports){
+},{"dup":106}],160:[function(require,module,exports){
+arguments[4][107][0].apply(exports,arguments)
+},{"dup":107}],161:[function(require,module,exports){
+arguments[4][108][0].apply(exports,arguments)
+},{"./sort":160,"bit-twiddle":162,"dup":108,"typedarray-pool":164}],162:[function(require,module,exports){
+arguments[4][30][0].apply(exports,arguments)
+},{"dup":30}],163:[function(require,module,exports){
+arguments[4][22][0].apply(exports,arguments)
+},{"dup":22}],164:[function(require,module,exports){
+arguments[4][59][0].apply(exports,arguments)
+},{"bit-twiddle":162,"buffer":1,"dup":59}],165:[function(require,module,exports){
+arguments[4][112][0].apply(exports,arguments)
+},{"dup":112}],166:[function(require,module,exports){
 arguments[4][113][0].apply(exports,arguments)
-},{"dup":113,"robust-orientation":165}],167:[function(require,module,exports){
-arguments[4][114][0].apply(exports,arguments)
-},{"dup":114}],168:[function(require,module,exports){
+},{"double-bits":167,"dup":113}],167:[function(require,module,exports){
+arguments[4][98][0].apply(exports,arguments)
+},{"buffer":1,"dup":98}],168:[function(require,module,exports){
+arguments[4][115][0].apply(exports,arguments)
+},{"big-rat/add":136,"dup":115}],169:[function(require,module,exports){
+arguments[4][116][0].apply(exports,arguments)
+},{"big-rat":139,"dup":116}],170:[function(require,module,exports){
+arguments[4][117][0].apply(exports,arguments)
+},{"big-rat":139,"big-rat/mul":148,"dup":117}],171:[function(require,module,exports){
+arguments[4][118][0].apply(exports,arguments)
+},{"big-rat/sub":153,"dup":118}],172:[function(require,module,exports){
+arguments[4][7][0].apply(exports,arguments)
+},{"dup":7}],173:[function(require,module,exports){
+arguments[4][8][0].apply(exports,arguments)
+},{"dup":8,"two-product":176,"two-sum":172}],174:[function(require,module,exports){
+arguments[4][9][0].apply(exports,arguments)
+},{"dup":9}],175:[function(require,module,exports){
+arguments[4][10][0].apply(exports,arguments)
+},{"dup":10}],176:[function(require,module,exports){
+arguments[4][11][0].apply(exports,arguments)
+},{"dup":11}],177:[function(require,module,exports){
+arguments[4][12][0].apply(exports,arguments)
+},{"dup":12,"robust-scale":173,"robust-subtract":174,"robust-sum":175,"two-product":176}],178:[function(require,module,exports){
+arguments[4][125][0].apply(exports,arguments)
+},{"dup":125,"robust-orientation":177}],179:[function(require,module,exports){
+arguments[4][31][0].apply(exports,arguments)
+},{"dup":31}],180:[function(require,module,exports){
 'use strict'
 
 module.exports = polygonToPSLG
@@ -13379,55 +14405,55 @@ function polygonToPSLG(loops, options) {
   }
 }
 
-},{"clean-pslg":122}],169:[function(require,module,exports){
-arguments[4][52][0].apply(exports,arguments)
-},{"./lib/delaunay":170,"./lib/filter":171,"./lib/monotone":172,"./lib/triangulation":173,"dup":52}],170:[function(require,module,exports){
-arguments[4][53][0].apply(exports,arguments)
-},{"binary-search-bounds":174,"dup":53,"robust-in-sphere":175}],171:[function(require,module,exports){
-arguments[4][54][0].apply(exports,arguments)
-},{"binary-search-bounds":174,"dup":54}],172:[function(require,module,exports){
-arguments[4][55][0].apply(exports,arguments)
-},{"binary-search-bounds":174,"dup":55,"robust-orientation":186}],173:[function(require,module,exports){
-arguments[4][56][0].apply(exports,arguments)
-},{"binary-search-bounds":174,"dup":56}],174:[function(require,module,exports){
-arguments[4][51][0].apply(exports,arguments)
-},{"dup":51}],175:[function(require,module,exports){
-arguments[4][57][0].apply(exports,arguments)
-},{"dup":57,"robust-scale":177,"robust-subtract":178,"robust-sum":179,"two-product":180}],176:[function(require,module,exports){
+},{"clean-pslg":134}],181:[function(require,module,exports){
+arguments[4][64][0].apply(exports,arguments)
+},{"./lib/delaunay":182,"./lib/filter":183,"./lib/monotone":184,"./lib/triangulation":185,"dup":64}],182:[function(require,module,exports){
+arguments[4][65][0].apply(exports,arguments)
+},{"binary-search-bounds":186,"dup":65,"robust-in-sphere":187}],183:[function(require,module,exports){
+arguments[4][66][0].apply(exports,arguments)
+},{"binary-search-bounds":186,"dup":66}],184:[function(require,module,exports){
+arguments[4][67][0].apply(exports,arguments)
+},{"binary-search-bounds":186,"dup":67,"robust-orientation":198}],185:[function(require,module,exports){
+arguments[4][68][0].apply(exports,arguments)
+},{"binary-search-bounds":186,"dup":68}],186:[function(require,module,exports){
+arguments[4][63][0].apply(exports,arguments)
+},{"dup":63}],187:[function(require,module,exports){
+arguments[4][69][0].apply(exports,arguments)
+},{"dup":69,"robust-scale":189,"robust-subtract":190,"robust-sum":191,"two-product":192}],188:[function(require,module,exports){
 arguments[4][7][0].apply(exports,arguments)
-},{"dup":7}],177:[function(require,module,exports){
+},{"dup":7}],189:[function(require,module,exports){
 arguments[4][8][0].apply(exports,arguments)
-},{"dup":8,"two-product":180,"two-sum":176}],178:[function(require,module,exports){
+},{"dup":8,"two-product":192,"two-sum":188}],190:[function(require,module,exports){
 arguments[4][9][0].apply(exports,arguments)
-},{"dup":9}],179:[function(require,module,exports){
+},{"dup":9}],191:[function(require,module,exports){
 arguments[4][10][0].apply(exports,arguments)
-},{"dup":10}],180:[function(require,module,exports){
+},{"dup":10}],192:[function(require,module,exports){
 arguments[4][11][0].apply(exports,arguments)
-},{"dup":11}],181:[function(require,module,exports){
+},{"dup":11}],193:[function(require,module,exports){
 arguments[4][7][0].apply(exports,arguments)
-},{"dup":7}],182:[function(require,module,exports){
+},{"dup":7}],194:[function(require,module,exports){
 arguments[4][8][0].apply(exports,arguments)
-},{"dup":8,"two-product":185,"two-sum":181}],183:[function(require,module,exports){
+},{"dup":8,"two-product":197,"two-sum":193}],195:[function(require,module,exports){
 arguments[4][9][0].apply(exports,arguments)
-},{"dup":9}],184:[function(require,module,exports){
+},{"dup":9}],196:[function(require,module,exports){
 arguments[4][10][0].apply(exports,arguments)
-},{"dup":10}],185:[function(require,module,exports){
+},{"dup":10}],197:[function(require,module,exports){
 arguments[4][11][0].apply(exports,arguments)
-},{"dup":11}],186:[function(require,module,exports){
+},{"dup":11}],198:[function(require,module,exports){
 arguments[4][12][0].apply(exports,arguments)
-},{"dup":12,"robust-scale":182,"robust-subtract":183,"robust-sum":184,"two-product":185}],187:[function(require,module,exports){
-arguments[4][115][0].apply(exports,arguments)
-},{"boundary-cells":188,"dup":115,"reduce-simplicial-complex":192}],188:[function(require,module,exports){
-arguments[4][116][0].apply(exports,arguments)
-},{"dup":116}],189:[function(require,module,exports){
-arguments[4][117][0].apply(exports,arguments)
-},{"dup":117}],190:[function(require,module,exports){
-arguments[4][100][0].apply(exports,arguments)
-},{"dup":100}],191:[function(require,module,exports){
-arguments[4][119][0].apply(exports,arguments)
-},{"cell-orientation":189,"compare-cell":190,"dup":119}],192:[function(require,module,exports){
-arguments[4][120][0].apply(exports,arguments)
-},{"cell-orientation":189,"compare-cell":190,"compare-oriented-cell":191,"dup":120}],193:[function(require,module,exports){
+},{"dup":12,"robust-scale":194,"robust-subtract":195,"robust-sum":196,"two-product":197}],199:[function(require,module,exports){
+arguments[4][127][0].apply(exports,arguments)
+},{"boundary-cells":200,"dup":127,"reduce-simplicial-complex":204}],200:[function(require,module,exports){
+arguments[4][128][0].apply(exports,arguments)
+},{"dup":128}],201:[function(require,module,exports){
+arguments[4][129][0].apply(exports,arguments)
+},{"dup":129}],202:[function(require,module,exports){
+arguments[4][112][0].apply(exports,arguments)
+},{"dup":112}],203:[function(require,module,exports){
+arguments[4][131][0].apply(exports,arguments)
+},{"cell-orientation":201,"compare-cell":202,"dup":131}],204:[function(require,module,exports){
+arguments[4][132][0].apply(exports,arguments)
+},{"cell-orientation":201,"compare-cell":202,"compare-oriented-cell":203,"dup":132}],205:[function(require,module,exports){
 'use strict'
 
 var cdt2d     = require('cdt2d')
@@ -13472,12 +14498,12 @@ function pslgToPolygon(points, edges) {
   return loops
 }
 
-},{"cdt2d":169,"simplicial-complex-boundary":187}],194:[function(require,module,exports){
+},{"cdt2d":181,"simplicial-complex-boundary":199}],206:[function(require,module,exports){
 // expose module classes
 
 exports.intersect = require('./lib/intersect');
 exports.shape = require('./lib/IntersectionParams').newShape;
-},{"./lib/IntersectionParams":196,"./lib/intersect":197}],195:[function(require,module,exports){
+},{"./lib/IntersectionParams":208,"./lib/intersect":209}],207:[function(require,module,exports){
 /**
  *  Intersection
  */
@@ -13516,7 +14542,7 @@ Intersection.prototype.appendPoints = function(points) {
 
 module.exports = Intersection;
 
-},{}],196:[function(require,module,exports){
+},{}],208:[function(require,module,exports){
 var Point2D = require('kld-affine').Point2D;
 
 
@@ -14418,7 +15444,7 @@ RelativeSmoothCurveto3.prototype.getIntersectionParams = function() {
 
 module.exports = IntersectionParams;
 
-},{"kld-affine":198}],197:[function(require,module,exports){
+},{"kld-affine":210}],209:[function(require,module,exports){
 /**
  *
  *  Intersection.js
@@ -15124,14 +16150,14 @@ module.exports = intersect;
  
 
 
-},{"./Intersection":195,"./IntersectionParams":196,"kld-affine":198,"kld-polynomial":202}],198:[function(require,module,exports){
+},{"./Intersection":207,"./IntersectionParams":208,"kld-affine":210,"kld-polynomial":214}],210:[function(require,module,exports){
 // expose classes
 
 exports.Point2D = require('./lib/Point2D');
 exports.Vector2D = require('./lib/Vector2D');
 exports.Matrix2D = require('./lib/Matrix2D');
 
-},{"./lib/Matrix2D":199,"./lib/Point2D":200,"./lib/Vector2D":201}],199:[function(require,module,exports){
+},{"./lib/Matrix2D":211,"./lib/Point2D":212,"./lib/Vector2D":213}],211:[function(require,module,exports){
 /**
  *
  *   Matrix2D.js
@@ -15557,7 +16583,7 @@ Matrix2D.prototype.toString = function() {
 if (typeof module !== "undefined") {
     module.exports = Matrix2D;
 }
-},{}],200:[function(require,module,exports){
+},{}],212:[function(require,module,exports){
 /**
  *
  *   Point2D.js
@@ -15734,7 +16760,7 @@ if (typeof module !== "undefined") {
     module.exports = Point2D;
 }
 
-},{}],201:[function(require,module,exports){
+},{}],213:[function(require,module,exports){
 /**
  *
  *   Vector2D.js
@@ -15970,13 +16996,13 @@ if (typeof module !== "undefined") {
     module.exports = Vector2D;
 }
 
-},{}],202:[function(require,module,exports){
+},{}],214:[function(require,module,exports){
 // expose classes
 
 exports.Polynomial = require('./lib/Polynomial');
 exports.SqrtPolynomial = require('./lib/SqrtPolynomial');
 
-},{"./lib/Polynomial":203,"./lib/SqrtPolynomial":204}],203:[function(require,module,exports){
+},{"./lib/Polynomial":215,"./lib/SqrtPolynomial":216}],215:[function(require,module,exports){
 /**
  *
  *   Polynomial.js
@@ -16608,7 +17634,7 @@ if (typeof module !== "undefined") {
     module.exports = Polynomial;
 }
 
-},{}],204:[function(require,module,exports){
+},{}],216:[function(require,module,exports){
 /**
  *
  *   SqrtPolynomial.js
@@ -16670,7 +17696,7 @@ if (typeof module !== "undefined") {
     module.exports = SqrtPolynomial;
 }
 
-},{"./Polynomial":203}],205:[function(require,module,exports){
+},{"./Polynomial":215}],217:[function(require,module,exports){
 var parseSVG = require('parse-svg-path')
 var getContours = require('svg-path-contours')
 var cdt2d = require('cdt2d')
@@ -16794,7 +17820,7 @@ function denestPolyline (nested) {
   }
 }
 
-},{"bound-points":206,"cdt2d":207,"clean-pslg":225,"normalize-path-scale":271,"object-assign":273,"parse-svg-path":274,"random-float":275,"simplify-path":277,"svg-path-contours":279}],206:[function(require,module,exports){
+},{"bound-points":218,"cdt2d":219,"clean-pslg":237,"normalize-path-scale":283,"object-assign":285,"parse-svg-path":286,"random-float":287,"simplify-path":289,"svg-path-contours":291}],218:[function(require,module,exports){
 'use strict'
 
 module.exports = findBounds
@@ -16817,135 +17843,135 @@ function findBounds(points) {
   }
   return [lo, hi]
 }
-},{}],207:[function(require,module,exports){
-arguments[4][52][0].apply(exports,arguments)
-},{"./lib/delaunay":208,"./lib/filter":209,"./lib/monotone":210,"./lib/triangulation":211,"dup":52}],208:[function(require,module,exports){
-arguments[4][53][0].apply(exports,arguments)
-},{"binary-search-bounds":212,"dup":53,"robust-in-sphere":213}],209:[function(require,module,exports){
-arguments[4][54][0].apply(exports,arguments)
-},{"binary-search-bounds":212,"dup":54}],210:[function(require,module,exports){
-arguments[4][55][0].apply(exports,arguments)
-},{"binary-search-bounds":212,"dup":55,"robust-orientation":224}],211:[function(require,module,exports){
-arguments[4][56][0].apply(exports,arguments)
-},{"binary-search-bounds":212,"dup":56}],212:[function(require,module,exports){
-arguments[4][51][0].apply(exports,arguments)
-},{"dup":51}],213:[function(require,module,exports){
-arguments[4][57][0].apply(exports,arguments)
-},{"dup":57,"robust-scale":215,"robust-subtract":216,"robust-sum":217,"two-product":218}],214:[function(require,module,exports){
-arguments[4][7][0].apply(exports,arguments)
-},{"dup":7}],215:[function(require,module,exports){
-arguments[4][8][0].apply(exports,arguments)
-},{"dup":8,"two-product":218,"two-sum":214}],216:[function(require,module,exports){
-arguments[4][9][0].apply(exports,arguments)
-},{"dup":9}],217:[function(require,module,exports){
-arguments[4][10][0].apply(exports,arguments)
-},{"dup":10}],218:[function(require,module,exports){
-arguments[4][11][0].apply(exports,arguments)
-},{"dup":11}],219:[function(require,module,exports){
-arguments[4][7][0].apply(exports,arguments)
-},{"dup":7}],220:[function(require,module,exports){
-arguments[4][8][0].apply(exports,arguments)
-},{"dup":8,"two-product":223,"two-sum":219}],221:[function(require,module,exports){
-arguments[4][9][0].apply(exports,arguments)
-},{"dup":9}],222:[function(require,module,exports){
-arguments[4][10][0].apply(exports,arguments)
-},{"dup":10}],223:[function(require,module,exports){
-arguments[4][11][0].apply(exports,arguments)
-},{"dup":11}],224:[function(require,module,exports){
-arguments[4][12][0].apply(exports,arguments)
-},{"dup":12,"robust-scale":220,"robust-subtract":221,"robust-sum":222,"two-product":223}],225:[function(require,module,exports){
+},{}],219:[function(require,module,exports){
+arguments[4][64][0].apply(exports,arguments)
+},{"./lib/delaunay":220,"./lib/filter":221,"./lib/monotone":222,"./lib/triangulation":223,"dup":64}],220:[function(require,module,exports){
+arguments[4][65][0].apply(exports,arguments)
+},{"binary-search-bounds":224,"dup":65,"robust-in-sphere":225}],221:[function(require,module,exports){
+arguments[4][66][0].apply(exports,arguments)
+},{"binary-search-bounds":224,"dup":66}],222:[function(require,module,exports){
+arguments[4][67][0].apply(exports,arguments)
+},{"binary-search-bounds":224,"dup":67,"robust-orientation":236}],223:[function(require,module,exports){
+arguments[4][68][0].apply(exports,arguments)
+},{"binary-search-bounds":224,"dup":68}],224:[function(require,module,exports){
+arguments[4][63][0].apply(exports,arguments)
+},{"dup":63}],225:[function(require,module,exports){
 arguments[4][69][0].apply(exports,arguments)
-},{"./lib/rat-seg-intersect":226,"big-rat":230,"big-rat/cmp":228,"big-rat/to-float":245,"box-intersect":246,"compare-cell":256,"dup":69,"nextafter":257,"rat-vec":260,"robust-segment-intersect":269,"union-find":270}],226:[function(require,module,exports){
-arguments[4][70][0].apply(exports,arguments)
-},{"big-rat/div":229,"big-rat/mul":239,"big-rat/sign":243,"big-rat/sub":244,"big-rat/to-float":245,"dup":70,"rat-vec/add":259,"rat-vec/muls":261,"rat-vec/sub":262}],227:[function(require,module,exports){
-arguments[4][71][0].apply(exports,arguments)
-},{"./lib/rationalize":237,"dup":71}],228:[function(require,module,exports){
-arguments[4][72][0].apply(exports,arguments)
-},{"dup":72}],229:[function(require,module,exports){
-arguments[4][73][0].apply(exports,arguments)
-},{"./lib/rationalize":237,"dup":73}],230:[function(require,module,exports){
-arguments[4][74][0].apply(exports,arguments)
-},{"./div":229,"./is-rat":231,"./lib/is-bn":235,"./lib/num-to-bn":236,"./lib/rationalize":237,"./lib/str-to-bn":238,"dup":74}],231:[function(require,module,exports){
-arguments[4][75][0].apply(exports,arguments)
-},{"./lib/is-bn":235,"dup":75}],232:[function(require,module,exports){
-arguments[4][76][0].apply(exports,arguments)
-},{"bn.js":241,"dup":76}],233:[function(require,module,exports){
-arguments[4][77][0].apply(exports,arguments)
-},{"dup":77}],234:[function(require,module,exports){
-arguments[4][78][0].apply(exports,arguments)
-},{"bit-twiddle":240,"double-bits":242,"dup":78}],235:[function(require,module,exports){
-arguments[4][79][0].apply(exports,arguments)
-},{"bn.js":241,"dup":79}],236:[function(require,module,exports){
-arguments[4][80][0].apply(exports,arguments)
-},{"bn.js":241,"double-bits":242,"dup":80}],237:[function(require,module,exports){
-arguments[4][81][0].apply(exports,arguments)
-},{"./bn-sign":232,"./num-to-bn":236,"dup":81}],238:[function(require,module,exports){
-arguments[4][82][0].apply(exports,arguments)
-},{"bn.js":241,"dup":82}],239:[function(require,module,exports){
-arguments[4][83][0].apply(exports,arguments)
-},{"./lib/rationalize":237,"dup":83}],240:[function(require,module,exports){
-arguments[4][45][0].apply(exports,arguments)
-},{"dup":45}],241:[function(require,module,exports){
-arguments[4][85][0].apply(exports,arguments)
-},{"dup":85}],242:[function(require,module,exports){
-arguments[4][86][0].apply(exports,arguments)
-},{"buffer":1,"dup":86}],243:[function(require,module,exports){
-arguments[4][87][0].apply(exports,arguments)
-},{"./lib/bn-sign":232,"dup":87}],244:[function(require,module,exports){
-arguments[4][88][0].apply(exports,arguments)
-},{"./lib/rationalize":237,"dup":88}],245:[function(require,module,exports){
-arguments[4][89][0].apply(exports,arguments)
-},{"./lib/bn-to-num":233,"./lib/ctz":234,"dup":89}],246:[function(require,module,exports){
-arguments[4][90][0].apply(exports,arguments)
-},{"./lib/intersect":248,"./lib/sweep":252,"dup":90,"typedarray-pool":255}],247:[function(require,module,exports){
-arguments[4][91][0].apply(exports,arguments)
-},{"dup":91}],248:[function(require,module,exports){
-arguments[4][92][0].apply(exports,arguments)
-},{"./brute":247,"./median":249,"./partition":250,"./sweep":252,"bit-twiddle":253,"dup":92,"typedarray-pool":255}],249:[function(require,module,exports){
-arguments[4][93][0].apply(exports,arguments)
-},{"./partition":250,"dup":93}],250:[function(require,module,exports){
-arguments[4][94][0].apply(exports,arguments)
-},{"dup":94}],251:[function(require,module,exports){
-arguments[4][95][0].apply(exports,arguments)
-},{"dup":95}],252:[function(require,module,exports){
-arguments[4][96][0].apply(exports,arguments)
-},{"./sort":251,"bit-twiddle":253,"dup":96,"typedarray-pool":255}],253:[function(require,module,exports){
-arguments[4][45][0].apply(exports,arguments)
-},{"dup":45}],254:[function(require,module,exports){
-arguments[4][22][0].apply(exports,arguments)
-},{"dup":22}],255:[function(require,module,exports){
-arguments[4][47][0].apply(exports,arguments)
-},{"bit-twiddle":253,"buffer":1,"dup":47}],256:[function(require,module,exports){
-arguments[4][100][0].apply(exports,arguments)
-},{"dup":100}],257:[function(require,module,exports){
-arguments[4][101][0].apply(exports,arguments)
-},{"double-bits":258,"dup":101}],258:[function(require,module,exports){
-arguments[4][86][0].apply(exports,arguments)
-},{"buffer":1,"dup":86}],259:[function(require,module,exports){
-arguments[4][103][0].apply(exports,arguments)
-},{"big-rat/add":227,"dup":103}],260:[function(require,module,exports){
-arguments[4][104][0].apply(exports,arguments)
-},{"big-rat":230,"dup":104}],261:[function(require,module,exports){
-arguments[4][105][0].apply(exports,arguments)
-},{"big-rat":230,"big-rat/mul":239,"dup":105}],262:[function(require,module,exports){
-arguments[4][106][0].apply(exports,arguments)
-},{"big-rat/sub":244,"dup":106}],263:[function(require,module,exports){
+},{"dup":69,"robust-scale":227,"robust-subtract":228,"robust-sum":229,"two-product":230}],226:[function(require,module,exports){
 arguments[4][7][0].apply(exports,arguments)
-},{"dup":7}],264:[function(require,module,exports){
+},{"dup":7}],227:[function(require,module,exports){
 arguments[4][8][0].apply(exports,arguments)
-},{"dup":8,"two-product":267,"two-sum":263}],265:[function(require,module,exports){
+},{"dup":8,"two-product":230,"two-sum":226}],228:[function(require,module,exports){
 arguments[4][9][0].apply(exports,arguments)
-},{"dup":9}],266:[function(require,module,exports){
+},{"dup":9}],229:[function(require,module,exports){
 arguments[4][10][0].apply(exports,arguments)
-},{"dup":10}],267:[function(require,module,exports){
+},{"dup":10}],230:[function(require,module,exports){
 arguments[4][11][0].apply(exports,arguments)
-},{"dup":11}],268:[function(require,module,exports){
+},{"dup":11}],231:[function(require,module,exports){
+arguments[4][7][0].apply(exports,arguments)
+},{"dup":7}],232:[function(require,module,exports){
+arguments[4][8][0].apply(exports,arguments)
+},{"dup":8,"two-product":235,"two-sum":231}],233:[function(require,module,exports){
+arguments[4][9][0].apply(exports,arguments)
+},{"dup":9}],234:[function(require,module,exports){
+arguments[4][10][0].apply(exports,arguments)
+},{"dup":10}],235:[function(require,module,exports){
+arguments[4][11][0].apply(exports,arguments)
+},{"dup":11}],236:[function(require,module,exports){
 arguments[4][12][0].apply(exports,arguments)
-},{"dup":12,"robust-scale":264,"robust-subtract":265,"robust-sum":266,"two-product":267}],269:[function(require,module,exports){
+},{"dup":12,"robust-scale":232,"robust-subtract":233,"robust-sum":234,"two-product":235}],237:[function(require,module,exports){
+arguments[4][81][0].apply(exports,arguments)
+},{"./lib/rat-seg-intersect":238,"big-rat":242,"big-rat/cmp":240,"big-rat/to-float":257,"box-intersect":258,"compare-cell":268,"dup":81,"nextafter":269,"rat-vec":272,"robust-segment-intersect":281,"union-find":282}],238:[function(require,module,exports){
+arguments[4][82][0].apply(exports,arguments)
+},{"big-rat/div":241,"big-rat/mul":251,"big-rat/sign":255,"big-rat/sub":256,"big-rat/to-float":257,"dup":82,"rat-vec/add":271,"rat-vec/muls":273,"rat-vec/sub":274}],239:[function(require,module,exports){
+arguments[4][83][0].apply(exports,arguments)
+},{"./lib/rationalize":249,"dup":83}],240:[function(require,module,exports){
+arguments[4][84][0].apply(exports,arguments)
+},{"dup":84}],241:[function(require,module,exports){
+arguments[4][85][0].apply(exports,arguments)
+},{"./lib/rationalize":249,"dup":85}],242:[function(require,module,exports){
+arguments[4][86][0].apply(exports,arguments)
+},{"./div":241,"./is-rat":243,"./lib/is-bn":247,"./lib/num-to-bn":248,"./lib/rationalize":249,"./lib/str-to-bn":250,"dup":86}],243:[function(require,module,exports){
+arguments[4][87][0].apply(exports,arguments)
+},{"./lib/is-bn":247,"dup":87}],244:[function(require,module,exports){
+arguments[4][88][0].apply(exports,arguments)
+},{"bn.js":253,"dup":88}],245:[function(require,module,exports){
+arguments[4][89][0].apply(exports,arguments)
+},{"dup":89}],246:[function(require,module,exports){
+arguments[4][90][0].apply(exports,arguments)
+},{"bit-twiddle":252,"double-bits":254,"dup":90}],247:[function(require,module,exports){
+arguments[4][91][0].apply(exports,arguments)
+},{"bn.js":253,"dup":91}],248:[function(require,module,exports){
+arguments[4][92][0].apply(exports,arguments)
+},{"bn.js":253,"double-bits":254,"dup":92}],249:[function(require,module,exports){
+arguments[4][93][0].apply(exports,arguments)
+},{"./bn-sign":244,"./num-to-bn":248,"dup":93}],250:[function(require,module,exports){
+arguments[4][94][0].apply(exports,arguments)
+},{"bn.js":253,"dup":94}],251:[function(require,module,exports){
+arguments[4][95][0].apply(exports,arguments)
+},{"./lib/rationalize":249,"dup":95}],252:[function(require,module,exports){
+arguments[4][30][0].apply(exports,arguments)
+},{"dup":30}],253:[function(require,module,exports){
+arguments[4][97][0].apply(exports,arguments)
+},{"dup":97}],254:[function(require,module,exports){
+arguments[4][98][0].apply(exports,arguments)
+},{"buffer":1,"dup":98}],255:[function(require,module,exports){
+arguments[4][99][0].apply(exports,arguments)
+},{"./lib/bn-sign":244,"dup":99}],256:[function(require,module,exports){
+arguments[4][100][0].apply(exports,arguments)
+},{"./lib/rationalize":249,"dup":100}],257:[function(require,module,exports){
+arguments[4][101][0].apply(exports,arguments)
+},{"./lib/bn-to-num":245,"./lib/ctz":246,"dup":101}],258:[function(require,module,exports){
+arguments[4][102][0].apply(exports,arguments)
+},{"./lib/intersect":260,"./lib/sweep":264,"dup":102,"typedarray-pool":267}],259:[function(require,module,exports){
+arguments[4][103][0].apply(exports,arguments)
+},{"dup":103}],260:[function(require,module,exports){
+arguments[4][104][0].apply(exports,arguments)
+},{"./brute":259,"./median":261,"./partition":262,"./sweep":264,"bit-twiddle":265,"dup":104,"typedarray-pool":267}],261:[function(require,module,exports){
+arguments[4][105][0].apply(exports,arguments)
+},{"./partition":262,"dup":105}],262:[function(require,module,exports){
+arguments[4][106][0].apply(exports,arguments)
+},{"dup":106}],263:[function(require,module,exports){
+arguments[4][107][0].apply(exports,arguments)
+},{"dup":107}],264:[function(require,module,exports){
+arguments[4][108][0].apply(exports,arguments)
+},{"./sort":263,"bit-twiddle":265,"dup":108,"typedarray-pool":267}],265:[function(require,module,exports){
+arguments[4][30][0].apply(exports,arguments)
+},{"dup":30}],266:[function(require,module,exports){
+arguments[4][22][0].apply(exports,arguments)
+},{"dup":22}],267:[function(require,module,exports){
+arguments[4][59][0].apply(exports,arguments)
+},{"bit-twiddle":265,"buffer":1,"dup":59}],268:[function(require,module,exports){
+arguments[4][112][0].apply(exports,arguments)
+},{"dup":112}],269:[function(require,module,exports){
 arguments[4][113][0].apply(exports,arguments)
-},{"dup":113,"robust-orientation":268}],270:[function(require,module,exports){
-arguments[4][114][0].apply(exports,arguments)
-},{"dup":114}],271:[function(require,module,exports){
+},{"double-bits":270,"dup":113}],270:[function(require,module,exports){
+arguments[4][98][0].apply(exports,arguments)
+},{"buffer":1,"dup":98}],271:[function(require,module,exports){
+arguments[4][115][0].apply(exports,arguments)
+},{"big-rat/add":239,"dup":115}],272:[function(require,module,exports){
+arguments[4][116][0].apply(exports,arguments)
+},{"big-rat":242,"dup":116}],273:[function(require,module,exports){
+arguments[4][117][0].apply(exports,arguments)
+},{"big-rat":242,"big-rat/mul":251,"dup":117}],274:[function(require,module,exports){
+arguments[4][118][0].apply(exports,arguments)
+},{"big-rat/sub":256,"dup":118}],275:[function(require,module,exports){
+arguments[4][7][0].apply(exports,arguments)
+},{"dup":7}],276:[function(require,module,exports){
+arguments[4][8][0].apply(exports,arguments)
+},{"dup":8,"two-product":279,"two-sum":275}],277:[function(require,module,exports){
+arguments[4][9][0].apply(exports,arguments)
+},{"dup":9}],278:[function(require,module,exports){
+arguments[4][10][0].apply(exports,arguments)
+},{"dup":10}],279:[function(require,module,exports){
+arguments[4][11][0].apply(exports,arguments)
+},{"dup":11}],280:[function(require,module,exports){
+arguments[4][12][0].apply(exports,arguments)
+},{"dup":12,"robust-scale":276,"robust-subtract":277,"robust-sum":278,"two-product":279}],281:[function(require,module,exports){
+arguments[4][125][0].apply(exports,arguments)
+},{"dup":125,"robust-orientation":280}],282:[function(require,module,exports){
+arguments[4][31][0].apply(exports,arguments)
+},{"dup":31}],283:[function(require,module,exports){
 var getBounds = require('bound-points')
 var unlerp = require('unlerp')
 
@@ -16978,11 +18004,11 @@ function normalizePathScale (positions, bounds) {
   }
   return positions
 }
-},{"bound-points":206,"unlerp":272}],272:[function(require,module,exports){
+},{"bound-points":218,"unlerp":284}],284:[function(require,module,exports){
 module.exports = function range(min, max, value) {
   return (value - min) / (max - min)
 }
-},{}],273:[function(require,module,exports){
+},{}],285:[function(require,module,exports){
 /* eslint-disable no-unused-vars */
 'use strict';
 var hasOwnProperty = Object.prototype.hasOwnProperty;
@@ -17023,7 +18049,7 @@ module.exports = Object.assign || function (target, source) {
 	return to;
 };
 
-},{}],274:[function(require,module,exports){
+},{}],286:[function(require,module,exports){
 
 module.exports = parse
 
@@ -17080,7 +18106,7 @@ function parseValues(args){
 	return args ? args.map(Number) : []
 }
 
-},{}],275:[function(require,module,exports){
+},{}],287:[function(require,module,exports){
 'use strict';
 module.exports = function (min, max) {
 	if (max === undefined) {
@@ -17095,7 +18121,7 @@ module.exports = function (min, max) {
 	return Math.random() * (max - min) + min;
 };
 
-},{}],276:[function(require,module,exports){
+},{}],288:[function(require,module,exports){
 // square distance from a point to a segment
 function getSqSegDist(p, p1, p2) {
     var x = p1[0],
@@ -17159,7 +18185,7 @@ module.exports = function simplifyDouglasPeucker(points, tolerance) {
     return simplified;
 }
 
-},{}],277:[function(require,module,exports){
+},{}],289:[function(require,module,exports){
 var simplifyRadialDist = require('./radial-distance')
 var simplifyDouglasPeucker = require('./douglas-peucker')
 
@@ -17172,7 +18198,7 @@ module.exports = function simplify(points, tolerance) {
 
 module.exports.radialDistance = simplifyRadialDist;
 module.exports.douglasPeucker = simplifyDouglasPeucker;
-},{"./douglas-peucker":276,"./radial-distance":278}],278:[function(require,module,exports){
+},{"./douglas-peucker":288,"./radial-distance":290}],290:[function(require,module,exports){
 function getSqDist(p1, p2) {
     var dx = p1[0] - p2[0],
         dy = p1[1] - p2[1];
@@ -17204,7 +18230,7 @@ module.exports = function simplifyRadialDist(points, tolerance) {
 
     return newPoints;
 }
-},{}],279:[function(require,module,exports){
+},{}],291:[function(require,module,exports){
 var bezier = require('adaptive-bezier-curve')
 var abs = require('abs-svg-path')
 var norm = require('normalize-svg-path')
@@ -17250,7 +18276,7 @@ module.exports = function contours(svg, scale) {
         paths.push(points)
     return paths
 }
-},{"abs-svg-path":280,"adaptive-bezier-curve":282,"normalize-svg-path":283,"vec2-copy":284}],280:[function(require,module,exports){
+},{"abs-svg-path":292,"adaptive-bezier-curve":294,"normalize-svg-path":295,"vec2-copy":296}],292:[function(require,module,exports){
 
 module.exports = absolutize
 
@@ -17319,7 +18345,7 @@ function absolutize(path){
 	})
 }
 
-},{}],281:[function(require,module,exports){
+},{}],293:[function(require,module,exports){
 function clone(point) { //TODO: use gl-vec2 for this
     return [point[0], point[1]]
 }
@@ -17518,9 +18544,9 @@ module.exports = function createBezierBuilder(opt) {
     }
 }
 
-},{}],282:[function(require,module,exports){
+},{}],294:[function(require,module,exports){
 module.exports = require('./function')()
-},{"./function":281}],283:[function(require,module,exports){
+},{"./function":293}],295:[function(require,module,exports){
 
 var π = Math.PI
 var _120 = radians(120)
@@ -17722,13 +18748,13 @@ function radians(degress){
 	return degress * (π / 180)
 }
 
-},{}],284:[function(require,module,exports){
+},{}],296:[function(require,module,exports){
 module.exports = function vec2Copy(out, a) {
     out[0] = a[0]
     out[1] = a[1]
     return out
 }
-},{}],285:[function(require,module,exports){
+},{}],297:[function(require,module,exports){
 var inherits = require('inherits')
 
 module.exports = function(THREE) {
@@ -17782,7 +18808,7 @@ module.exports = function(THREE) {
 
     return Complex
 }
-},{"inherits":286}],286:[function(require,module,exports){
+},{"inherits":298}],298:[function(require,module,exports){
 if (typeof Object.create === 'function') {
   // implementation from standard node.js 'util' module
   module.exports = function inherits(ctor, superCtor) {
@@ -17807,7 +18833,7 @@ if (typeof Object.create === 'function') {
   }
 }
 
-},{}],287:[function(require,module,exports){
+},{}],299:[function(require,module,exports){
 module.exports = unindex
 
 function unindex(positions, cells, out) {
@@ -17861,7 +18887,7 @@ function unindex(positions, cells, out) {
   return out
 }
 
-},{}],288:[function(require,module,exports){
+},{}],300:[function(require,module,exports){
 window.loadSvg = require('load-svg')
 window.parsePath = require('extract-svg-path').parse
 window.svgMesh3d = require('svg-mesh-3d')
@@ -17876,4 +18902,5 @@ window.polygonBoolean = require('2d-polygon-boolean');
 window.polybool = require('poly-bool');
 window.inside = require('point-in-triangle');
 window.ghClip = require('gh-clipping-algorithm');
-},{"2d-polygon-boolean":5,"csr-matrix":20,"draw-triangles-2d":23,"extract-svg-path":24,"gh-clipping-algorithm":26,"load-svg":36,"mesh-laplacian":44,"mesh-reindex":48,"point-in-triangle":49,"poly-bool":50,"svg-intersections":194,"svg-mesh-3d":205,"three-simplicial-complex":285,"unindex-mesh":287}]},{},[288]);
+window.triangulate = require('delaunay-triangulate');
+},{"2d-polygon-boolean":5,"csr-matrix":20,"delaunay-triangulate":34,"draw-triangles-2d":35,"extract-svg-path":36,"gh-clipping-algorithm":38,"load-svg":48,"mesh-laplacian":56,"mesh-reindex":60,"point-in-triangle":61,"poly-bool":62,"svg-intersections":206,"svg-mesh-3d":217,"three-simplicial-complex":297,"unindex-mesh":299}]},{},[300]);

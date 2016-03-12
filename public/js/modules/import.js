@@ -12,3 +12,4 @@ window.polygonBoolean = require('2d-polygon-boolean');
 window.polybool = require('poly-bool');
 window.inside = require('point-in-triangle');
 window.ghClip = require('gh-clipping-algorithm');
+window.triangulate = require('delaunay-triangulate');

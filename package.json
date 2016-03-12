@@ -32,6 +32,7 @@
     "bunny": "^1.0.1",
     "co-views": "^2.1.0",
     "csr-matrix": "^1.0.0",
+    "delaunay-triangulate": "^1.1.6",
     "draw-triangles-2d": "^1.0.0",
     "extract-svg-path": "^2.1.0",
     "ffi": "^2.0.0",
