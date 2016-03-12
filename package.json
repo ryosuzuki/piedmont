@@ -53,11 +53,14 @@
     "ndarray-fill": "^1.0.1",
     "ndarray-stl": "^1.0.1",
     "ndthree": "^0.2.0",
+    "normalize-path-scale": "^2.0.0",
     "numeric": "^1.2.6",
+    "object-assign": "^4.0.1",
     "parse-svg-path": "^0.1.1",
     "point-in-triangle": "^1.0.1",
     "poly-bool": "^1.0.0",
     "q": "^1.4.1",
+    "random-float": "^1.0.0",
     "ref": "^1.3.2",
     "ref-array": "^1.1.2",
     "ref-struct": "^1.0.2",
@@ -69,6 +72,7 @@
     "swig": "^1.4.2",
     "three": "^0.74.0",
     "three-simplicial-complex": "^69.0.6",
+    "triangulate-contours": "^1.0.2",
     "unindex-mesh": "^2.0.0"
   }
 }

@@ -3,7 +3,7 @@ var objects = [];
 var material = new THREE.MeshBasicMaterial({
   color: 0x00ffff,
   side: THREE.DoubleSide,
-  wireframe: true,
+  // wireframe: true,
 })
 
 var ng = new THREE.Geometry();
@@ -15,8 +15,9 @@ function createSvg () {
     // var d = "M 120, 120 m -70, 0 a 70,70 0 1,0 150,0 a 70,70 0 1,0 -150,0";
     var m = svgMesh3d(d, {
       scale: 1,
-      simplify: 0.01,
-      randomization: false
+      simplify: 0.001,
+      randomization: false,
+      normalize: true
     })
 
     var complex = reindex(unindex(m.positions, m.cells));
@@ -32,9 +33,11 @@ function createSvg () {
   })
 }
 
+var latice;
 function drawObjects () {
   var size = 2;
   var r = 15;
+  latice = size / r;
   var geometry = new THREE.BoxGeometry(size, size, size, r, r, r)
   mesh = new THREE.Mesh(geometry, material);
   mesh.geometry.verticesNeedUpdate = true;
@@ -44,8 +47,8 @@ function drawObjects () {
 
 
 function drawSVG (points) {
-  console.log(points.length)
-  points = points.map(function(p) { return [(p[0]+0.75)*200, (-p[1]+0.75)*200]})
+  // console.log(points.length)
+  // points = points.map(function(p) { return [(p[0]+0.75)*200, (-p[1]+0.75)*200]})
   path = new paper.Path();
   path.strokeColor = 'black';
   for (var i=0; i<points.length; i++) {
@@ -58,17 +61,17 @@ function drawSVG (points) {
   paper.view.draw();
   var d = $(path.exportSVG()).attr('d')
 
-  // var points = points.map(function(p) { return [(p[0]+0.75)*200, (-p[1]+0.75)*200]})
-  // var path2 = new paper.Path();
-  // path2.strokeColor = 'black';
-  // for (var i=0; i<points.length; i++) {
-  //   var point = points[i];
-  //   var next = points[(i+1)%points.length];
-  //   path2.moveTo(new Point(point[0], point[1]))
-  //   path2.lineTo(new Point(next[0], next[1]))
-  // }
-  // path2.closed = true;
-  // paper.view.draw();
+  var points = points.map(function(p) { return [(p[0]+0.75)*200, (-p[1]+0.75)*200]})
+  var path2 = new paper.Path();
+  path2.strokeColor = 'black';
+  for (var i=0; i<points.length; i++) {
+    var point = points[i];
+    var next = points[(i+1)%points.length];
+    path2.moveTo(new Point(point[0], point[1]))
+    path2.lineTo(new Point(next[0], next[1]))
+  }
+  path2.closed = true;
+  paper.view.draw();
 
   return d;
 
@@ -119,69 +122,65 @@ function replaceObject (svgMesh) {
     } else {
       points = points[0]
     }
-    count++;
+    // console.log(count)
     // if (count < 3) {
     if (points.length <= 3 || a.z < 0) {
       var test = greinerHormann.intersection(positions, triangle)
-      if (test && a.z > 0) continue;
-      continue;
+      if (test && test.length < 3 && a.z > 0) {
+        if (test.length > 1) continue;
+        if (test[0].length <= 3) continue;
+        console.log(test)
+        console.log(triangle)
+        // continue;
+      }
+      if (a.z < 1) continue;
+      // console.log('geojo')
+      // continue;
       var num = ng.vertices.length;
       ng.vertices.push(a)
       ng.vertices.push(b)
       ng.vertices.push(c)
       ng.faces.push(new THREE.Face3(num, num+1, num+2))
     } else {
-      // console.log(hoge)
-      // var test = greinerHormann.intersection(positions, triangle)
-      // if (test) continue;
       var test = greinerHormann.diff(triangle, positions)
       // console.log(test)
-      if (test) {
-        if (test.length > 1) {
-          points = (test[0].length > test[1].length) ? test[0] : test[1]
-        } else {
-          points = test[0]
-        }
-      }
-      // if (points.length > 60) continue;
-      var nuv = points;
-      var d = drawSVG(points);
-      var svg = parseSVG(d)
-      var opt = {
-        scale: 1,
-        simplify: 0.01,
-        exterior: false,
-      }
-      var contours = getContours(svg)
-      // for (i = 0; i < contours.length; i++) {
-      //   contours[i] = simplify(contours[i], opt.simplify)
-      // }
-      // console.log(contours)
+      count++;
+      // if (count < 35) continue;
 
-      var polyline = denestPolyline(contours)
-      var positions = polyline.positions
-      // var bounds = getBounds(positions)
-      // var loops = polyline.edges
-      // var edges = []
-      // for (i = 0; i < loops.length; ++i) {
-      //   var loop = loops[i]
-      //   for (var j = 0; j < loop.length; ++j) {
-      //     edges.push([loop[j], loop[(j + 1) % loop.length]])
-      //   }
-      // }
-      // cleanPSLG(positions, edges)
-      var nuv = positions;
-      var nf = cdt2d(positions)//, edges, opt)
-      console.log(positions);
-      for (var j=0; j<nf.length; j++) {
-        var num = ng.vertices.length;
-        var a = nuv[nf[j][0]]
-        var b = nuv[nf[j][1]]
-        var c = nuv[nf[j][2]]
-        ng.vertices.push(new THREE.Vector3(a[0], a[1], size));
-        ng.vertices.push(new THREE.Vector3(b[0], b[1], size));
-        ng.vertices.push(new THREE.Vector3(c[0], c[1], size));
-        ng.faces.push(new THREE.Face3(num, num+1, num+2))
+      for (var k=0; k<test.length; k++) {
+        var points = test[k]
+        var d = drawSVG(points);
+        var hoge = svgMesh3d(d, {
+          scale: 1,
+          simplify: Math.pow(10, -3),
+          customize: true,
+        })
+
+        var nuv = hoge.positions;
+
+        window.nuv = nuv;
+        var nf = hoge.cells;
+        window.nf = nf;
+        for (var j=0; j<nf.length; j++) {
+          var num = ng.vertices.length;
+          var a = nuv[nf[j][0]]
+          var b = nuv[nf[j][1]]
+          var c = nuv[nf[j][2]]
+          // if (!inside(c, triangle)) console.log(c);
+          var limit = 10*latice;
+          if ( Math.abs(a[0] - triangle[0][0]) > limit
+            || Math.abs(a[1] - triangle[0][1]) > limit
+            || Math.abs(b[0] - triangle[0][0]) > limit
+            || Math.abs(b[1] - triangle[0][1]) > limit
+            || Math.abs(c[0] - triangle[0][0]) > limit
+            || Math.abs(c[1] - triangle[0][1]) > limit) {
+            continue;
+          }
+          ng.vertices.push(new THREE.Vector3(a[0], a[1], size));
+          ng.vertices.push(new THREE.Vector3(b[0], b[1], size));
+          ng.vertices.push(new THREE.Vector3(c[0], c[1], size));
+          ng.faces.push(new THREE.Face3(num, num+1, num+2))
+        }
       }
 
 
@@ -240,8 +239,6 @@ function replaceObject (svgMesh) {
       var og = drawSVG(po);
       */
     }
-    console.log('done')
-
 
       // console.log(og.vertices)
       // for (var k=0; k<og.faces.length; k++) {
@@ -253,6 +250,7 @@ function replaceObject (svgMesh) {
     // }
 
   }
+  console.log('done')
 
   // computeUniq(ng)
 
