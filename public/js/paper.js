@@ -1,5 +1,5 @@
 
-paper.install(window);
+// paper.install(window);
 
 var start;
 var end;

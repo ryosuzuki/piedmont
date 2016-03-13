@@ -45,8 +45,8 @@ function drawSVG (points) {
   for (var i=0; i<points.length; i++) {
     var point = points[i];
     var next = points[(i+1)%points.length];
-    path.moveTo(new Point(point[0], point[1]))
-    path.lineTo(new Point(next[0], next[1]))
+    path.moveTo(new paper.Point(point[0], point[1]))
+    path.lineTo(new paper.Point(next[0], next[1]))
   }
   path.closed = true;
   paper.view.draw();
@@ -58,8 +58,8 @@ function drawSVG (points) {
   for (var i=0; i<points.length; i++) {
     var point = points[i];
     var next = points[(i+1)%points.length];
-    path2.moveTo(new Point(point[0], point[1]))
-    path2.lineTo(new Point(next[0], next[1]))
+    path2.moveTo(new paper.Point(point[0], point[1]))
+    path2.lineTo(new paper.Point(next[0], next[1]))
   }
   path2.closed = true;
   paper.view.draw();
@@ -80,7 +80,7 @@ function replaceObject (svgMesh) {
     ng.vertices.push(va);
     ng.vertices.push(vb);
     ng.vertices.push(vc);
-    ng.faces.push(new THREE.Face3(num+2, num+1, num))
+    ng.faces.push(new THREE.Face3(num, num+1, num+2))
   }
 
   var positions = svgMesh.positions;
@@ -147,7 +147,7 @@ function replaceObject (svgMesh) {
           ng.vertices.push(a);
           ng.vertices.push(b);
           ng.vertices.push(c);
-          ng.faces.push(new THREE.Face3(num+2, num+1, num))
+          ng.faces.push(new THREE.Face3(num, num+1, num+2))
         }
       }
       count++;
