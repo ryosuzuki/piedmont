@@ -76,6 +76,7 @@ function drawSTL () {
   }
   // xhr.open( "GET", '/public/assets/test-1.stl', true );
   xhr.open( "GET", '/public/assets/noah-4.stl', true );
+  // if STL is binary
   xhr.responseType = "arraybuffer";
   xhr.send( null );
 }
