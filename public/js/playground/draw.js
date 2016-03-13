@@ -2,7 +2,7 @@ var objects = [];
 var material = new THREE.MeshBasicMaterial({
   color: 0x00ffff,
   side: THREE.DoubleSide,
-  // wireframe: true,
+  wireframe: true,
 })
 
 var ng = new THREE.Geometry();
@@ -82,7 +82,9 @@ function replaceObject (svgMesh) {
   window.positions = positions;
   paths = []
   var count = 0;
-  intersect = []
+  intersect = [];
+
+  var inner _points = [];
   for (var i=0; i<faces.length; i++) {
     var face = faces[i];
     var va = vertices[face.a];
@@ -107,7 +109,7 @@ function replaceObject (svgMesh) {
         if (area/triArea > 0.5) continue;
         console.log(area/triArea)
       }
-      // if (va.z < 1) continue;
+      if (va.y < 1) continue;
       var num = ng.vertices.length;
       ng.vertices.push(va)
       ng.vertices.push(vb)
@@ -134,6 +136,14 @@ function replaceObject (svgMesh) {
           ng.vertices.push(new THREE.Vector3(b[0], size, b[1]));
           ng.vertices.push(new THREE.Vector3(c[0], size, c[1]));
           ng.faces.push(new THREE.Face3(num+2, num+1, num))
+
+          var h = 0.2;
+          var num = ng.vertices.length;
+          ng.vertices.push(new THREE.Vector3(a[0], size+h, a[1]));
+          ng.vertices.push(new THREE.Vector3(b[0], size+h, b[1]));
+          ng.vertices.push(new THREE.Vector3(c[0], size+h, c[1]));
+          ng.faces.push(new THREE.Face3(num+2, num+1, num))
+
         }
       }
       count++;
