@@ -17,50 +17,47 @@ function addTexture () {
 }
 
 function createTexture () {
-  var geometry = new THREE.Geometry();
+  var textureGeometry = new THREE.Geometry();
   for (var i=0; i<selectIndex.length; i++) {
     var index = selectIndex[i];
-    var face = window.geometry.faces[index];
-    var a = uniq[map[face.a]];
-    var b = uniq[map[face.b]];
-    var c = uniq[map[face.c]];
-    var v1 = window.geometry.vertices[face.a];
-    var v2 = window.geometry.vertices[face.b];
-    var v3 = window.geometry.vertices[face.c];
-    var g = new THREE.Geometry();
-    g.vertices.push(v1);
-    g.vertices.push(v2);
-    g.vertices.push(v3);
-    var f = new THREE.Face3(0, 1, 2);
-    f.normal = face.normal;
-    g.faces.push(f);
-    g.verticesNeedUpdate = true;
-    var m = new THREE.Mesh(g)
-    geometry.mergeMesh(m);
-    // geometry.faceVertexUvs[0].push([
+    var face = geometry.faces[index];
+    var v1 = geometry.vertices[face.a];
+    var v2 = geometry.vertices[face.b];
+    var v3 = geometry.vertices[face.c];
+    var num = textureGeometry.vertices.length;
+    textureGeometry.vertices.push(v1);
+    textureGeometry.vertices.push(v2);
+    textureGeometry.vertices.push(v3);
+    var textureFace = new THREE.Face3(num, num+1, num+2);
+    textureFace.map = [face.a, face.b, face.c];
+    textureFace.original = index;
+    textureFace.normal = face.normal;
+    textureGeometry.faces.push(textureFace);
+    textureGeometry.verticesNeedUpdate = true;
+    // textureGeometry.faceVertexUvs[0].push([
     //   new THREE.Vector2(a.uv.u, a.uv.v),
     //   new THREE.Vector2(b.uv.u, b.uv.v),
     //   new THREE.Vector2(c.uv.u, c.uv.v)
     // ]);
-    // geometry.uvsNeedUpdate = true;
+    // textureGeometry.uvsNeedUpdate = true;
   }
 
   // window.texture = texture;
 
-  Q.call(computeUniq(geometry))
-  // .then(computeLaplacian(geometry))
-  .then(getBoundary(geometry))
-  .then(getMapping(geometry))
+  Q.call(computeUniq(textureGeometry))
+  // .then(computeLaplacian(textureGeometry))
+  .then(getBoundary(textureGeometry))
+  .then(getMapping(textureGeometry))
 
-  return geometry;
+  return textureGeometry;
 }
 
-function getBoundary (geometry) {
+function getBoundary (textureGeometry) {
   console.log('Start getBoundary');
-  var uniq = geometry.uniq;
-  var map = geometry.map;
-  var edges = geometry.edges;
-  var faces = geometry.faces;
+  var uniq = textureGeometry.uniq;
+  var map = textureGeometry.map;
+  var edges = textureGeometry.edges;
+  var faces = textureGeometry.faces;
 
   var id = _.random(0, uniq.length-1);
   // sword: 1159;
@@ -76,18 +73,18 @@ function getBoundary (geometry) {
     checked = _.union(checked, [id]);
   }
   boundary = checked;
-  geometry.boundary = boundary;
+  textureGeometry.boundary = boundary;
   console.log('Finish getBoundary')
-  return geometry;
+  return textureGeometry;
 }
 
-function getMapping (geometry) {
+function getMapping (textureGeometry) {
   console.log('Start getMapping')
   var json = {
-    uniq: geometry.uniq,
-    faces: geometry.faces,
-    map: geometry.map,
-    boundary: geometry.boundary
+    uniq: textureGeometry.uniq,
+    faces: textureGeometry.faces,
+    map: textureGeometry.map,
+    boundary: textureGeometry.boundary
   };
   $.ajax({
     url: '/get-mapping',
@@ -100,25 +97,30 @@ function getMapping (geometry) {
       console.log('Get result');
       console.log(data);
 
-      geometry.uniq = data.uniq;
-      // uniq = geometry.uniq;
+      textureGeometry.uniq = data.uniq;
+      // uniq = textureGeometry.uniq;
 
-      var uniq = geometry.uniq;
-      var map = geometry.map;
-      var faces = geometry.faces;
+      var tuniq = textureGeometry.uniq;
+      var tmap = textureGeometry.map;
+      var textureFaces = textureGeometry.faces;
 
-      geometry.faceVertexUvs[0] = [];
-      for (var i=0; i<faces.length; i++) {
-        var face = faces[i];
-        var a = uniq[map[face.a]];
-        var b = uniq[map[face.b]];
-        var c = uniq[map[face.c]];
-        geometry.faceVertexUvs[0].push([
+      geometry.faceVertexUvs[0] = []
+      textureGeometry.faceVertexUvs[0] = [];
+      for (var i=0; i<textureFaces.length; i++) {
+        var textureFace = textureFaces[i];
+        var a = tuniq[tmap[textureFace.a]];
+        var b = tuniq[tmap[textureFace.b]];
+        var c = tuniq[tmap[textureFace.c]];
+
+        var uv = [
           new THREE.Vector2(a.uv.u, a.uv.v),
           new THREE.Vector2(b.uv.u, b.uv.v),
           new THREE.Vector2(c.uv.u, c.uv.v)
-        ]);
-        geometry.uvsNeedUpdate = true;
+        ];
+        textureGeometry.faceVertexUvs[0].push(uv);
+        var index = textureFace.original;
+        geometry.faceVertexUvs[0][index] = uv;
+        textureGeometry.uvsNeedUpdate = true;
       }
 
       var rot = mesh.rotation;
@@ -130,8 +132,8 @@ function getMapping (geometry) {
       var image = loader.load('/public/assets/checkerboard.jpg');
       image.minFilter = THREE.LinearFilter;
       image.needsUpdate = true;
-      var material = new THREE.MeshBasicMaterial({map: image});
-      texture = new THREE.Mesh(geometry, material);
+      var textureMaterial = new THREE.MeshBasicMaterial({map: image});
+      texture = new THREE.Mesh(textureGeometry, textureMaterial);
       texture.castShadow = true;
       texture.receiveShadow = true;
       texture.rotation.set(rot.x, rot.y, rot.z, rot.order)

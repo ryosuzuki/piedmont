@@ -92,7 +92,9 @@ function replaceObject (svgMesh) {
       if (points && points.length < 3) { // && va.y > 0) {
         var area = areaPolygon(points[0])
         var triArea = areaPolygon(triangle)
-        if (area/triArea > 0.5) continue;
+        if (area/triArea > 0.5) {
+          continue;
+        }
         console.log(area/triArea)
       }
       // if (va.z < 1) continue;
