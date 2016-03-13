@@ -2,8 +2,17 @@ var objects = [];
 var material = new THREE.MeshBasicMaterial({
   color: 0x00ffff,
   side: THREE.DoubleSide,
-  // wireframe: true,
+  wireframe: true,
 })
+// material = new THREE.MeshLambertMaterial({
+//   overdraw: true,
+//   color: 0xaa0000,
+//   vertexColors: THREE.FaceColors
+// })
+material.color.set(new THREE.Color('blue'))
+
+
+
 var ng;
 
 function createSvg () {
@@ -59,10 +68,21 @@ function drawSVG (points) {
 
 function replaceObject (svgMesh) {
   if (ng) scene.remove(ng);
+
   ng = new THREE.Geometry();
-  var vertices = texture.geometry.vertices;
-  var faces = texture.geometry.faces;
-  var faceVertexUvs = texture.geometry.faceVertexUvs[0];
+  for (var i=0; i<geometry.faces.length; i++) {
+    if (selectIndex.includes(i)) continue;
+    var face = geometry.faces[i];
+    var num = ng.vertices.length;
+    var va  = geometry.vertices[face.a];
+    var vb  = geometry.vertices[face.b];
+    var vc  = geometry.vertices[face.c];
+    ng.vertices.push(va);
+    ng.vertices.push(vb);
+    ng.vertices.push(vc);
+    ng.faces.push(new THREE.Face3(num+2, num+1, num))
+  }
+
   var positions = svgMesh.positions;
 
   // Centerize positions around [0, 1]
@@ -71,13 +91,15 @@ function replaceObject (svgMesh) {
   })
   window.positions = positions;
   var count = 0;
-  for (var i=0; i<faces.length; i++) {
-    var face = faces[i];
-    var ouv = faceVertexUvs[i];
+  for (var i=0; i<selectIndex.length; i++) {
+    var index = selectIndex[i]
+    var face = geometry.faces[index];
+
+    var ouv = geometry.faceVertexUvs[0][index];
+    var va  = geometry.vertices[face.a];
+    var vb  = geometry.vertices[face.b];
+    var vc  = geometry.vertices[face.c];
     var normal = face.normal;
-    var va = vertices[face.a];
-    var vb = vertices[face.b];
-    var vc = vertices[face.c];
     var triangle = ouv.map( function (v) {
       return [v.x, v.y];
     })
@@ -133,7 +155,6 @@ function replaceObject (svgMesh) {
     }
   }
   console.log('done')
-
   scene.remove(mesh)
   scene.remove(texture)
   nm = new THREE.Mesh(ng, material);

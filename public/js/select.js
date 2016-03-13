@@ -36,12 +36,12 @@ function colorChange (val) {
     }
   }
   var faces = geometry.faces;
-
   geometry.phiFaces.forEach( function (p, index) {
     if (getBool(p)) {
       var face = faces[index];
       face.color.set(new THREE.Color(color));
       geometry.colorsNeedUpdate = true;
+
       if (undoMode) {
         selectIndex = _.pull(selectIndex, index);
       } else {

@@ -102,7 +102,7 @@ function drawCylinder () {
 
 function drawBox () {
   box = new THREE.Mesh(
-    new THREE.BoxGeometry(size, size, size, 10, 10, 10),
+    new THREE.BoxGeometry(size, size, size, 1, 1, 1),
     new THREE.MeshBasicMaterial({vertexColors: THREE.FaceColors })
   );
   box.geometry.verticesNeedUpdate = true;
@@ -116,9 +116,4 @@ function drawBox () {
   mesh.material.color.set(new THREE.Color('blue'))
   loadObjects();
 }
-
-
-
-
-
 

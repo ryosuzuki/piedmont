@@ -133,6 +133,7 @@ function getMapping (textureGeometry) {
       image.minFilter = THREE.LinearFilter;
       image.needsUpdate = true;
       var textureMaterial = new THREE.MeshBasicMaterial({map: image});
+      if (texture) scene.remove(texture);
       texture = new THREE.Mesh(textureGeometry, textureMaterial);
       texture.castShadow = true;
       texture.receiveShadow = true;
