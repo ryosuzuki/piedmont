@@ -18,10 +18,16 @@ $(document).on('click', '#add', function (event) {
 });
 
 $(document).on('click', '#export', function() {
+  var exporter = new THREE.STLExporter();
+  var stlString = exporter.parse( scene );
+  var blob = new Blob([stlString], {type: 'text/plain'});
+  saveAs(blob, 'demo.stl');
+  /*
   generateVoxel( function (data) {
     var blob = new Blob([data], {type: 'text/plain'});
     saveAs(blob, 'demo.stl');
   })
+  */
 });
 
 function saveGeometry () {
