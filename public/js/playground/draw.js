@@ -57,7 +57,7 @@ function drawSVG (points) {
   paper.view.draw();
   var d = $(path.exportSVG()).attr('d')
 
-  var points = points.map(function(p) { return [(p[0]+0.75)*200, (-p[1]+0.75)*200]})
+  var points = points.map(function(p) { return [(p[0]+0.75)*130, (-p[1]+0.75)*130]})
   var path2 = new paper.Path();
   path2.strokeColor = 'black';
   for (var i=0; i<points.length; i++) {
@@ -85,9 +85,6 @@ function replaceObject (svgMesh) {
   intersect = [];
 
   for (var i=0; i<faces.length; i++) {
-    var inner_points = [];
-    var outer_points = [];
-
     var face = faces[i];
     var va = vertices[face.a];
     var vb = vertices[face.b];
@@ -137,7 +134,8 @@ function replaceObject (svgMesh) {
         })
         var nuv = bndMesh.positions;
         var nf = bndMesh.cells;
-
+        var inner_points = [];
+        var outer_points = [];
         for (var j=0; j<nf.length; j++) {
           var num = ng.vertices.length;
           var a = nuv[nf[j][0]]
@@ -172,30 +170,32 @@ function replaceObject (svgMesh) {
             outer_points.push(outer_c);
           }
         }
+
+        var n = inner_points.length;
+        for (var j=0; j<n-1; j++) {
+          var ci = inner_points[j];
+          var ni = inner_points[j+1];
+          var co = outer_points[j];
+          var no = outer_points[j+1];
+
+          var num = ng.vertices.length;
+          ng.vertices.push(ci);
+          ng.vertices.push(co);
+          ng.vertices.push(ni);
+          ng.faces.push(new THREE.Face3(num, num+1, num+2))
+          ng.faces.push(new THREE.Face3(num+2, num+1, num))
+
+          var num = ng.vertices.length;
+          ng.vertices.push(co);
+          ng.vertices.push(no);
+          ng.vertices.push(ni);
+          ng.faces.push(new THREE.Face3(num, num+1, num+2))
+          ng.faces.push(new THREE.Face3(num+2, num+1, num))
+        }
+
       }
       count++;
       // console.log(count);
-      var n = inner_points.length;
-      for (var j=0; j<n-1; j++) {
-        var ci = inner_points[j];
-        var ni = inner_points[j+1];
-        var co = outer_points[j];
-        var no = outer_points[j+1];
-
-        var num = ng.vertices.length;
-        ng.vertices.push(ci);
-        ng.vertices.push(co);
-        ng.vertices.push(ni);
-        ng.faces.push(new THREE.Face3(num, num+1, num+2))
-        ng.faces.push(new THREE.Face3(num+2, num+1, num))
-
-        var num = ng.vertices.length;
-        ng.vertices.push(co);
-        ng.vertices.push(no);
-        ng.vertices.push(ni);
-        ng.faces.push(new THREE.Face3(num, num+1, num+2))
-        ng.faces.push(new THREE.Face3(num+2, num+1, num))
-      }
 
     }
   }
@@ -220,7 +220,7 @@ function isNotTriangle (v, outer_triangle) {
       return false;
     }
   }
-  if (checked.includes(v.toString())) return false;
+  // if (checked.includes(v.toString())) return false;
   checked.push(v.toString())
   return true
 }
