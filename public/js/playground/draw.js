@@ -84,7 +84,8 @@ function replaceObject (svgMesh) {
   var count = 0;
   intersect = [];
 
-  var inner _points = [];
+  inner_points = [];
+  outer_points = [];
   for (var i=0; i<faces.length; i++) {
     var face = faces[i];
     var va = vertices[face.a];
@@ -117,8 +118,8 @@ function replaceObject (svgMesh) {
       ng.faces.push(new THREE.Face3(num, num+1, num+2))
     } else {
       var test = greinerHormann.diff(triangle, positions)
-      for (var k=0; k<test.length; k++) {
-        var points = test[k]
+      for (var ti=0; ti<test.length; ti++) {
+        var points = test[ti]
         var d = drawSVG(points);
         var bndMesh = svgMesh3d(d, {
           scale: 1,
@@ -127,6 +128,14 @@ function replaceObject (svgMesh) {
         })
         var nuv = bndMesh.positions;
         var nf = bndMesh.cells;
+
+        var isInner = function (v, triangle) {
+          if (_.isEqual(triangle[0], v)) return false;
+          if (_.isEqual(triangle[1], v)) return false;
+          if (_.isEqual(triangle[2], v)) return false;
+          return true
+        }
+
         for (var j=0; j<nf.length; j++) {
           var num = ng.vertices.length;
           var a = nuv[nf[j][0]]
@@ -137,102 +146,57 @@ function replaceObject (svgMesh) {
           ng.vertices.push(new THREE.Vector3(c[0], size, c[1]));
           ng.faces.push(new THREE.Face3(num+2, num+1, num))
 
+          var inner_a = ng.vertices[num+2]
+          var inner_b = ng.vertices[num+1]
+          var inner_c = ng.vertices[num]
+
           var h = 0.2;
-          var num = ng.vertices.length;
-          ng.vertices.push(new THREE.Vector3(a[0], size+h, a[1]));
-          ng.vertices.push(new THREE.Vector3(b[0], size+h, b[1]));
-          ng.vertices.push(new THREE.Vector3(c[0], size+h, c[1]));
-          ng.faces.push(new THREE.Face3(num+2, num+1, num))
+          var v = new THREE.Vector3();
+          var normal = new THREE.Vector3(0, 0.2, 0)
+          var outer_a = v.clone.addVectors(a, normal)
+          var outer_b = v.clone.addVectors(b, normal)
+          var outer_c = v.clone.addVectors(c, normal)
+
+          if (isInner(a, triangle)) {
+            inner_points.push(inner_a);
+            outer_points.push(inner_a);
+          }
+          if (isInner(b, triangle)) {
+            inner_points.push(inner_b);
+            outer_points.push(inner_b);
+          }
+          if (isInner(c, triangle)) {
+            inner_points.push(inner_c);
+            outer_points.push(inner_c);
+          }
 
         }
       }
       count++;
       console.log(count);
-
-      // var nf = cdt2d(nuv)
-      // var nf = triangulate(nuv)
-      // var po = []
-      // for (var j=0; j<nf.length; j++) {
-      //   var num = ng.vertices.length;
-      //   var a = nuv[nf[j][0]]
-      //   var b = nuv[nf[j][1]]
-      //   var c = nuv[nf[j][2]]
-      //   ng.vertices.push(new THREE.Vector3(a[0], a[1], size));
-      //   ng.vertices.push(new THREE.Vector3(b[0], b[1], size));
-      //   ng.vertices.push(new THREE.Vector3(c[0], c[1], size));
-      //   ng.faces.push(new THREE.Face3(num, num+1, num+2))
-      //   po.push(a)
-      //   po.push(b)
-      //   po.push(c)
-      // }
-
-      // var nf = cdt2d(nuv)
-      // var nf = triangulate(nuv)
-      // var po = []
-      // for (var j=0; j<nf.length; j++) {
-      //   var num = ng.vertices.length;
-      //   var a = nuv[nf[j][0]]
-      //   var b = nuv[nf[j][1]]
-      //   var c = nuv[nf[j][2]]
-      //   ng.vertices.push(new THREE.Vector3(a[0], a[1], size));
-      //   ng.vertices.push(new THREE.Vector3(b[0], b[1], size));
-      //   ng.vertices.push(new THREE.Vector3(c[0], c[1], size));
-      //   ng.faces.push(new THREE.Face3(num, num+1, num+2))
-      //   po.push(a)
-      //   po.push(b)
-      //   po.push(c)
-      // }
-      // var og = drawSVG(po);
-
-      /*
-      var nf = Delaunay.triangulate(nuv);
-      console.log(nf)
-      var po = []
-      for(var j=0; j<nf.length/3; j++) {
-        var num = ng.vertices.length;
-        var a = nuv[nf[3*j]]
-        var b = nuv[nf[3*j+1]]
-        var c = nuv[nf[3*j+2]]
-        ng.vertices.push(new THREE.Vector3(a[0], a[1], size));
-        ng.vertices.push(new THREE.Vector3(b[0], b[1], size));
-        ng.vertices.push(new THREE.Vector3(c[0], c[1], size));
-        ng.faces.push(new THREE.Face3(num+2, num+1, num))
-        po.push(a)
-        po.push(b)
-        po.push(c)
-      }
-      var og = drawSVG(po);
-      */
     }
+    var n = inner_points.length;
+    for (var i=0; i<n; i++) {
+      var ci = inner_points[i];
+      var ni = inner_points[(i+1)/n];
+      var co = outer_points[i];
+      var no = outer_points[(i+1)/n];
 
-      // console.log(og.vertices)
-      // for (var k=0; k<og.faces.length; k++) {
-      //   var result = addFace(ng, og, k)
-      //   ng = result.ng;
-      //   intersect = _.union(intersect, result.intersect);
-      // }
-      // break;
-    // }
+      var num = ng.vertices.length;
+      ng.vertices.push(ci);
+      ng.vertices.push(co);
+      ng.vertices.push(ni);
+      ng.faces.push(new THREE.Face3(num+2, num+1, num))
+
+      var num = ng.vertices.length;
+      ng.vertices.push(co);
+      ng.vertices.push(ni);
+      ng.vertices.push(no);
+      ng.faces.push(new THREE.Face3(num+2, num+1, num))
+    }
 
   }
   console.log('done')
-
-  // computeUniq(ng)
-
-  // var bnd = []
-  // iuniq = intersect.map(function (a) {
-  //   return ng.map[a];
-  // })
-  // iuniq = _.uniq(iuniq)
-  // for (var i=0; i<intersect.length; i++) {
-  //   var id = ng.map[intersect[i]];
-  //   var b = ng.uniq[id];
-  //   // bnd.push(b)
-  //   var e = b.edges.map(function(edge) {
-  //     return iuniq.includes(edge)
-  //   })
-  //   // console.log(e)
-  // }
 
   scene.remove(mesh)
   nm = new THREE.Mesh(ng, material);
