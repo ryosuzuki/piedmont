@@ -1,8 +1,8 @@
 var objects = [];
 var material = new THREE.MeshBasicMaterial({
   color: 0x00ffff,
-  side: THREE.DoubleSide,
-  wireframe: true,
+  // side: THREE.DoubleSide,
+  // wireframe: true,
 })
 
 var ng = new THREE.Geometry();
@@ -111,6 +111,7 @@ function replaceObject (svgMesh) {
         console.log(area/triArea)
       }
       if (va.y < 1) continue;
+      continue;
       var num = ng.vertices.length;
       ng.vertices.push(va)
       ng.vertices.push(vb)
@@ -144,7 +145,7 @@ function replaceObject (svgMesh) {
           ng.vertices.push(new THREE.Vector3(a[0], size, a[1]));
           ng.vertices.push(new THREE.Vector3(b[0], size, b[1]));
           ng.vertices.push(new THREE.Vector3(c[0], size, c[1]));
-          ng.faces.push(new THREE.Face3(num+2, num+1, num))
+          // ng.faces.push(new THREE.Face3(num+2, num+1, num))
 
           var inner_a = ng.vertices[num]
           var inner_b = ng.vertices[num+1]
@@ -162,7 +163,6 @@ function replaceObject (svgMesh) {
             outer_points.push(outer_a);
           }
           if (isNotTriangle(b, outer_triangle)) {
-            console.log(b)
             inner_points.push(inner_b);
             outer_points.push(outer_b);
           }
@@ -191,11 +191,11 @@ function replaceObject (svgMesh) {
     ng.vertices.push(ni);
     ng.faces.push(new THREE.Face3(num, num+1, num+2))
 
-    // var num = ng.vertices.length;
-    // ng.vertices.push(co);
-    // ng.vertices.push(ni);
-    // ng.vertices.push(no);
-    // ng.faces.push(new THREE.Face3(num, num+1, num+2))
+    var num = ng.vertices.length;
+    ng.vertices.push(co);
+    ng.vertices.push(no);
+    ng.vertices.push(ni);
+    ng.faces.push(new THREE.Face3(num, num+1, num+2))
   }
 
   scene.remove(mesh)
@@ -207,30 +207,19 @@ function replaceObject (svgMesh) {
   scene.add(nm);
 }
 
+var checked = []
 function isNotTriangle (v, outer_triangle) {
-  var d = Math.sqrt(v[0]*v[0] + v[1]*v[1])
-  if (d < 0.8*size) {
-    // console.log(d)
-    console.log(v)
-    return true;
-  } else {
-    console.log(d)
-    return false;
+  var epsilon = Math.pow(10, -2);
+  for (var j=0; j<outer_triangle.length; j++) {
+    var t = outer_triangle[j];
+    if (Math.abs(t[0]-v[0]) < epsilon && Math.abs(t[1]-v[1])< epsilon) {
+      console.log(v, t)
+      return false;
+    }
   }
-
-
-  // var epsilon = Math.pow(10, -1);
-  // for (var j=0; j<outer_triangle.length; j++) {
-  //   var t = outer_triangle[j];
-  //   if ((t[0]-v[0]) < epsilon && (t[1]-v[1])< epsilon) {
-  //     console.log(v, t)
-  //     return false;
-  //   }
-  // }
-  // // if (_.isEqual(triangle[0], v)) return false;
-  // // if (_.isEqual(triangle[1], v)) return false;
-  // // if (_.isEqual(triangle[2], v)) return false;
-  // return true
+  if (checked.includes(v.toString())) return false;
+  checked.push(v.toString())
+  return true
 }
 
 function denestPolyline (nested) {
