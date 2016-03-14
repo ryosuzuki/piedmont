@@ -120,6 +120,13 @@ function replaceObject (svgMesh) {
       var test = greinerHormann.diff(triangle, positions)
       for (var ti=0; ti<test.length; ti++) {
         var points = test[ti]
+        var outer_triangle = triangle.filter(function (t) {
+          for (var pi=0; pi<points.length; pi++) {
+            var p = points[pi];
+            if (_.isEqual(p, t)) return true;
+          }
+          return false;
+        })
         var d = drawSVG(points);
         var bndMesh = svgMesh3d(d, {
           scale: 1,
@@ -128,13 +135,6 @@ function replaceObject (svgMesh) {
         })
         var nuv = bndMesh.positions;
         var nf = bndMesh.cells;
-
-        var isInner = function (v, triangle) {
-          if (_.isEqual(triangle[0], v)) return false;
-          if (_.isEqual(triangle[1], v)) return false;
-          if (_.isEqual(triangle[2], v)) return false;
-          return true
-        }
 
         for (var j=0; j<nf.length; j++) {
           var num = ng.vertices.length;
@@ -146,57 +146,57 @@ function replaceObject (svgMesh) {
           ng.vertices.push(new THREE.Vector3(c[0], size, c[1]));
           ng.faces.push(new THREE.Face3(num+2, num+1, num))
 
-          var inner_a = ng.vertices[num+2]
+          var inner_a = ng.vertices[num]
           var inner_b = ng.vertices[num+1]
-          var inner_c = ng.vertices[num]
+          var inner_c = ng.vertices[num+2]
 
           var h = 0.2;
           var v = new THREE.Vector3();
           var normal = new THREE.Vector3(0, 0.2, 0)
-          var outer_a = v.clone.addVectors(a, normal)
-          var outer_b = v.clone.addVectors(b, normal)
-          var outer_c = v.clone.addVectors(c, normal)
+          var outer_a = v.clone().addVectors(inner_a, normal)
+          var outer_b = v.clone().addVectors(inner_b, normal)
+          var outer_c = v.clone().addVectors(inner_c, normal)
 
-          if (isInner(a, triangle)) {
+          if (isNotTriangle(a, outer_triangle)) {
             inner_points.push(inner_a);
-            outer_points.push(inner_a);
+            outer_points.push(outer_a);
           }
-          if (isInner(b, triangle)) {
+          if (isNotTriangle(b, outer_triangle)) {
+            console.log(b)
             inner_points.push(inner_b);
-            outer_points.push(inner_b);
+            outer_points.push(outer_b);
           }
-          if (isInner(c, triangle)) {
+          if (isNotTriangle(c, outer_triangle)) {
             inner_points.push(inner_c);
-            outer_points.push(inner_c);
+            outer_points.push(outer_c);
           }
-
         }
       }
       count++;
-      console.log(count);
+      // console.log(count);
     }
-    var n = inner_points.length;
-    for (var i=0; i<n; i++) {
-      var ci = inner_points[i];
-      var ni = inner_points[(i+1)/n];
-      var co = outer_points[i];
-      var no = outer_points[(i+1)/n];
-
-      var num = ng.vertices.length;
-      ng.vertices.push(ci);
-      ng.vertices.push(co);
-      ng.vertices.push(ni);
-      ng.faces.push(new THREE.Face3(num+2, num+1, num))
-
-      var num = ng.vertices.length;
-      ng.vertices.push(co);
-      ng.vertices.push(ni);
-      ng.vertices.push(no);
-      ng.faces.push(new THREE.Face3(num+2, num+1, num))
-    }
-
   }
   console.log('done')
+
+  var n = inner_points.length;
+  for (var i=0; i<n-1; i++) {
+    var ci = inner_points[i];
+    var ni = inner_points[i+1];
+    var co = outer_points[i];
+    var no = outer_points[i+1];
+
+    var num = ng.vertices.length;
+    ng.vertices.push(ci);
+    ng.vertices.push(co);
+    ng.vertices.push(ni);
+    ng.faces.push(new THREE.Face3(num, num+1, num+2))
+
+    // var num = ng.vertices.length;
+    // ng.vertices.push(co);
+    // ng.vertices.push(ni);
+    // ng.vertices.push(no);
+    // ng.faces.push(new THREE.Face3(num, num+1, num+2))
+  }
 
   scene.remove(mesh)
   nm = new THREE.Mesh(ng, material);
@@ -205,6 +205,32 @@ function replaceObject (svgMesh) {
   nm.castShadow = true;
   nm.receiveShadow = true;
   scene.add(nm);
+}
+
+function isNotTriangle (v, outer_triangle) {
+  var d = Math.sqrt(v[0]*v[0] + v[1]*v[1])
+  if (d < 0.8*size) {
+    // console.log(d)
+    console.log(v)
+    return true;
+  } else {
+    console.log(d)
+    return false;
+  }
+
+
+  // var epsilon = Math.pow(10, -1);
+  // for (var j=0; j<outer_triangle.length; j++) {
+  //   var t = outer_triangle[j];
+  //   if ((t[0]-v[0]) < epsilon && (t[1]-v[1])< epsilon) {
+  //     console.log(v, t)
+  //     return false;
+  //   }
+  // }
+  // // if (_.isEqual(triangle[0], v)) return false;
+  // // if (_.isEqual(triangle[1], v)) return false;
+  // // if (_.isEqual(triangle[2], v)) return false;
+  // return true
 }
 
 function denestPolyline (nested) {
