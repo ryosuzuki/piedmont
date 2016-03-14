@@ -21,12 +21,12 @@ var circles = [];
 window.onload = function () {
   paper.setup('canvas');
 
-  var tool = new Tool();
+  var tool = new paper.Tool();
   tool.onMouseDown = function (event) {
     if (draft) {
       draft.selected = false;
     }
-    draft = new Path(pathStyle);
+    draft = new paper.Path(pathStyle);
     draft.segments = [event.point];
     start = event.point;
   }
@@ -69,7 +69,7 @@ window.onload = function () {
   }
 
 
-  view.onFrame = function (event) {
+  paper.view.onFrame = function (event) {
   }
   paper.view.draw();
 
@@ -94,10 +94,10 @@ function beautify (draft) {
   }
 
   var rectangle = new Rectangle(
-    new Point(_.min(x), _.min(y)),
-    new Point(_.max(x), _.max(y))
+    new paper.Point(_.min(x), _.min(y)),
+    new paper.Point(_.max(x), _.max(y))
   );
-  var path = new Path.Ellipse(rectangle);
+  var path = new paper.Path.Ellipse(rectangle);
   path.style = pathStyle;
   path.style.fillColor = 'red';
   circles.push(path);

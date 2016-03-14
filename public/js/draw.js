@@ -26,9 +26,9 @@ function loadObjects () {
 
 function drawObjects () {
   // drawBox()
-  // drawCylinder();
+  drawCylinder();
   // drawRing();
-  drawSTL();
+  // drawSTL();
 }
 
 
