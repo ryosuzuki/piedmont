@@ -2,7 +2,7 @@ var objects = [];
 var material = new THREE.MeshBasicMaterial({
   color: 0x00ffff,
   // side: THREE.DoubleSide,
-  // wireframe: true,
+  wireframe: true,
 })
 
 var ng = new THREE.Geometry();
@@ -84,9 +84,10 @@ function replaceObject (svgMesh) {
   var count = 0;
   intersect = [];
 
-  inner_points = [];
-  outer_points = [];
   for (var i=0; i<faces.length; i++) {
+    var inner_points = [];
+    var outer_points = [];
+
     var face = faces[i];
     var va = vertices[face.a];
     var vb = vertices[face.b];
@@ -145,7 +146,7 @@ function replaceObject (svgMesh) {
           ng.vertices.push(new THREE.Vector3(a[0], size, a[1]));
           ng.vertices.push(new THREE.Vector3(b[0], size, b[1]));
           ng.vertices.push(new THREE.Vector3(c[0], size, c[1]));
-          // ng.faces.push(new THREE.Face3(num+2, num+1, num))
+          ng.faces.push(new THREE.Face3(num+2, num+1, num))
 
           var inner_a = ng.vertices[num]
           var inner_b = ng.vertices[num+1]
@@ -174,29 +175,31 @@ function replaceObject (svgMesh) {
       }
       count++;
       // console.log(count);
+      var n = inner_points.length;
+      for (var j=0; j<n-1; j++) {
+        var ci = inner_points[j];
+        var ni = inner_points[j+1];
+        var co = outer_points[j];
+        var no = outer_points[j+1];
+
+        var num = ng.vertices.length;
+        ng.vertices.push(ci);
+        ng.vertices.push(co);
+        ng.vertices.push(ni);
+        ng.faces.push(new THREE.Face3(num, num+1, num+2))
+        ng.faces.push(new THREE.Face3(num+2, num+1, num))
+
+        var num = ng.vertices.length;
+        ng.vertices.push(co);
+        ng.vertices.push(no);
+        ng.vertices.push(ni);
+        ng.faces.push(new THREE.Face3(num, num+1, num+2))
+        ng.faces.push(new THREE.Face3(num+2, num+1, num))
+      }
+
     }
   }
   console.log('done')
-
-  var n = inner_points.length;
-  for (var i=0; i<n-1; i++) {
-    var ci = inner_points[i];
-    var ni = inner_points[i+1];
-    var co = outer_points[i];
-    var no = outer_points[i+1];
-
-    var num = ng.vertices.length;
-    ng.vertices.push(ci);
-    ng.vertices.push(co);
-    ng.vertices.push(ni);
-    ng.faces.push(new THREE.Face3(num, num+1, num+2))
-
-    var num = ng.vertices.length;
-    ng.vertices.push(co);
-    ng.vertices.push(no);
-    ng.vertices.push(ni);
-    ng.faces.push(new THREE.Face3(num, num+1, num+2))
-  }
 
   scene.remove(mesh)
   nm = new THREE.Mesh(ng, material);
