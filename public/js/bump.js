@@ -126,17 +126,18 @@ function replaceObject (svgMesh) {
     var normal_a = geometry.uniq[geometry.map[face.a]].vertex_normal;
     var normal_b = geometry.uniq[geometry.map[face.b]].vertex_normal;
     var normal_c = geometry.uniq[geometry.map[face.c]].vertex_normal;
+    var h = 0.1;
     var face_info = {
       va: va,
       vb: vb,
       vc: vc,
-      normal: normal,
-      normal_a: normal_a,
-      normal_b: normal_b,
-      normal_c: normal_c,
-      normal_ab: normal_ab,
-      normal_bc: normal_bc,
-      normal_ca: normal_ca
+      normal: normal.clone().multiplyScalar(h),
+      normal_a: normal_a.clone().multiplyScalar(h),
+      normal_b: normal_b.clone().multiplyScalar(h),
+      normal_c: normal_c.clone().multiplyScalar(h),
+      normal_ab: normal_ab.clone().multiplyScalar(h),
+      normal_bc: normal_bc.clone().multiplyScalar(h),
+      normal_ca: normal_ca.clone().multiplyScalar(h)
     }
 
     var triangle = ouv.map( function (v) {
@@ -154,6 +155,17 @@ function replaceObject (svgMesh) {
         var area = areaPolygon(points[0])
         var triArea = areaPolygon(triangle)
         if (area/triArea > 0.5) {
+
+          var h = 0.1;
+          var v = new THREE.Vector3();
+          var outer_a = v.clone().addVectors(va, face_info.normal_a)
+          var outer_b = v.clone().addVectors(vb, face_info.normal_b)
+          var outer_c = v.clone().addVectors(vc, face_info.normal_c)
+          var num = ng.vertices.length;
+          ng.vertices.push(outer_a);
+          ng.vertices.push(outer_b);
+          ng.vertices.push(outer_c);
+          ng.faces.push(new THREE.Face3(num, num+1, num+2))
           continue;
         }
         console.log(area/triArea)
@@ -167,7 +179,6 @@ function replaceObject (svgMesh) {
     } else {
       var intersections = greinerHormann.intersection(positions, triangle)
       console.log(intersection)
-      if (!intersections) intersections = triangle;
       for (var k=0; k<intersections.length; k++) {
         var intersection = intersections[k]
         var outer_triangle = triangle.filter(function (t) {
@@ -202,15 +213,10 @@ function replaceObject (svgMesh) {
           ng.vertices.push(inner_c);
           ng.faces.push(new THREE.Face3(num, num+1, num+2))
 
-          var h = 0.1;
           var v = new THREE.Vector3();
-          var normal_a = a.normal.clone().multiplyScalar(h);
-          var normal_b = b.normal.clone().multiplyScalar(h);
-          var normal_c = c.normal.clone().multiplyScalar(h);
-          var h_normal = normal.clone().multiplyScalar(h);
-          var outer_a = v.clone().addVectors(inner_a, normal_a)
-          var outer_b = v.clone().addVectors(inner_b, normal_b)
-          var outer_c = v.clone().addVectors(inner_c, normal_c)
+          var outer_a = v.clone().addVectors(inner_a, a.normal)
+          var outer_b = v.clone().addVectors(inner_b, b.normal)
+          var outer_c = v.clone().addVectors(inner_c, c.normal)
           var num = ng.vertices.length;
           ng.vertices.push(outer_a);
           ng.vertices.push(outer_b);
