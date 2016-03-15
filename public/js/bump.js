@@ -18,16 +18,6 @@ function createSvg () {
       randomization: false,
       normalize: true
     })
-
-    var complex = reindex(unindex(m.positions, m.cells));
-    var geometry = new createGeom(complex)
-    geometry.vertices = geometry.vertices.map( function (vertex) {
-      vertex.z = size*2;
-      return vertex;
-    })
-    var mesh = new THREE.Mesh(geometry, material)
-    mesh.scale.set(0.5, 0.5, 0.5)
-    // scene.add(mesh);
     replaceObject(m);
   })
 }
@@ -162,7 +152,7 @@ function replaceObject (svgMesh) {
           }
           return false;
         })
-        debugger
+        // debugger
         var d = drawSVG(intersection);
         var bndMesh = svgMesh3d(d, {
           scale: 1,
@@ -194,6 +184,7 @@ function replaceObject (svgMesh) {
           var normal_a = a.normal.clone().multiplyScalar(h);
           var normal_b = b.normal.clone().multiplyScalar(h);
           var normal_c = c.normal.clone().multiplyScalar(h);
+          var h_normal = normal.clone().multiplyScalar(h);
           var outer_a = v.clone().addVectors(inner_a, normal_a)
           var outer_b = v.clone().addVectors(inner_b, normal_b)
           var outer_c = v.clone().addVectors(inner_c, normal_c)
@@ -204,41 +195,41 @@ function replaceObject (svgMesh) {
           ng.faces.push(new THREE.Face3(num, num+1, num+2))
           ng.faces.push(new THREE.Face3(num+2, num+1, num+1))
 
-          if (isNotTriangle(a, outer_triangle)) {
+          // if (isNotTriangle(a, outer_triangle)) {
             inner_points.push(inner_a);
             outer_points.push(outer_a);
-          }
-          if (isNotTriangle(b, outer_triangle)) {
+          // }
+          // if (isNotTriangle(b, outer_triangle)) {
             inner_points.push(inner_b);
             outer_points.push(outer_b);
-          }
-          if (isNotTriangle(c, outer_triangle)) {
+          // }
+          // if (isNotTriangle(c, outer_triangle)) {
             inner_points.push(inner_c);
             outer_points.push(outer_c);
-          }
+          // }
         }
 
-        // var n = inner_points.length;
-        // for (var j=0; j<n-1; j++) {
-        //   var ci = inner_points[j];
-        //   var ni = inner_points[j+1];
-        //   var co = outer_points[j];
-        //   var no = outer_points[j+1];
+        var n = inner_points.length;
+        for (var j=0; j<n; j++) {
+          var ci = inner_points[j];
+          var ni = inner_points[j+1];
+          var co = outer_points[j];
+          var no = outer_points[j+1];
 
-        //   var num = ng.vertices.length;
-        //   ng.vertices.push(ci);
-        //   ng.vertices.push(co);
-        //   ng.vertices.push(ni);
-        //   ng.faces.push(new THREE.Face3(num, num+1, num+2))
-        //   ng.faces.push(new THREE.Face3(num+2, num+1, num))
+          var num = ng.vertices.length;
+          ng.vertices.push(ci);
+          ng.vertices.push(co);
+          ng.vertices.push(ni);
+          ng.faces.push(new THREE.Face3(num, num+1, num+2))
+          ng.faces.push(new THREE.Face3(num+2, num+1, num))
 
-        //   var num = ng.vertices.length;
-        //   ng.vertices.push(co);
-        //   ng.vertices.push(no);
-        //   ng.vertices.push(ni);
-        //   ng.faces.push(new THREE.Face3(num, num+1, num+2))
-        //   ng.faces.push(new THREE.Face3(num+2, num+1, num))
-        // }
+          var num = ng.vertices.length;
+          ng.vertices.push(co);
+          ng.vertices.push(no);
+          ng.vertices.push(ni);
+          ng.faces.push(new THREE.Face3(num, num+1, num+2))
+          ng.faces.push(new THREE.Face3(num+2, num+1, num))
+        }
 
       }
       count++;
@@ -277,6 +268,8 @@ function isNotTriangle (v, outer_triangle) {
   return true
 }
 
+
+var edges = [];
 function uvTo3D (nuv, ouv, face_info) {
   var va = face_info.va;
   var vb = face_info.vb;
@@ -296,19 +289,43 @@ function uvTo3D (nuv, ouv, face_info) {
     ];
     var B = [uv[0] - uv_c.x, uv[1] - uv_c.y];
     var x = numeric.solve(A, B)
-    var a = x[0], b = x[1]
+    var a = x[0], b = x[1], c = 1-x[0]-x[1];
     // console.log({ a: a, b: b })
     // convert uv to xyz with a, b, 1-a-b
 
-    var epsilon = Math.pow(10, -1)
-    if ( Math.abs(a) < epsilon) normal = normal_bc;
-    if ( Math.abs(b) < epsilon) normal = normal_ca;
-    if ( Math.abs(c) < epsilon) normal = normal_ab;
+    var epsilon = Math.pow(10, -2)
+    if ( Math.abs(a) < epsilon) {
+      a = 0;
+      normal = normal_bc;
+    }
+    if ( Math.abs(b) < epsilon) {
+      b = 0;
+      normal = normal_ca;
+    }
+    if ( Math.abs(c) < epsilon) {
+      c = 0;
+      normal = normal_ab;
+    }
 
     var v = new THREE.Vector3();
-    v.x = a*va.x + b*vb.x + (1-a-b)*vc.x;
-    v.y = a*va.y + b*vb.y + (1-a-b)*vc.y;
-    v.z = a*va.z + b*vb.z + (1-a-b)*vc.z;
+    v.x = a*va.x + b*vb.x + c*vc.x;
+    v.y = a*va.y + b*vb.y + c*vc.y;
+    v.z = a*va.z + b*vb.z + c*vc.z;
+
+    if (a == 0 || b == 0 || c == 0) {
+      var exists = false;
+      for (var j=0; j<edges.length; j++) {
+        var p = edges[j];
+        if ( Math.abs(p.x - v.x) < epsilon
+          && Math.abs(p.y - v.y) < epsilon
+          && Math.abs(p.z - v.z) < epsilon ) {
+          v = p;
+          exists = true;
+          break;
+        }
+      }
+      if (!exists) edges.push(v);
+    }
 
     return { vertex: v, normal: normal};
   })
