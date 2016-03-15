@@ -52,6 +52,21 @@ function drawSVG (points) {
 function replaceObject (svgMesh) {
   if (ng) scene.remove(ng);
 
+  for (var i=0; i<geometry.uniq.length; i++) {
+    var v = geometry.uniq[i];
+    var vertex_normal = new THREE.Vector3();
+    var normals = [];
+    for (var j=0; j<v.faces.length; j++) {
+      var index = v.faces[j];
+      var face = geometry.faces[index];
+      var normal = face.normal;
+      vertex_normal.add(normal);
+      normals.push(normal);
+    }
+    vertex_normal.divideScalar(v.faces.length);
+    geometry.uniq[i].vertex_normal = vertex_normal;
+  }
+
   ng = new THREE.Geometry();
   for (var i=0; i<geometry.faces.length; i++) {
     // if (selectIndex.includes(i)) continue;
@@ -75,8 +90,8 @@ function replaceObject (svgMesh) {
   })
   window.positions = positions;
   var count = 0;
-  geometry.computeFaceNormals();
-  geometry.computeVertexNormals();
+  // geometry.computeFaceNormals();
+  // geometry.computeVertexNormals();
   for (var i=0; i<selectIndex.length; i++) {
     var index = selectIndex[i]
     var face = geometry.faces[index];
@@ -108,9 +123,9 @@ function replaceObject (svgMesh) {
     var n2 = geometry.faces[faces_ca[1]].normal;
     var normal_ca = v.clone().addVectors(n1, n2).normalize();
 
-    var normal_a = face.vertexNormals[0];
-    var normal_b = face.vertexNormals[0];
-    var normal_c = face.vertexNormals[0];
+    var normal_a = geometry.uniq[geometry.map[face.a]].vertex_normal;
+    var normal_b = geometry.uniq[geometry.map[face.b]].vertex_normal;
+    var normal_c = geometry.uniq[geometry.map[face.c]].vertex_normal;
     var face_info = {
       va: va,
       vb: vb,
@@ -150,19 +165,9 @@ function replaceObject (svgMesh) {
       ng.vertices.push(vc)
       ng.faces.push(new THREE.Face3(num, num+1, num+2))
     } else {
-      // var diffs = greinerHormann.diff(triangle, positions)
-      // for (var k=0; k<diffs.length; k++) {
-      //   var diff = diffs[k]
-      //   var outer_face = triangle.map(function (t, index) {
-      //     for (var di=0; di<diff.length; di++) {
-      //       var dp = diff[di];
-      //       if (_.isEqual(dp, t)) return true;
-      //     }
-      //     return false;
-      //   })
-      //   var d = drawSVG(diff);
-
       var intersections = greinerHormann.intersection(positions, triangle)
+      console.log(intersection)
+      if (!intersections) intersections = triangle;
       for (var k=0; k<intersections.length; k++) {
         var intersection = intersections[k]
         var outer_triangle = triangle.filter(function (t) {
@@ -172,12 +177,11 @@ function replaceObject (svgMesh) {
           }
           return false;
         })
-
         var d = drawSVG(intersection);
         var bndMesh = svgMesh3d(d, {
           scale: 1,
           simplify: Math.pow(10, -3),
-          randomization: 10,
+          // randomization: 10,
           customize: true,
         })
         var nuv = bndMesh.positions;
@@ -230,81 +234,15 @@ function replaceObject (svgMesh) {
             ng.vertices.push(ci);
             ng.vertices.push(co);
             ng.vertices.push(ni);
-            // ng.faces.push(new THREE.Face3(num, num+1, num+2))
             ng.faces.push(new THREE.Face3(num+2, num+1, num))
 
             var num = ng.vertices.length;
             ng.vertices.push(co);
             ng.vertices.push(no);
             ng.vertices.push(ni);
-            // ng.faces.push(new THREE.Face3(num, num+1, num+2))
             ng.faces.push(new THREE.Face3(num+2, num+1, num))
           }
-          /*
-          var face_vertices = [va, vb, vc];
-          if (isNotTriangle(inner_a, face_vertices)) {
-            inner_points.push(inner_a);
-            outer_points.push(outer_a);
-          }
-          if (isNotTriangle(inner_b, face_vertices)) {
-            inner_points.push(inner_b);
-            outer_points.push(outer_b);
-          }
-          if (isNotTriangle(inner_c, face_vertices)) {
-            inner_points.push(inner_c);
-            outer_points.push(outer_c);
-          }*/
         }
-
-        /*
-        window.inner_points = inner_points
-        window.outer_points = outer_points
-        window.ne = ne;
-        for (var j=0;j<ne.length; j++) {
-          var ci = inner_points[ne[j][0]];
-          var ni = inner_points[ne[j][1]];
-          var co = outer_points[ne[j][0]];
-          var no = outer_points[ne[j][1]];
-
-          var num = ng.vertices.length;
-          ng.vertices.push(ci);
-          ng.vertices.push(co);
-          ng.vertices.push(ni);
-          // ng.faces.push(new THREE.Face3(num, num+1, num+2))
-          ng.faces.push(new THREE.Face3(num+2, num+1, num))
-
-          var num = ng.vertices.length;
-          ng.vertices.push(co);
-          ng.vertices.push(no);
-          ng.vertices.push(ni);
-          // ng.faces.push(new THREE.Face3(num, num+1, num+2))
-          ng.faces.push(new THREE.Face3(num+2, num+1, num))
-        }
-        */
-        /*
-        var n = inner_points.length;
-        for (var j=0; j<n-1; j++) {
-          var ci = inner_points[j];
-          var ni = inner_points[j+1];
-          var co = outer_points[j];
-          var no = outer_points[j+1];
-
-          var num = ng.vertices.length;
-          ng.vertices.push(ci);
-          ng.vertices.push(co);
-          ng.vertices.push(ni);
-          // ng.faces.push(new THREE.Face3(num, num+1, num+2))
-          // ng.faces.push(new THREE.Face3(num+2, num+1, num))
-
-          var num = ng.vertices.length;
-          ng.vertices.push(co);
-          ng.vertices.push(no);
-          ng.vertices.push(ni);
-          // ng.faces.push(new THREE.Face3(num, num+1, num+2))
-          // ng.faces.push(new THREE.Face3(num+2, num+1, num))
-        }
-        */
-
       }
       count++;
       console.log(count);
@@ -326,23 +264,6 @@ function replaceObject (svgMesh) {
   nm.rotation.z = mesh.rotation.z;
   scene.add(nm);
 }
-
-var checked = []
-function isNotTriangle (v, face_vertices) {
-  // var epsilon = Math.pow(10, -2);
-  for (var j=0; j<face_vertices.length; j++) {
-    var t = face_vertices[j];
-    if (_.isEqual(v, t)) return false;
-    // if (Math.abs(t[0]-v[0]) < epsilon && Math.abs(t[1]-v[1])< epsilon) {
-    //   console.log(v, t)
-    //   return false;
-    // }
-  }
-  // if (checked.includes(v.toString())) return false;
-  checked.push(v.toString())
-  return true
-}
-
 
 var edges = [];
 function uvTo3D (nuv, ouv, face_info) {
@@ -380,12 +301,25 @@ function uvTo3D (nuv, ouv, face_info) {
     if (b == 0 && c == 0) a = 1;
     if (c == 0 && a == 0) b = 1;
 
-    // console.log({a: a, b: b, c: c})
-
     var v = new THREE.Vector3();
     v.x = a*va.x + b*vb.x + c*vc.x;
     v.y = a*va.y + b*vb.y + c*vc.y;
     v.z = a*va.z + b*vb.z + c*vc.z;
+
+    if ((a == 0 || b == 0 || c == 0) && (a !== 1 || b !== 1 || c !== 1)) {
+      var exists = false;
+      for (var j=0; j<edges.length; j++) {
+        var p = edges[j];
+        if ( Math.abs(p.x - v.x) < epsilon
+          && Math.abs(p.y - v.y) < epsilon
+          && Math.abs(p.z - v.z) < epsilon ) {
+          v = p;
+          exists = true;
+          break;
+        }
+      }
+      if (!exists) edges.push(v);
+    }
 
     if (a !== 0 && b !== 0 && c == 0) {
       normal = normal_ab;
@@ -406,20 +340,6 @@ function uvTo3D (nuv, ouv, face_info) {
       normal = normal_c;
     }
 
-    if (a == 0 || b == 0 || c == 0) {
-      var exists = false;
-      for (var j=0; j<edges.length; j++) {
-        var p = edges[j];
-        if ( Math.abs(p.x - v.x) < epsilon
-          && Math.abs(p.y - v.y) < epsilon
-          && Math.abs(p.z - v.z) < epsilon ) {
-          v = p;
-          exists = true;
-          break;
-        }
-      }
-      if (!exists) edges.push(v);
-    }
 
     return { vertex: v, normal: normal};
   })

@@ -198,15 +198,16 @@ function replaceObject (svgMesh) {
           ng.faces.push(new THREE.Face3(num, num+1, num+2))
           ng.faces.push(new THREE.Face3(num+2, num+1, num+1))
 
-          if (isNotTriangle(a, outer_triangle)) {
+          var face_vertices = [va, vb, vc];
+          if (isNotTriangle(inner_a, face_vertices)) {
             inner_points.push(inner_a);
             outer_points.push(outer_a);
           }
-          if (isNotTriangle(b, outer_triangle)) {
+          if (isNotTriangle(inner_b, face_vertices)) {
             inner_points.push(inner_b);
             outer_points.push(outer_b);
           }
-          if (isNotTriangle(c, outer_triangle)) {
+          if (isNotTriangle(inner_c, face_vertices)) {
             inner_points.push(inner_c);
             outer_points.push(outer_c);
           }
@@ -257,14 +258,15 @@ function replaceObject (svgMesh) {
 }
 
 var checked = []
-function isNotTriangle (v, outer_triangle) {
-  var epsilon = Math.pow(10, -2);
-  for (var j=0; j<outer_triangle.length; j++) {
-    var t = outer_triangle[j];
-    if (Math.abs(t[0]-v[0]) < epsilon && Math.abs(t[1]-v[1])< epsilon) {
-      console.log(v, t)
-      return false;
-    }
+function isNotTriangle (v, face_vertices) {
+  // var epsilon = Math.pow(10, -2);
+  for (var j=0; j<face_vertices.length; j++) {
+    var t = face_vertices[j];
+    if (_.isEqual(v, t)) return false;
+    // if (Math.abs(t[0]-v[0]) < epsilon && Math.abs(t[1]-v[1])< epsilon) {
+    //   console.log(v, t)
+    //   return false;
+    // }
   }
   // if (checked.includes(v.toString())) return false;
   checked.push(v.toString())
