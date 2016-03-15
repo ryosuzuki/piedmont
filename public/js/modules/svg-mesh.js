@@ -25,20 +25,10 @@ function svgMesh3d (svgPath, opt) {
     }
   }
 
-  var start = contours[0][0]
-  var end = contours[0][contours.length-1]
-  // if (start[0] !== end[0] || start[1] !== end[1]) debugger;
-
   // prepare for triangulation
   var polyline = denestPolyline(contours)
   var positions = polyline.positions
   var bounds = getBounds(positions)
-
-  var start = positions[0]
-  var end = positions[positions.length-1]
-  // if (start[0] !== end[0] || start[1] !== end[1]) debugger;
-
-
 
   // optionally add random points for aesthetics
   var randomization = opt.randomization
@@ -75,7 +65,8 @@ function svgMesh3d (svgPath, opt) {
 
   return {
     positions: positions,
-    cells: cells
+    cells: cells,
+    edges: edges
   }
 }
 
