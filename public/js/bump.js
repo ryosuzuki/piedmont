@@ -75,6 +75,8 @@ function replaceObject (svgMesh) {
   })
   window.positions = positions;
   var count = 0;
+  geometry.computeFaceNormals();
+  geometry.computeVertexNormals();
   for (var i=0; i<selectIndex.length; i++) {
     var index = selectIndex[i]
     var face = geometry.faces[index];
@@ -106,11 +108,17 @@ function replaceObject (svgMesh) {
     var n2 = geometry.faces[faces_ca[1]].normal;
     var normal_ca = v.clone().addVectors(n1, n2).normalize();
 
+    var normal_a = face.vertexNormals[0];
+    var normal_b = face.vertexNormals[0];
+    var normal_c = face.vertexNormals[0];
     var face_info = {
       va: va,
       vb: vb,
       vc: vc,
       normal: normal,
+      normal_a: normal_a,
+      normal_b: normal_b,
+      normal_c: normal_c,
       normal_ab: normal_ab,
       normal_bc: normal_bc,
       normal_ca: normal_ca
@@ -169,6 +177,7 @@ function replaceObject (svgMesh) {
         var bndMesh = svgMesh3d(d, {
           scale: 1,
           simplify: Math.pow(10, -3),
+          randomization: 10,
           customize: true,
         })
         var nuv = bndMesh.positions;
@@ -206,6 +215,11 @@ function replaceObject (svgMesh) {
 
           var inner_points = [inner_a, inner_b, inner_c];
           var outer_points = [outer_a, outer_b, outer_c];
+
+          var ab = inner_a.distanceTo(inner_b);
+          var bc = inner_b.distanceTo(inner_c);
+          var ca = inner_c.distanceTo(inner_a);
+
           for (var l=0; l<3; l++) {
             var ci = inner_points[l];
             var ni = inner_points[(l+1)%3];
@@ -226,7 +240,6 @@ function replaceObject (svgMesh) {
             // ng.faces.push(new THREE.Face3(num, num+1, num+2))
             ng.faces.push(new THREE.Face3(num+2, num+1, num))
           }
-
           /*
           var face_vertices = [va, vb, vc];
           if (isNotTriangle(inner_a, face_vertices)) {
@@ -337,6 +350,9 @@ function uvTo3D (nuv, ouv, face_info) {
   var vb = face_info.vb;
   var vc = face_info.vc;
   var normal = face_info.normal;
+  var normal_a = face_info.normal_a;
+  var normal_b = face_info.normal_b;
+  var normal_c = face_info.normal_c;
   var normal_ab = face_info.normal_ab;
   var normal_bc = face_info.normal_bc;
   var normal_ca = face_info.normal_ca;
@@ -371,14 +387,23 @@ function uvTo3D (nuv, ouv, face_info) {
     v.y = a*va.y + b*vb.y + c*vc.y;
     v.z = a*va.z + b*vb.z + c*vc.z;
 
+    if (a !== 0 && b !== 0 && c == 0) {
+      normal = normal_ab;
+    }
     if (a == 0 && b !== 0 && c !== 0) {
       normal = normal_bc;
     }
     if (a !== 0 && b == 0 && c !== 0) {
       normal = normal_ca;
     }
-    if (a !== 0 && b !== 0 && c == 0) {
-      normal = normal_ab;
+    if (a !== 0 && b == 0 && c == 0) {
+      normal = normal_a;
+    }
+    if (a == 0 && b !== 0 && c == 0) {
+      normal = normal_b;
+    }
+    if (a == 0 && b == 0 && c !== 0) {
+      normal = normal_c;
     }
 
     if (a == 0 || b == 0 || c == 0) {
