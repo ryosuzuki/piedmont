@@ -48,7 +48,7 @@ function createTexture () {
   // .then(computeLaplacian(textureGeometry))
   .then(getBoundary(textureGeometry))
   .then(getMapping(textureGeometry))
-
+  // .then(addLine(textureGeometry))
   return textureGeometry;
 }
 
@@ -76,6 +76,31 @@ function getBoundary (geometry) {
   geometry.boundary = boundary;
   console.log('Finish getBoundary')
   return geometry;
+}
+
+var line;
+function addLine (texture) {
+  var material = new THREE.LineBasicMaterial({
+    color: 0xff0000,
+    linewidth: 10
+  });
+  var geometry = new THREE.Geometry();
+  for (var i=0; i<texture.geometry.boundary.length; i++) {
+    var id = texture.geometry.boundary[i];
+    var v = texture.geometry.uniq[id].vertex;
+    geometry.vertices.push(new THREE.Vector3(v.x, v.y, v.z));
+  };
+  if (line) scene.remove(line)
+  line = new THREE.Line(geometry, material);
+  var rot = mesh.rotation;
+  var pos = mesh.position;
+  line.castShadow = true;
+  line.receiveShadow = true;
+  line.rotation.set(rot.x, rot.y, rot.z, rot.order)
+  line.castShadow = true;
+  line.receiveShadow = true;
+  line.position.set(pos.x, pos.y, pos.z);
+  scene.add(line);
 }
 
 function getMapping (geometry) {
@@ -120,17 +145,6 @@ function getMapping (geometry) {
         // geometry.faceVertexUvs[0][index] = uv;
         geometry.uvsNeedUpdate = true;
       }
-      geometry.computeFaceNormals();
-      geometry.computeVertexNormals();
-      var loader = new THREE.TextureLoader()
-      var image = loader.load('/public/assets/checkerboard.jpg');
-      image.needsUpdate = true;
-      mesh.material = new THREE.MeshBasicMaterial({map: image})
-      mesh.material.needsUpdate = true
-
-      // debugger;
-
-      /*
       var rot = mesh.rotation;
       var pos = mesh.position;
       var axis = new THREE.Vector3(0, 1, 0);
@@ -152,7 +166,7 @@ function getMapping (geometry) {
       scene.add(texture);
       // var image = THREE.ImageUtils.loadTexture('/assets/checkerboard.jpg');
       // texture.material = new THREE.MeshBasicMaterial({map: image});
-      */
+      addLine(texture)
     }
   });
 }
