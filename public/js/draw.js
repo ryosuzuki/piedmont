@@ -25,28 +25,11 @@ function loadObjects () {
 }
 
 function drawObjects () {
+  // drawSphere()
   // drawBox()
   // drawCylinder();
   // drawRing();
   drawSTL();
-}
-
-
-function drawRing () {
-  ring = new THREE.Mesh(
-    new THREE.RingGeometry(size, size*2, 32),
-    new THREE.MeshBasicMaterial({vertexColors: THREE.FaceColors })
-  );
-  ring.geometry.verticesNeedUpdate = true;
-  ring.dynamic = true;
-  ring.castShadow = true;
-  ring.receiveShadow = true;
-  scene.add(ring);
-  objects.push(ring);
-  window.geometry = ring.geometry
-  mesh = ring;
-  mesh.material.color.set(new THREE.Color('blue'))
-  loadObjects();
 }
 
 function drawSTL () {
@@ -74,18 +57,52 @@ function drawSTL () {
   xhr.onerror = function(e) {
     console.log(e);
   }
-  xhr.open( "GET", '/public/assets/mini_knight.stl', true );
-  // xhr.open( "GET", '/public/assets/noah-4.stl', true );
+  // xhr.open( "GET", '/public/assets/mini_knight.stl', true );
+  xhr.open( "GET", '/public/assets/noah-4.stl', true );
   // if STL is binary
   xhr.responseType = "arraybuffer";
   xhr.send( null );
+}
+
+function drawSphere () {
+  sphere = new THREE.Mesh(
+    new THREE.SphereGeometry(size, 30, 30),
+    new THREE.MeshBasicMaterial({vertexColors: THREE.FaceColors })
+  );
+  sphere.geometry.verticesNeedUpdate = true;
+  sphere.dynamic = true;
+  sphere.castShadow = true;
+  sphere.receiveShadow = true;
+  scene.add(sphere);
+  objects.push(sphere);
+  window.geometry = sphere.geometry
+  mesh = sphere;
+  mesh.material.color.set(new THREE.Color('blue'))
+  loadObjects();
+}
+
+function drawRing () {
+  ring = new THREE.Mesh(
+    new THREE.RingGeometry(size, size*2, 32),
+    new THREE.MeshBasicMaterial({vertexColors: THREE.FaceColors })
+  );
+  ring.geometry.verticesNeedUpdate = true;
+  ring.dynamic = true;
+  ring.castShadow = true;
+  ring.receiveShadow = true;
+  scene.add(ring);
+  objects.push(ring);
+  window.geometry = ring.geometry
+  mesh = ring;
+  mesh.material.color.set(new THREE.Color('blue'))
+  loadObjects();
 }
 
 function drawCylinder () {
   limit = 0.4;
   start = 13;
   cylinder = new THREE.Mesh(
-    new THREE.CylinderGeometry(size, size, size*2, 20),
+    new THREE.CylinderGeometry(size, size, size*2, 40),
     new THREE.MeshBasicMaterial({vertexColors: THREE.FaceColors })
   );
   cylinder.geometry.verticesNeedUpdate = true;

@@ -16,9 +16,9 @@
   "dependencies": {
     "jquery": "~2.1.4",
     "semantic-ui": "~2.1.4",
-    "three.js": "mrdoob/three.js",
+    "three.js": "mrdoob/three.js#r73",
     "d3": "~3.5.14",
-    "FileSaver.js": "git@github.com:eligrey/FileSaver.js.git",
+    "FileSaver.js": "eligrey/FileSaver.js",
     "numericjs": "~1.2.6",
     "mousetrap": "~1.5.3",
     "q": "~1.4.1",

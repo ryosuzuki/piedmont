@@ -93,7 +93,7 @@ function beautify (draft) {
     total += angle;
   }
 
-  var rectangle = new Rectangle(
+  var rectangle = new paper.Rectangle(
     new paper.Point(_.min(x), _.min(y)),
     new paper.Point(_.max(x), _.max(y))
   );

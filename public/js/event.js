@@ -4,7 +4,9 @@ var undoMode = false;
 
 $(document).on('click', '#mapping', function (event) {
   console.log('mapping');
-  addTexture();
+  Q.call(getBoundary(geometry))
+  .then(getMapping(geometry))
+  // addTexture();
 });
 
 $(document).on('click', '#add', function (event) {
