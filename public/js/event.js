@@ -12,7 +12,6 @@ $(document).on('click', '#mapping', function (event) {
 $(document).on('click', '#add', function (event) {
   console.log('add');
   addTexture()
-  addLine()
   // var canvas = document.getElementById('canvas');
   // var image = new THREE.Texture(canvas)
   // image.needsUpdate = true;

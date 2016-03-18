@@ -59,7 +59,11 @@ function getBoundary (geometry) {
   var edges = geometry.edges;
   var faces = geometry.faces;
 
-  var id = _.random(0, uniq.length-1);
+  var sortUniq = _.sortBy(uniq, 'edges.length').filter( function (u) {
+    return u.edges.length >= 2;
+  });
+
+  var id = sortUniq[0].id
   // sword: 1159;
   // bottom: 1814;
   // neck: 200;
