@@ -19,6 +19,7 @@ var cylinder;
 
 function loadObjects () {
   Q.call(computeUniq(geometry))
+  .then(computeAngle(geometry))
   .then(computeLaplacian(geometry))
   // .then(getBoundary(geometry))
   // .then(getMapping(geometry))
@@ -44,9 +45,9 @@ function drawSTL () {
         // parseStl(rep);
         window.geometry = mesh.geometry;
         mesh.material.color.set(new THREE.Color('blue'))
-        mesh.position.y = 1;
-        mesh.rotation.x = 5;
-        mesh.rotation.z = .25;
+        // mesh.position.y = 1;
+        // mesh.rotation.x = 5;
+        // mesh.rotation.z = .25;
         // for mavin
         // mesh.scale.set(0.1, 0.1, 0.1);
         console.log('done parsing');
@@ -57,8 +58,8 @@ function drawSTL () {
   xhr.onerror = function(e) {
     console.log(e);
   }
-  // xhr.open( "GET", '/public/assets/mini_knight.stl', true );
-  xhr.open( "GET", '/public/assets/noah-4.stl', true );
+  xhr.open( "GET", '/public/assets/mini_knight.stl', true );
+  // xhr.open( "GET", '/public/assets/noah-4.stl', true );
   // if STL is binary
   xhr.responseType = "arraybuffer";
   xhr.send( null );

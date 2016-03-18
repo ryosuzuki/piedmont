@@ -52,7 +52,7 @@ function createTexture () {
   return textureGeometry;
 }
 
-function getBoundary (geometry) {
+function getBoundary2 (geometry) {
   console.log('Start getBoundary');
   var uniq = geometry.uniq;
   var map = geometry.map;
