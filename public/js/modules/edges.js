@@ -6,7 +6,7 @@ function getBoundary () {
     uniq: geometry.uniq,
     faces: geometry.faces,
     map: geometry.map,
-    boundary: geometry.boundary
+    boundary: _.sortBy(geometry.boundary)
   };
   $.ajax({
     url: '/get-boundary',
@@ -23,9 +23,15 @@ function getBoundary () {
       var paths = [];
       for (var fid in cuts) {
         var face = geometry.faces[fid];
-        if (cuts[fid].includes(0)) paths.push(map[face.a]);
-        if (cuts[fid].includes(1)) paths.push(map[face.b]);
-        if (cuts[fid].includes(2)) paths.push(map[face.c]);
+        if (cuts[fid].includes(0)) {
+          paths.push({ start: map[face.a], end: map[face.b] });
+        }
+        if (cuts[fid].includes(1)) {
+          paths.push({ start: map[face.b], end: map[face.c] });
+        }
+        if (cuts[fid].includes(2)) {
+          paths.push({ start: map[face.c], end: map[face.a] });
+        }
       }
 
       var m = new THREE.LineBasicMaterial({
@@ -34,8 +40,10 @@ function getBoundary () {
       });
       var g = new THREE.Geometry();
       for (var i=0; i<paths.length-1; i++) {
-        var v = geometry.uniq[paths[i]].vertex;
-        g.vertices.push(new THREE.Vector3(v.x, v.y, v.z));
+        var s = geometry.uniq[paths[i].start].vertex;
+        var e = geometry.uniq[paths[i].end].vertex;
+        g.vertices.push(new THREE.Vector3(s.x, s.y, s.z));
+        g.vertices.push(new THREE.Vector3(e.x, e.y, e.z));
       }
       var line = new THREE.Line(g, m);
       scene.add(line);

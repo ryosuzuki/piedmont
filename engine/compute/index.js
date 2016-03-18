@@ -56,9 +56,10 @@ function getBoundary (json) {
   };
   */
   var uniq = json.uniq;
+  var faces = json.faces;
   console.log('Start getBoundary');
-  var row = uniq.length;
-  var col = 2;
+  var row = faces.length;
+  var col = 3;
   var result = new Result.boundary({
     cuts: new DoubleArray(row * col)
   });
@@ -70,7 +71,7 @@ function getBoundary (json) {
   console.log('Start converting in Node');
   console.log(result.cuts)
   var cuts = {}
-  for (var i=0; i<json.faces.length; i++) {
+  for (var i=0; i<faces.length; i++) {
     for (var j=0; j<3; j++) {
       var flag = result.cuts[3*i + j];
       if (flag > 0 ) {

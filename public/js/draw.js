@@ -31,9 +31,9 @@ function loadObjects () {
 function drawObjects () {
   // drawSphere()
   // drawBox()
-  drawCylinder();
+  // drawCylinder();
   // drawRing();
-  // drawSTL();
+  drawSTL();
 }
 
 function drawSTL () {
