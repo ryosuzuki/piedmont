@@ -54,8 +54,10 @@ function getBoundary () {
 }
 
 function computeGraph () {
-  var dijkstra = new DijkstraGraph(geometry.edge_map);
 
+  var dijkstra = new Dijkstra(geometry.edge_map);
+  var nodes = geometry.boundary;
+  var edges = []
   var m = new THREE.LineBasicMaterial({color: 0xff0000, linewidth: 10});
   var g = new THREE.Geometry();
   for (var i=0; i<geometry.boundary.length-1; i++) {
@@ -63,13 +65,23 @@ function computeGraph () {
     var id_j = geometry.boundary[i+1];
     var result = dijkstra.path(id_i.toString(), id_j.toString(), { cost: true });
     var path = result.path;
-    for (var k=0; k<path.length-1; k++) {
-      var s = geometry.uniq[path[k]].vertex;
-      var e = geometry.uniq[path[k+1]].vertex;
+    var cost = result.cost;
+    var edge = [id_i, id_j, cost];
+    edges.push(edge);
+  }
+  var k = new kruskal( { nodes : nodes, edges : edges }, function (edgelist){
+    console.log(edgelist);
+    window.edgelist = edgelist;
+    for (var i=0; i<edgelist.length; i++) {
+      var s = geometry.uniq[edgelist[i][0]].vertex;
+      var e = geometry.uniq[edgelist[i][1]].vertex;
       g.vertices.push(new THREE.Vector3(s.x, s.y, s.z));
       g.vertices.push(new THREE.Vector3(e.x, e.y, e.z));
     }
-  }
+  });
+
+
+
   var line = new THREE.Line(g, m);
   scene.add(line);
 }
