@@ -35,7 +35,7 @@ function computeAngle (geometry) {
 }
 
 
-function getBoundary () {
+function getBoundary (geometry) {
   var D_M = _.sumBy(geometry.uniq.filter( function (v) {
     return v.distortion > 0;
   }), 'distortion');
@@ -43,31 +43,31 @@ function getBoundary () {
   var boundary = [];
   var s = 0;
   var i = 0;
-  var g = new THREE.Geometry();
   while (s < 0.7*D_M) {
     var bnd = vertices[i];
     boundary.push(bnd.id);
     if (bnd.distortion < 0) break;
     s = s + bnd.distortion;
     i++;
-    g.vertices.push(bnd.vertex)
   }
   geometry.boundary = boundary;
+  showBoundary(geometry);
+  return geometry;
+}
 
+
+function showBoundary (geometry) {
+  var g = new THREE.Geometry();
+  for (var i=0; geometry.boundary; i++) {
+    var id = geometry.boundary[i];
+    var bnd = geometry.uniq[id];
+    g.vertices.push(bnd.vertex);
+  }
   var m = new THREE.PointsMaterial( { size: 10, sizeAttenuation: false, alphaTest: 0.5, transparent: true } );
   m.color.setHSL( 1.0, 0.3, 0.7 );
   var particles = new THREE.Points(g, m);
   scene.add(particles);
-
 }
-
-
-
-
-
-
-
-
 
 
 

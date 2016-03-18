@@ -19,6 +19,7 @@ var cylinder;
 
 function loadObjects () {
   Q.call(computeUniq(geometry))
+  .then(computeEdges(geometry))
   .then(computeAngle(geometry))
   .then(computeLaplacian(geometry))
   // .then(getBoundary(geometry))
@@ -29,8 +30,8 @@ function drawObjects () {
   // drawSphere()
   // drawBox()
   // drawCylinder();
-  // drawRing();
-  drawSTL();
+  drawRing();
+  // drawSTL();
 }
 
 function drawSTL () {

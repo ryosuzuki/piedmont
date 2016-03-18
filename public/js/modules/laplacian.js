@@ -4,12 +4,11 @@ var Z;
 
 function computeUniq (geometry) {
   console.log('Start computeUniq')
-  var vertices = geometry.vertices;
-  var map = new Array(vertices.length);
+  var map = new Array(geometry.vertices.length);
   var uniq = [];
   var epsilon = Math.pow(10, -1);
-  for (var i=0; i<vertices.length; i++) {
-    var vertex = vertices[i];
+  for (var i=0; i<geometry.vertices.length; i++) {
+    var vertex = geometry.vertices[i];
     var bool = true;
     var index;
     for (var j=0; j<uniq.length; j++) {
@@ -31,57 +30,12 @@ function computeUniq (geometry) {
       map[i] = uniq.length-1;
     }
   }
-  var faces = geometry.faces;
-  var edges = new Array(uniq.length);
-  var sides = new Array(uniq.length);
-  for (var j=0; j<uniq.length; j++) {
-    edges[j] = [];
-    sides[j] = [];
-  }
-  for (var i=0; i<faces.length; i++) {
-    var face = faces[i];
-    var a = map[face.a];
-    var b = map[face.b];
-    var c = map[face.c];
-
-    edges[a].push(a)
-    edges[a].push(b)
-    edges[a].push(c)
-    edges[a] = _.uniq(edges[a])
-    sides[a].push(i);
-    uniq[a].edges = edges[a];
-
-    edges[b].push(b)
-    edges[b].push(a)
-    edges[b].push(c)
-    edges[b] = _.uniq(edges[b])
-    uniq[b].edges = edges[b];
-
-    edges[c].push(c)
-    edges[c].push(a)
-    edges[c].push(b)
-    edges[c] = _.uniq(edges[c]);
-    uniq[c].edges = edges[c];
-
-    if (!uniq[a].faces) uniq[a].faces = [];
-    if (!uniq[b].faces) uniq[b].faces = [];
-    if (!uniq[c].faces) uniq[c].faces = [];
-    uniq[a].faces.push(i);
-    uniq[b].faces.push(i);
-    uniq[c].faces.push(i);
-    uniq[a].faces = _.uniq(uniq[a].faces);
-    uniq[b].faces = _.uniq(uniq[b].faces);
-    uniq[c].faces = _.uniq(uniq[c].faces);
-  }
   geometry.uniq = uniq;
   geometry.map = map;
-  geometry.edges = edges;
 
   window.uniq = uniq;
   window.map = map;
-  window.edges = edges;
   window.faces = geometry.faces;
-
   console.log('Finish computeUniq')
   return geometry;
 }
