@@ -1,6 +1,29 @@
 
-function computeEdgeLength (geometry) {
 
+function computeGraph (geometry) {
+  var map = {};
+  geometry.uniq.map( function (v) {
+    map[v.id] = v.edge_length;
+  })
+
+}
+
+
+
+
+function computeEdgeLength (geometry) {
+  console.log('Start computeEdgeLength');
+  geometry.uniq = geometry.uniq.map( function (v) {
+    v.edge_length = {}
+    v.edges.map( function (id) {
+      var e = geometry.uniq[id];
+      var d = v.vertex.distanceTo(e.vertex);
+      v.edge_length[id] = d;
+    })
+    return v;
+  })
+  console.log('Finish computeEdgeLength');
+  return geometry;
 }
 
 

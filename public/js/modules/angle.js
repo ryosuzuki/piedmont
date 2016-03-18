@@ -58,9 +58,10 @@ function getBoundary (geometry) {
 
 function showBoundary (geometry) {
   var g = new THREE.Geometry();
-  for (var i=0; geometry.boundary; i++) {
+  for (var i=0; i<geometry.boundary.length; i++) {
     var id = geometry.boundary[i];
     var bnd = geometry.uniq[id];
+    console.log(bnd);
     g.vertices.push(bnd.vertex);
   }
   var m = new THREE.PointsMaterial( { size: 10, sizeAttenuation: false, alphaTest: 0.5, transparent: true } );

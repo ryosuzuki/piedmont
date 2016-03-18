@@ -20,6 +20,7 @@ var cylinder;
 function loadObjects () {
   Q.call(computeUniq(geometry))
   .then(computeEdges(geometry))
+  .then(computeEdgeLength(geometry))
   .then(computeAngle(geometry))
   .then(computeLaplacian(geometry))
   // .then(getBoundary(geometry))
