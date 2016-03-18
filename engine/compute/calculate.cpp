@@ -1,4 +1,5 @@
 #include <iostream>
+#include <limits>
 #include <Eigen/Dense>
 #include <Eigen/Sparse>
 
@@ -15,6 +16,8 @@
 #include <igl/arap.h>
 
 #include <igl/polyvector_field_cut_mesh_with_singularities.h>
+#include <igl/dijkstra.h>
+#include <igl/adjacency_list.h>
 
 
 using namespace std;
@@ -57,7 +60,135 @@ extern "C" {
   } Result_Boundary;
 
 
+  int minDistance(int V, int dist[], bool sptSet[]) {
+    int min = INT_MAX, min_index;
+
+    for (int v = 0; v < V; v++)
+      if (sptSet[v] == false && dist[v] <= min)
+        min = dist[v], min_index = v;
+
+    return min_index;
+  }
+
+  void dijkstra(MatrixXd Graph, int src) {
+    int V = Graph.rows();
+    int dist[V];
+    bool sptSet[V];
+    for (int i = 0; i < V; i++) {
+      dist[i] = INT_MAX, sptSet[i] = false;
+    }
+    dist[src] = 0;
+    for (int count = 0; count < V-1; count++) {
+      int u = minDistance(V, dist, sptSet);
+      sptSet[u] = true;
+      for (int v = 0; v < V; v++) {
+        if (!sptSet[v] && Graph(u, v) && dist[u] != INT_MAX
+            && dist[u] + Graph(u, v) < dist[v])
+          dist[v] = dist[u] + Graph(u, v);
+      }
+    }
+    cout << dist << endl;
+
+    cout <<"Vertex   Distance from Source" << endl;
+    for (int i = 0; i < V; i++) {
+      if (dist[i] > 0)
+        printf("%d \t\t %d\n", i, dist[i]);
+    }
+
+  }
+
   void getBoundary(char *json, Result_Boundary *res) {
+    Document d;
+    d.Parse(json);
+
+    Value &uniq  = d["uniq"];
+    Value &faces = d["faces"];
+    Value &map   = d["map"];
+    Value &edge_map = d["edge_map"];
+    Value &boundary = d["boundary"];
+
+    cout << "C++: Start getBoundary" << endl;
+
+    V.resize(uniq.Size(), 3);
+    F.resize(faces.Size(), 3);;
+
+    MatrixXd E;
+    E.resize(uniq.Size(), uniq.Size());
+
+    VectorXi singularities;
+    singularities.resize(boundary.Size());;
+
+    for (SizeType i=0; i<uniq.Size(); i++) {
+      Value &vertex = uniq[i]["vertex"];
+      V(i, 0) = vertex["x"].GetDouble();
+      V(i, 1) = vertex["y"].GetDouble();
+      V(i, 2) = vertex["z"].GetDouble();
+
+      Value &edges = edge_map[i];
+      for (SizeType j=0; j<edges.Size(); j++) {
+        int id = edges[j]["id"].GetInt();
+        double dist = edges[j]["dist"].GetDouble();
+        E(i, id) = dist;
+      }
+    }
+    for (SizeType i=0; i<faces.Size(); i++) {
+      Value &face = faces[i];
+      int a = face["a"].GetInt();
+      int b = face["b"].GetInt();
+      int c = face["c"].GetInt();
+      F(i, 0) = map[a].GetInt();
+      F(i, 1) = map[b].GetInt();
+      F(i, 2) = map[c].GetInt();
+    }
+
+    VectorXi bnd;
+    bnd.resize(boundary.Size());;
+    MatrixXd Graph;
+    Graph.resize(boundary.Size(), boundary.Size());
+
+
+    vector<vector<int> > VV;
+    igl::adjacency_list(F, VV);
+
+
+    std::set<int> targets;
+    for (int i =0; i<bnd.rows(); i++) {
+      targets.insert(bnd(i));
+    }
+    vector<int> path;
+    VectorXd min_distance;
+    VectorXi previous;
+    int i = 0;
+    int vertex_found = igl::dijkstra_compute_paths(bnd[i], targets, VV, min_distance, previous);
+    if(vertex_found ==-1) {
+      path.push_back(singularities[i]);
+    } else {
+      igl::dijkstra_get_shortest_path_to(vertex_found, previous, path);
+    }
+
+    cout << min_distance << endl;
+    for (int ii = 0; ii<path.size()-1; ii++) {
+      const int &v0 = path[ii];
+      const int &v1 = path[ii+1];
+    }
+
+    // for (SizeType i=0; i<boundary.Size(); i++) {
+    //   int id_i = boundary[i].GetInt();
+    //   bnd(i) = id_i;
+    //   for (SizeType j=0; j<boundary.Size(); j++) {
+    //     int id_j = boundary[j].GetInt();
+
+
+    //     // double dist = dijkstra_dist(id_i, id_j);
+    //     // Graph(i, j) = dist;
+    //   }
+    // }
+    // cout << E << endl;
+    // dijkstra(E, 0);
+  }
+
+
+  void getBoundary2(char *json, Result_Boundary *res) {
     Document d;
     d.Parse(json);
 

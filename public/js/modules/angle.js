@@ -63,7 +63,7 @@ function showBoundary (geometry) {
     var bnd = geometry.uniq[id];
     g.vertices.push(bnd.vertex);
   }
-  var m = new THREE.PointsMaterial( { size: 10, sizeAttenuation: false, alphaTest: 0.5, transparent: true } );
+  var m = new THREE.PointsMaterial( { size: 20, sizeAttenuation: false, alphaTest: 0.5, transparent: true } );
   m.color.setHSL( 1.0, 0.3, 0.7 );
   var particles = new THREE.Points(g, m);
   scene.add(particles);

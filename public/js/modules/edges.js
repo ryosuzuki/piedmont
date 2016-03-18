@@ -6,7 +6,8 @@ function getBoundary () {
     uniq: geometry.uniq,
     faces: geometry.faces,
     map: geometry.map,
-    boundary: _.sortBy(geometry.boundary)
+    edge_map: geometry.edge_map,
+    boundary: geometry.boundary
   };
   $.ajax({
     url: '/get-boundary',
@@ -52,7 +53,28 @@ function getBoundary () {
 
 }
 
-function computeGraph (geometry) {
+function computeGraph () {
+  var dijkstra = new DijkstraGraph(geometry.edge_map);
+
+  var m = new THREE.LineBasicMaterial({color: 0xff0000, linewidth: 10});
+  var g = new THREE.Geometry();
+  for (var i=0; i<geometry.boundary.length-1; i++) {
+    var id_i = geometry.boundary[i];
+    var id_j = geometry.boundary[i+1];
+    var result = dijkstra.path(id_i.toString(), id_j.toString(), { cost: true });
+    var path = result.path;
+    for (var k=0; k<path.length-1; k++) {
+      var s = geometry.uniq[path[k]].vertex;
+      var e = geometry.uniq[path[k+1]].vertex;
+      g.vertices.push(new THREE.Vector3(s.x, s.y, s.z));
+      g.vertices.push(new THREE.Vector3(e.x, e.y, e.z));
+    }
+  }
+  var line = new THREE.Line(g, m);
+  scene.add(line);
+}
+
+function computeGraph2 (geometry) {
   var graph = new Graph(geometry.edge_map);
   var V = geometry.boundary;
   var E = {};
@@ -75,18 +97,18 @@ function computeGraph (geometry) {
 
 function computeEdgeLength (geometry) {
   console.log('Start computeEdgeLength');
-  var edge_map = {};
+  geometry.edge_map = {};
   geometry.uniq = geometry.uniq.map( function (v) {
-    v.edge_length = {}
+    edge_length = {}
     v.edges.map( function (id) {
       var e = geometry.uniq[id];
       var d = v.vertex.distanceTo(e.vertex);
-      if (d > 0) v.edge_length[id] = d;
+      if (d > 0) edge_length[id] = d;
     })
-    edge_map[v.id] = v.edge_length;
+    v.edge_length = edge_length;
+    geometry.edge_map[v.id] = edge_length;
     return v;
   })
-  geometry.edge_map = edge_map;
   console.log('Finish computeEdgeLength');
   return geometry;
 }
