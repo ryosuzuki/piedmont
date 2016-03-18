@@ -21,11 +21,14 @@ function getAngle () {
       var angle = { face: fi, angle: angle_i };
       if (!geometry.uniq[id].angles) {
         geometry.uniq[id].angles = [];
-        geometry.uniq[id].distortion = 0;
       }
       geometry.uniq[id].angles.push(angle);
-      geometry.uniq[id].distortion += angle_i;
     }
   }
+  geometry.uniq.map( function (v) {
+    v.total_angle = _.sumBy(v.angles, 'angle');
+    v.distortion = (2*Math.PI - v.total_angle) / (2*Math.PI);
+  })
+
   return geometry;
 }
