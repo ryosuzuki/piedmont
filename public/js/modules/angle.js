@@ -35,7 +35,7 @@ function computeAngle (geometry) {
 }
 
 
-function getBoundary (geometry) {
+function computeBoundary (geometry) {
   var D_M = _.sumBy(geometry.uniq.filter( function (v) {
     return v.distortion > 0;
   }), 'distortion');
@@ -61,7 +61,6 @@ function showBoundary (geometry) {
   for (var i=0; i<geometry.boundary.length; i++) {
     var id = geometry.boundary[i];
     var bnd = geometry.uniq[id];
-    console.log(bnd);
     g.vertices.push(bnd.vertex);
   }
   var m = new THREE.PointsMaterial( { size: 10, sizeAttenuation: false, alphaTest: 0.5, transparent: true } );

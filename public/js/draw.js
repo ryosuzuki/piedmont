@@ -22,6 +22,7 @@ function loadObjects () {
   .then(computeEdges(geometry))
   .then(computeEdgeLength(geometry))
   .then(computeAngle(geometry))
+  .then(computeBoundary(geometry))
   .then(computeLaplacian(geometry))
   // .then(getBoundary(geometry))
   // .then(getMapping(geometry))
@@ -30,8 +31,8 @@ function loadObjects () {
 function drawObjects () {
   // drawSphere()
   // drawBox()
-  // drawCylinder();
-  drawRing();
+  drawCylinder();
+  // drawRing();
   // drawSTL();
 }
 

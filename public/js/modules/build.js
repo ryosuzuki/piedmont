@@ -12836,6 +12836,353 @@ function reindex(array) {
 }
 
 },{}],115:[function(require,module,exports){
+'use strict'
+
+const Queue = require('./PriorityQueue')
+const populateMap = require('./populateMap')
+
+class Graph {
+
+  /**
+   * Constrict the graph
+   *
+   * @param {object} [graph] - Nodes to initiate the graph with
+   */
+  constructor (graph) {
+    this.graph = new Map()
+
+    if (graph) populateMap(this.graph, graph, Object.keys(graph))
+  }
+
+  /**
+   * Add a node to the graph
+   *
+   * @param {string} name      - Name of the node
+   * @param {object} neighbors - Neighbouring nodes and cost to reach them
+   */
+  addNode (name, neighbors) {
+    let _neighbors = new Map()
+
+    populateMap(_neighbors, neighbors, Object.keys(neighbors))
+    this.graph.set(name, _neighbors)
+
+    return this
+  }
+
+  /**
+   * Alias of addNode
+   */
+  addVertex () {
+    console.log('Graph#addVertex is deprecated, use Graph#addNode instead')
+
+    return this.addNode.apply(this, arguments)
+  }
+
+  /**
+   * Compute the shortest path between the specified nodes
+   *
+   * @param {string}  start     - Starting node
+   * @param {string}  goal      - Node we want to reach
+   * @param {object}  [options] - Options
+   *
+   * @param {boolean} [options.trim]    - Exclude the origin and destination nodes from the result
+   * @param {boolean} [options.reverse] - Return the path in reversed order
+   * @param {boolean} [options.cost]    - Also return the cost of the path when set to true
+   *
+   * @return {array|object} Computed path between the nodes.
+   *  When `option.cost` is set to true, the returned value will be an object
+   *  with keys:
+   *
+   *    - `Array path`: Computed path between the nodes
+   *    - `Number cost`: Cost of the path
+   */
+  path (start, goal, options) {
+    options = options || {}
+
+    // Don't run when we don't have nodes set
+    if (!this.graph.size) {
+      if (options.cost) return { path: null, cost: 0 }
+
+      return null
+    }
+
+    let explored = new Set()
+    let frontier = new Queue()
+    let previous = new Map()
+
+    let path = []
+    let totalCost = 0
+
+    // Add the starting point to the frontier, it will be the first node visited
+    frontier.set(start, 0)
+
+    // Run until we have visited every node in the frontier
+    while (!frontier.isEmpty()) {
+      // Get the node in the frontier with the lowest cost (`priority`)
+      let node = frontier.next()
+
+      // When the node with the lowest cost in the frontier in our goal node,
+      // we can compute the path and exit the loop
+      if (node.key === goal) {
+        // Set the total cost to the current value
+        totalCost = node.priority
+
+        let _nodeKey = node.key
+        while (previous.has(_nodeKey)) {
+          path.push(_nodeKey)
+          _nodeKey = previous.get(_nodeKey)
+        }
+
+        break
+      }
+
+      // Add the current node to the explored set
+      explored.add(node.key)
+
+      // Loop all the neighboring nodes
+      let neighbors = this.graph.get(node.key) || new Map()
+      neighbors.forEach(function (_cost, _node) {
+        // If we already explored the node, skip it
+        if (explored.has(_node)) return false
+
+        // If the neighboring node is not yet in the frontier, we add it with
+        // the correct cost
+        if (!frontier.has(_node)) {
+          previous.set(_node, node.key)
+          return frontier.set(_node, node.priority + _cost)
+        }
+
+        var frontierPriority = frontier.get(_node).priority
+        var nodeCost = node.priority + _cost
+
+        // Othewhise we only update the cost of this node in the frontier when
+        // it's below what's currently set
+        if (nodeCost < frontierPriority) {
+          previous.set(_node, node.key)
+          frontier.set(_node, nodeCost)
+        }
+      })
+    }
+
+    // Return null when no path can be found
+    if (!path.length) {
+      if (options.cost) return { path: null, cost: 0 }
+
+      return null
+    }
+
+    // From now on, keep in mind that `path` is populated in reverse order,
+    // from destination to origin
+
+    // Remove the first value (the goal node) if we want a trimmed result
+    if (options.trim) {
+      path.shift()
+    } else {
+      // Add the origin waypoint at the end of the array
+      path = path.concat([ start ])
+    }
+
+    // Reverse the path if we don't want it reversed, so the result will be
+    // from `start` to `goal`
+    if (!options.reverse) {
+      path = path.reverse()
+    }
+
+    // Return an object if we also want the cost
+    if (options.cost) {
+      return {
+        path: path,
+        cost: totalCost
+      }
+    }
+
+    return path
+  }
+
+  /**
+   * Alias of `path`
+   */
+  shortestPath () {
+    console.log('Graph#shortestPath is deprecated, use Graph#path instead')
+
+    return this.path.apply(this, arguments)
+  }
+
+}
+
+module.exports = Graph
+
+},{"./PriorityQueue":116,"./populateMap":117}],116:[function(require,module,exports){
+'use strict'
+
+/**
+ * This very basic implementation of a priority queue is used to select the
+ * next node of the graph to walk to.
+ *
+ * The queue is always sorted to have the least expensive node on top. Some
+ * comodoty methods are also implemented.
+ *
+ * You should **never** modify the queue directly, but only using the methods
+ * provided by the class.
+ */
+class PriorityQueue {
+
+  /**
+   * Creates a new empty priority queue
+   */
+  constructor () {
+    // The `_keys` set is used to greately improve the speed at which we can
+    // check the presence of a value in the queue
+    this._keys = new Set()
+
+    this._queue = []
+  }
+
+  /**
+   * Sort the queue to have the least expensive node to visit on top
+   *
+   * @private
+   */
+  _sort () {
+    this._queue.sort((a, b) => a.priority - b.priority)
+  }
+
+  /**
+   * Sets a priority for a key in the queue.
+   * Inserts it in the queue if it does not already exists.
+   *
+   * @param {any}     key       Key to update or insert
+   * @param {number}  priority  Priority of the key
+   * @return {number} Size of the queue
+   */
+  set (key, priority) {
+    priority = Number(priority)
+    if (isNaN(priority)) throw new TypeError('"priority" must be a number')
+
+    if (!this._keys.has(key)) {
+      // Insert a new entry if the key is not already in the queue
+      this._keys.add(key)
+      this._queue.push({ key, priority })
+    } else {
+      // Update the priority of an existing key
+      this._queue.map(element => {
+        if (element.key === key) element.priority = priority
+
+        return element
+      })
+    }
+
+    this._sort()
+
+    return this._queue.length
+  }
+
+  /**
+   * The next method is used to dequeue a key:
+   * It removes the first element from the queue and returns it
+   *
+   * @return {object} First priority queue entry
+   */
+  next () {
+    const element = this._queue.shift()
+
+    // Remove the key from the `_keys` set
+    this._keys.delete(element.key)
+
+    return element
+  }
+
+  /**
+   * @return {boolean} `true` when the queue is empty
+   */
+  isEmpty () {
+    return Boolean(this._queue.length === 0)
+  }
+
+  /**
+   * Check if the queue has a key in it
+   *
+   * @param {any} key   Key to lookup
+   * @return {boolean}
+   */
+  has (key) {
+    return this._keys.has(key)
+  }
+
+  /**
+   * Get the element in the queue with the specified key
+   *
+   * @param {any} key   Key to lookup
+   * @return {object}
+   */
+  get (key) {
+    return this._queue.find(element => element.key === key)
+  }
+
+}
+
+module.exports = PriorityQueue
+
+},{}],117:[function(require,module,exports){
+'use strict'
+
+/**
+ * Assert that the provided cost in a positive number
+ *
+ * @private
+ * @param {number} cost   Cost to validate
+ * @return {number} cost
+ */
+function validateNode (cost) {
+  cost = Number(cost)
+
+  if (isNaN(cost)) {
+    throw new TypeError(`Cost must be a number, istead got ${cost}`)
+  }
+
+  if (cost <= 0) {
+    throw new TypeError(`The cost must be a number above 0, instead got ${cost}`)
+  }
+
+  return cost
+}
+
+/**
+ * Populates the `Map` passed as first agument with the values in the provided
+ * object. Supports nested objects, recursively adding them to a `Map`
+ *
+ * @param {Map}    map      `Map` to populate with the values from the object
+ * @param {object} object   Object to translate into the `Map`
+ * @param {array}  keys     Keys of the object to assign to the `Map`
+ *
+ * @return {Map} Populated `Map` with nested `Map`s
+ */
+function populateMap (map, object, keys) {
+  // Return the map once all the keys have been populated
+  if (!keys.length) return map
+
+  let key = keys.shift()
+  let value = object[key]
+
+  if (value !== null && typeof value === 'object') {
+    // When the key is an object, we recursevely populate its proprieties into
+    // a new `Map`
+    value = populateMap(new Map(), value, Object.keys(value))
+  } else {
+    // Ensure the node is a positive number
+    value = validateNode(value)
+  }
+
+  // Set the value into the map
+  map.set(key, value)
+
+  // Recursive call
+  return populateMap(map, object, keys)
+}
+
+module.exports = populateMap
+
+},{}],118:[function(require,module,exports){
 var getBounds = require('bound-points')
 var unlerp = require('unlerp')
 
@@ -12868,11 +13215,11 @@ function normalizePathScale (positions, bounds) {
   }
   return positions
 }
-},{"bound-points":21,"unlerp":116}],116:[function(require,module,exports){
+},{"bound-points":21,"unlerp":119}],119:[function(require,module,exports){
 module.exports = function range(min, max, value) {
   return (value - min) / (max - min)
 }
-},{}],117:[function(require,module,exports){
+},{}],120:[function(require,module,exports){
 /* eslint-disable no-unused-vars */
 'use strict';
 var hasOwnProperty = Object.prototype.hasOwnProperty;
@@ -12913,7 +13260,7 @@ module.exports = Object.assign || function (target, source) {
 	return to;
 };
 
-},{}],118:[function(require,module,exports){
+},{}],121:[function(require,module,exports){
 
 module.exports = parse
 
@@ -12970,7 +13317,7 @@ function parseValues(args){
 	return args ? args.map(Number) : []
 }
 
-},{}],119:[function(require,module,exports){
+},{}],122:[function(require,module,exports){
 //http://www.blackpawn.com/texts/pointinpoly/
 module.exports = function pointInTriangle(point, triangle) {
     //compute vectors & dot products
@@ -12992,7 +13339,7 @@ module.exports = function pointInTriangle(point, triangle) {
         v = (dot00*dot12 - dot01*dot02) * inv
     return u>=0 && v>=0 && (u+v < 1)
 }
-},{}],120:[function(require,module,exports){
+},{}],123:[function(require,module,exports){
 'use strict';
 module.exports = function (min, max) {
 	if (max === undefined) {
@@ -13007,7 +13354,7 @@ module.exports = function (min, max) {
 	return Math.random() * (max - min) + min;
 };
 
-},{}],121:[function(require,module,exports){
+},{}],124:[function(require,module,exports){
 // square distance from a point to a segment
 function getSqSegDist(p, p1, p2) {
     var x = p1[0],
@@ -13071,7 +13418,7 @@ module.exports = function simplifyDouglasPeucker(points, tolerance) {
     return simplified;
 }
 
-},{}],122:[function(require,module,exports){
+},{}],125:[function(require,module,exports){
 var simplifyRadialDist = require('./radial-distance')
 var simplifyDouglasPeucker = require('./douglas-peucker')
 
@@ -13084,7 +13431,7 @@ module.exports = function simplify(points, tolerance) {
 
 module.exports.radialDistance = simplifyRadialDist;
 module.exports.douglasPeucker = simplifyDouglasPeucker;
-},{"./douglas-peucker":121,"./radial-distance":123}],123:[function(require,module,exports){
+},{"./douglas-peucker":124,"./radial-distance":126}],126:[function(require,module,exports){
 function getSqDist(p1, p2) {
     var dx = p1[0] - p2[0],
         dy = p1[1] - p2[1];
@@ -13116,12 +13463,12 @@ module.exports = function simplifyRadialDist(points, tolerance) {
 
     return newPoints;
 }
-},{}],124:[function(require,module,exports){
+},{}],127:[function(require,module,exports){
 // expose module classes
 
 exports.intersect = require('./lib/intersect');
 exports.shape = require('./lib/IntersectionParams').newShape;
-},{"./lib/IntersectionParams":126,"./lib/intersect":127}],125:[function(require,module,exports){
+},{"./lib/IntersectionParams":129,"./lib/intersect":130}],128:[function(require,module,exports){
 /**
  *  Intersection
  */
@@ -13160,7 +13507,7 @@ Intersection.prototype.appendPoints = function(points) {
 
 module.exports = Intersection;
 
-},{}],126:[function(require,module,exports){
+},{}],129:[function(require,module,exports){
 var Point2D = require('kld-affine').Point2D;
 
 
@@ -14062,7 +14409,7 @@ RelativeSmoothCurveto3.prototype.getIntersectionParams = function() {
 
 module.exports = IntersectionParams;
 
-},{"kld-affine":128}],127:[function(require,module,exports){
+},{"kld-affine":131}],130:[function(require,module,exports){
 /**
  *
  *  Intersection.js
@@ -14768,14 +15115,14 @@ module.exports = intersect;
  
 
 
-},{"./Intersection":125,"./IntersectionParams":126,"kld-affine":128,"kld-polynomial":132}],128:[function(require,module,exports){
+},{"./Intersection":128,"./IntersectionParams":129,"kld-affine":131,"kld-polynomial":135}],131:[function(require,module,exports){
 // expose classes
 
 exports.Point2D = require('./lib/Point2D');
 exports.Vector2D = require('./lib/Vector2D');
 exports.Matrix2D = require('./lib/Matrix2D');
 
-},{"./lib/Matrix2D":129,"./lib/Point2D":130,"./lib/Vector2D":131}],129:[function(require,module,exports){
+},{"./lib/Matrix2D":132,"./lib/Point2D":133,"./lib/Vector2D":134}],132:[function(require,module,exports){
 /**
  *
  *   Matrix2D.js
@@ -15201,7 +15548,7 @@ Matrix2D.prototype.toString = function() {
 if (typeof module !== "undefined") {
     module.exports = Matrix2D;
 }
-},{}],130:[function(require,module,exports){
+},{}],133:[function(require,module,exports){
 /**
  *
  *   Point2D.js
@@ -15378,7 +15725,7 @@ if (typeof module !== "undefined") {
     module.exports = Point2D;
 }
 
-},{}],131:[function(require,module,exports){
+},{}],134:[function(require,module,exports){
 /**
  *
  *   Vector2D.js
@@ -15614,13 +15961,13 @@ if (typeof module !== "undefined") {
     module.exports = Vector2D;
 }
 
-},{}],132:[function(require,module,exports){
+},{}],135:[function(require,module,exports){
 // expose classes
 
 exports.Polynomial = require('./lib/Polynomial');
 exports.SqrtPolynomial = require('./lib/SqrtPolynomial');
 
-},{"./lib/Polynomial":133,"./lib/SqrtPolynomial":134}],133:[function(require,module,exports){
+},{"./lib/Polynomial":136,"./lib/SqrtPolynomial":137}],136:[function(require,module,exports){
 /**
  *
  *   Polynomial.js
@@ -16252,7 +16599,7 @@ if (typeof module !== "undefined") {
     module.exports = Polynomial;
 }
 
-},{}],134:[function(require,module,exports){
+},{}],137:[function(require,module,exports){
 /**
  *
  *   SqrtPolynomial.js
@@ -16314,7 +16661,7 @@ if (typeof module !== "undefined") {
     module.exports = SqrtPolynomial;
 }
 
-},{"./Polynomial":133}],135:[function(require,module,exports){
+},{"./Polynomial":136}],138:[function(require,module,exports){
 var bezier = require('adaptive-bezier-curve')
 var abs = require('abs-svg-path')
 var norm = require('normalize-svg-path')
@@ -16360,7 +16707,7 @@ module.exports = function contours(svg, scale) {
         paths.push(points)
     return paths
 }
-},{"abs-svg-path":136,"adaptive-bezier-curve":138,"normalize-svg-path":139,"vec2-copy":140}],136:[function(require,module,exports){
+},{"abs-svg-path":139,"adaptive-bezier-curve":141,"normalize-svg-path":142,"vec2-copy":143}],139:[function(require,module,exports){
 
 module.exports = absolutize
 
@@ -16429,7 +16776,7 @@ function absolutize(path){
 	})
 }
 
-},{}],137:[function(require,module,exports){
+},{}],140:[function(require,module,exports){
 function clone(point) { //TODO: use gl-vec2 for this
     return [point[0], point[1]]
 }
@@ -16628,9 +16975,9 @@ module.exports = function createBezierBuilder(opt) {
     }
 }
 
-},{}],138:[function(require,module,exports){
+},{}],141:[function(require,module,exports){
 module.exports = require('./function')()
-},{"./function":137}],139:[function(require,module,exports){
+},{"./function":140}],142:[function(require,module,exports){
 
 var π = Math.PI
 var _120 = radians(120)
@@ -16832,13 +17179,13 @@ function radians(degress){
 	return degress * (π / 180)
 }
 
-},{}],140:[function(require,module,exports){
+},{}],143:[function(require,module,exports){
 module.exports = function vec2Copy(out, a) {
     out[0] = a[0]
     out[1] = a[1]
     return out
 }
-},{}],141:[function(require,module,exports){
+},{}],144:[function(require,module,exports){
 var inherits = require('inherits')
 
 module.exports = function(THREE) {
@@ -16892,7 +17239,7 @@ module.exports = function(THREE) {
 
     return Complex
 }
-},{"inherits":142}],142:[function(require,module,exports){
+},{"inherits":145}],145:[function(require,module,exports){
 if (typeof Object.create === 'function') {
   // implementation from standard node.js 'util' module
   module.exports = function inherits(ctor, superCtor) {
@@ -16917,7 +17264,7 @@ if (typeof Object.create === 'function') {
   }
 }
 
-},{}],143:[function(require,module,exports){
+},{}],146:[function(require,module,exports){
 var Tess2 = require('tess2')
 var xtend = require('xtend')
 
@@ -16973,9 +17320,9 @@ module.exports = function(contours, opt) {
         cells: cells
     }
 }
-},{"tess2":144,"xtend":146}],144:[function(require,module,exports){
+},{"tess2":147,"xtend":149}],147:[function(require,module,exports){
 module.exports = require('./src/tess2');
-},{"./src/tess2":145}],145:[function(require,module,exports){
+},{"./src/tess2":148}],148:[function(require,module,exports){
 /*
 ** SGI FREE SOFTWARE LICENSE B (Version 2.0, Sept. 18, 2008) 
 ** Copyright (C) [dates of first publication] Silicon Graphics, Inc.
@@ -20401,7 +20748,7 @@ module.exports = require('./src/tess2');
 			return true;
 		}
 	};
-},{}],146:[function(require,module,exports){
+},{}],149:[function(require,module,exports){
 module.exports = extend
 
 var hasOwnProperty = Object.prototype.hasOwnProperty;
@@ -20422,7 +20769,7 @@ function extend() {
     return target
 }
 
-},{}],147:[function(require,module,exports){
+},{}],150:[function(require,module,exports){
 module.exports = unindex
 
 function unindex(positions, cells, out) {
@@ -20476,7 +20823,7 @@ function unindex(positions, cells, out) {
   return out
 }
 
-},{}],148:[function(require,module,exports){
+},{}],151:[function(require,module,exports){
 window.loadSvg = require('load-svg')
 window.parsePath = require('extract-svg-path').parse
 // window.svgMesh3d = require('svg-mesh-3d')
@@ -20503,7 +20850,9 @@ window.random = require('random-float')
 window.assign = require('object-assign')
 window.normalize = require('normalize-path-scale')
 window.areaPolygon = require('area-polygon');
+window.Graph = require('node-dijkstra')
 
 
 
-},{"2d-polygon-boolean":5,"area-polygon":20,"bound-points":21,"cdt2d":22,"clean-pslg":40,"csr-matrix":86,"draw-triangles-2d":89,"extract-svg-path":90,"gh-clipping-algorithm":92,"load-svg":102,"mesh-laplacian":110,"mesh-reindex":114,"normalize-path-scale":115,"object-assign":117,"parse-svg-path":118,"point-in-triangle":119,"random-float":120,"simplify-path":122,"svg-intersections":124,"svg-path-contours":135,"three-simplicial-complex":141,"triangulate-contours":143,"unindex-mesh":147}]},{},[148]);
+
+},{"2d-polygon-boolean":5,"area-polygon":20,"bound-points":21,"cdt2d":22,"clean-pslg":40,"csr-matrix":86,"draw-triangles-2d":89,"extract-svg-path":90,"gh-clipping-algorithm":92,"load-svg":102,"mesh-laplacian":110,"mesh-reindex":114,"node-dijkstra":115,"normalize-path-scale":118,"object-assign":120,"parse-svg-path":121,"point-in-triangle":122,"random-float":123,"simplify-path":125,"svg-intersections":127,"svg-path-contours":138,"three-simplicial-complex":144,"triangulate-contours":146,"unindex-mesh":150}]},{},[151]);

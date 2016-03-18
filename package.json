@@ -54,6 +54,7 @@
     "ndarray-fill": "^1.0.1",
     "ndarray-stl": "^1.0.1",
     "ndthree": "^0.2.0",
+    "node-dijkstra": "^2.2.1",
     "normalize-path-scale": "^2.0.0",
     "numeric": "^1.2.6",
     "object-assign": "^4.0.1",

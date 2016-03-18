@@ -14,6 +14,8 @@
 #include <igl/lscm.h>
 #include <igl/arap.h>
 
+#include <igl/polyvector_field_cut_mesh_with_singularities.h>
+
 
 using namespace std;
 using namespace Eigen;
@@ -50,16 +52,25 @@ extern "C" {
     double *phi;
   } Result_Field;
 
+  typedef struct {
+    double *cuts;
+  } Result_Boundary;
 
-  void getField(char *json, Result_Field *res) {
+
+  void getBoundary(char *json, Result_Boundary *res) {
     Document d;
     d.Parse(json);
 
     Value &uniq  = d["uniq"];
     Value &faces = d["faces"];
     Value &map   = d["map"];
+    Value &boundary = d["boundary"];
+
     V.resize(uniq.Size(), 3);
     F.resize(faces.Size(), 3);;
+
+    VectorXi singularities;
+    singularities.resize(boundary.Size());;
 
     for (SizeType i=0; i<uniq.Size(); i++) {
       Value &vertex = uniq[i]["vertex"];
@@ -76,38 +87,28 @@ extern "C" {
       F(i, 1) = map[b].GetInt();
       F(i, 2) = map[c].GetInt();
     }
-    cout << "Get Laplacian" << endl;
-    igl::cotmatrix(V, F, Lp);
-
-    cout << "Compute Cholesky" << endl;
-
-    double w = 1000;
-    int n = uniq.Size();
-    int p = d["p"].GetInt();
-    int q = d["q"].GetInt();
-    VectorXd b = VectorXd::Zero(n);
-    b(p) = w;
-
-    SparseMatrix<double> G(n, n);
-    G.insert(p, p) = w;
-    G.insert(q, q) = w;
-
-    Lp = Lp + G;
-    SparseLU< SparseMatrix<double> > slu(Lp);
-    slu.analyzePattern(Lp);
-    slu.factorize(Lp);
-    VectorXd phi = slu.solve(b);
-
-    // MatrixXd Ld = Lp;
-    // PartialPivLU<MatrixXd> lu(Ld);
-    // VectorXd phi = lu.solve(b);
-
-    // cout << phi << endl;
-    for (int i=0; i<n; i++) {
-      cout << phi(i) << endl;
-      res->phi[i] = phi(i);
+    for (SizeType i=0; i<boundary.Size(); i++) {
+      singularities(i) = boundary[i].GetInt();
     }
+
+    MatrixXi cuts;
+    igl::polyvector_field_cut_mesh_with_singularities(V, F, singularities, cuts);
+    cout << cuts << endl;
+    cout << cuts.rows() << endl;
+
+    int nRow = cuts.rows();
+    int nCol = cuts.cols();
+    res->cuts = new double[nRow * nCol];
+    for (int i=0; i<nRow; i++) {
+      for (int j=0; j<nCol; j++) {
+        int val = cuts(i, j);
+        res->cuts[nCol * i + j] = val;
+      }
+    }
+
   }
+
+
 
 
   void getMapping(char *json, Result_Mapping *res) {
@@ -190,6 +191,64 @@ extern "C" {
         double val = V_uv(i, j) + 0.5;
         res->uv[nCol * i + j] = val;
       }
+    }
+  }
+
+  void getField(char *json, Result_Field *res) {
+    Document d;
+    d.Parse(json);
+
+    Value &uniq  = d["uniq"];
+    Value &faces = d["faces"];
+    Value &map   = d["map"];
+    V.resize(uniq.Size(), 3);
+    F.resize(faces.Size(), 3);;
+
+    for (SizeType i=0; i<uniq.Size(); i++) {
+      Value &vertex = uniq[i]["vertex"];
+      V(i, 0) = vertex["x"].GetDouble();
+      V(i, 1) = vertex["y"].GetDouble();
+      V(i, 2) = vertex["z"].GetDouble();
+    }
+    for (SizeType i=0; i<faces.Size(); i++) {
+      Value &face = faces[i];
+      int a = face["a"].GetInt();
+      int b = face["b"].GetInt();
+      int c = face["c"].GetInt();
+      F(i, 0) = map[a].GetInt();
+      F(i, 1) = map[b].GetInt();
+      F(i, 2) = map[c].GetInt();
+    }
+    cout << "Get Laplacian" << endl;
+    igl::cotmatrix(V, F, Lp);
+
+    cout << "Compute Cholesky" << endl;
+
+    double w = 1000;
+    int n = uniq.Size();
+    int p = d["p"].GetInt();
+    int q = d["q"].GetInt();
+    VectorXd b = VectorXd::Zero(n);
+    b(p) = w;
+
+    SparseMatrix<double> G(n, n);
+    G.insert(p, p) = w;
+    G.insert(q, q) = w;
+
+    Lp = Lp + G;
+    SparseLU< SparseMatrix<double> > slu(Lp);
+    slu.analyzePattern(Lp);
+    slu.factorize(Lp);
+    VectorXd phi = slu.solve(b);
+
+    // MatrixXd Ld = Lp;
+    // PartialPivLU<MatrixXd> lu(Ld);
+    // VectorXd phi = lu.solve(b);
+
+    // cout << phi << endl;
+    for (int i=0; i<n; i++) {
+      cout << phi(i) << endl;
+      res->phi[i] = phi(i);
     }
   }
 

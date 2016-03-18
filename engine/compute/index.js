@@ -5,12 +5,14 @@ var ArrayType = require('ref-array');
 var StructType = require('ref-struct');
 
 var compute = {
+  getBoundary: getBoundary,
   getField: getField,
   getMapping: getMapping,
   getLaplacian: getLaplacian,
 
 }
 var lib = ffi.Library(__dirname + '/compute', {
+  'getBoundary':   ['void', ['string', 'pointer']],
   'getField':   ['void', ['string', 'pointer']],
   'getMapping':   ['void', ['string', 'pointer']],
   // 'getLaplacian': ['void', ['string', 'pointer', 'pointer', 'pointer', 'pointer']],
@@ -27,6 +29,9 @@ Result.field = StructType({
 Result.mapping = StructType({
   'uv': DoubleArray
 })
+Result.boundary = StructType({
+  'cuts': DoubleArray
+})
 Result.matrix = StructType({
   'size': int,
   'count': int,
@@ -41,30 +46,42 @@ Result.index = StructType({
 
 var repl = require('repl');
 
-function getField (json) {
+function getBoundary (json) {
   /*
   var json = {
     uniq:     geometry.uniq,
     faces:    geometry.faces,
     map:      geometry.map,
-    p:        0,
-    p:        100,
+    boundary: geometry.boundary
   };
   */
   var uniq = json.uniq;
-  console.log('Start getLaplacian');
-  var n = uniq.length;
-  var result = new Result.field({
-    phi: new DoubleArray(n),
+  console.log('Start getBoundary');
+  var row = uniq.length;
+  var col = 2;
+  var result = new Result.boundary({
+    cuts: new DoubleArray(row * col)
   });
+  lib.getBoundary(JSON.stringify(json), result.ref());
+
+  // repl.start('> ').context.r = result;
+
   console.log('Get result from C++');
-  lib.getField(JSON.stringify(json), result.ref());
-  console.log('Start converting sparse Laplacian');
-  var phi = new Array(n);
-  for (var i=0; i<n; i++) {
-    phi[i] = result.phi[i];
+  console.log('Start converting in Node');
+  console.log(result.cuts)
+  var cuts = {}
+  for (var i=0; i<json.faces.length; i++) {
+    for (var j=0; j<3; j++) {
+      var flag = result.cuts[3*i + j];
+      if (flag > 0 ) {
+        if (!cuts[i]) cuts[i] = [];
+        cuts[i].push(j);
+      }
+    }
   }
-  return { phi: phi }
+  console.log('Finish');
+  return { cuts: cuts };
+
 }
 
 
@@ -98,6 +115,35 @@ function getMapping (json) {
   console.log('Finish');
   return { uniq: uniq };
 }
+
+
+function getField (json) {
+  /*
+  var json = {
+    uniq:     geometry.uniq,
+    faces:    geometry.faces,
+    map:      geometry.map,
+    p:        0,
+    p:        100,
+  };
+  */
+  var uniq = json.uniq;
+  console.log('Start getLaplacian');
+  var n = uniq.length;
+  var result = new Result.field({
+    phi: new DoubleArray(n),
+  });
+  console.log('Get result from C++');
+  lib.getField(JSON.stringify(json), result.ref());
+  console.log('Start converting sparse Laplacian');
+  var phi = new Array(n);
+  for (var i=0; i<n; i++) {
+    phi[i] = result.phi[i];
+  }
+  return { phi: phi }
+}
+
+
 
 
 module.exports = compute;

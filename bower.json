@@ -26,7 +26,6 @@
     "paper": "~0.9.25",
     "greiner-hormann": "~1.3.0",
     "delaunay-fast": "~1.0.1",
-    "poly2tri": "~1.3.5",
-    "dijkstra": "andrewhayward/dijkstra"
+    "poly2tri": "~1.3.5"
   }
 }

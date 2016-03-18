@@ -24,5 +24,7 @@ window.random = require('random-float')
 window.assign = require('object-assign')
 window.normalize = require('normalize-path-scale')
 window.areaPolygon = require('area-polygon');
+window.Graph = require('node-dijkstra')
+
 
 
