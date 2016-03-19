@@ -43,13 +43,21 @@ function computeBoundary (geometry) {
   var boundary = [];
   var s = 0;
   var i = 0;
-  while (s < 0.4*D_M) {
+  while (s < 0.5*D_M) {
     var bnd = vertices[i];
     boundary.push(bnd.id);
     if (bnd.distortion < 0) break;
     s = s + bnd.distortion;
     i++;
   }
+  var v = new THREE.Vector3(2, 0, 0);
+  boundary = _.sortBy(boundary, function (id) {
+    var bnd = geometry.uniq[id].vertex;
+    var a = new THREE.Vector3(bnd.x, bnd.y, bnd.z);
+    var angle = v.angleTo(a)
+    console.log(angle)
+    return angle;
+  })
   geometry.boundary = boundary;
   showBoundary(geometry);
   return geometry;

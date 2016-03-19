@@ -22,8 +22,9 @@ function loadObjects () {
   .then(computeEdges(geometry))
   .then(computeEdgeLength(geometry))
   .then(computeAngle(geometry))
-  .then(computeBoundary(geometry))
+  // .then(computeBoundary(geometry))
   .then(computeLaplacian(geometry))
+
   // .then(getBoundary(geometry))
   // .then(getMapping(geometry))
 }
@@ -31,8 +32,9 @@ function loadObjects () {
 function drawObjects () {
   // drawSphere()
   // drawBox()
-  // drawCylinder();
   // drawRing();
+  // drawTorus()
+  // drawCylinder();
   drawSTL();
 }
 
@@ -47,6 +49,10 @@ function drawSTL () {
         parseStlBinary(rep);
         // parseStl(rep);
         window.geometry = mesh.geometry;
+        mesh.geometry.verticesNeedUpdate = true;
+        mesh.dynamic = true;
+        mesh.castShadow = true;
+        mesh.receiveShadow = true;
         mesh.material.color.set(new THREE.Color('blue'))
         // mesh.position.y = 1;
         // mesh.rotation.x = 5;
@@ -66,6 +72,23 @@ function drawSTL () {
   // if STL is binary
   xhr.responseType = "arraybuffer";
   xhr.send( null );
+}
+
+function drawTorus () {
+  torus = new THREE.Mesh(
+    new THREE.TorusKnotGeometry( size, 0.3*size, 100, 8),
+    new THREE.MeshBasicMaterial({vertexColors: THREE.FaceColors })
+  )
+  torus.geometry.verticesNeedUpdate = true;
+  torus.dynamic = true;
+  torus.castShadow = true;
+  torus.receiveShadow = true;
+  scene.add(torus);
+  objects.push(torus);
+  window.geometry = torus.geometry
+  mesh = torus;
+  mesh.material.color.set(new THREE.Color('blue'))
+  loadObjects();
 }
 
 function drawSphere () {

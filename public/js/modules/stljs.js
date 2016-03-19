@@ -53,12 +53,13 @@ var parseStlBinary = function(stl) {
   mesh = new THREE.Mesh(
     geo,
     // new THREE.MeshBasicMaterial({vertexColors: THREE.FaceColors }
+    // new THREE.MeshBasicMaterial({vertexColors: THREE.FaceColors })
     new THREE.MeshLambertMaterial({
       overdraw: true,
       color: 0xaa0000,
       vertexColors: THREE.FaceColors
-    }
-  ));
+    })
+  );
   scene.add(mesh);
   objects.push(mesh)
   stl = null;

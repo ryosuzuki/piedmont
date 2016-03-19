@@ -10,7 +10,7 @@ function getBoundary () {
     boundary: geometry.boundary
   };
   $.ajax({
-    url: '/get-boundary',
+    url: '/get-mapping',
     type: 'POST',
     datatype: 'JSON',
     data: {
@@ -19,6 +19,7 @@ function getBoundary () {
     success: function (data) {
       console.log('Get result');
       console.log(data);
+
       window.cuts = data.cuts;
 
       var paths = [];

@@ -46,7 +46,11 @@ function createTexture () {
 
   Q.call(computeUniq(textureGeometry))
   // .then(computeLaplacian(textureGeometry))
-  .then(getBoundary(textureGeometry))
+  // .then(getBoundary(textureGeometry))
+  .then(computeEdges(textureGeometry))
+  .then(computeEdgeLength(textureGeometry))
+  .then(computeAngle(textureGeometry))
+  .then(computeBoundary(textureGeometry))
   .then(getMapping(textureGeometry))
   // .then(addLine(textureGeometry))
   return textureGeometry;
@@ -133,6 +137,12 @@ function getMapping (geometry) {
       var tmap = geometry.map;
       var faces = geometry.faces;
 
+      geometry.computeBoundingBox();
+      var max = geometry.boundingBox.max;
+      var min = geometry.boundingBox.min;
+      var offset = new THREE.Vector2(0 - min.x, 0 - min.y);
+      var range = new THREE.Vector2(max.x- min.x, max.y - min.y);
+
       geometry.faceVertexUvs[0] = []
       for (var i=0; i<faces.length; i++) {
         var face = faces[i];
@@ -140,37 +150,58 @@ function getMapping (geometry) {
         var b = uniq[tmap[face.b]];
         var c = uniq[tmap[face.c]];
         var uv = [
-          new THREE.Vector2(a.uv.u, a.uv.v),
-          new THREE.Vector2(b.uv.u, b.uv.v),
-          new THREE.Vector2(c.uv.u, c.uv.v)
+          new THREE.Vector2(
+            (a.uv.u + offset.x) / range.x,
+            (a.uv.v + offset.y) / range.y
+          ),
+          new THREE.Vector2(
+            (b.uv.u + offset.x) / range.x,
+            (b.uv.v + offset.y) / range.y
+          ),
+          new THREE.Vector2(
+            (c.uv.u + offset.x) / range.x,
+            (c.uv.v + offset.y) / range.y
+          )
         ];
         geometry.faceVertexUvs[0].push(uv);
         // var index = face.original;
         // geometry.faceVertexUvs[0][index] = uv;
-        geometry.uvsNeedUpdate = true;
       }
+      geometry.uvsNeedUpdate = true;
+      geometry.buffersNeedUpdate = true;
       var rot = mesh.rotation;
       var pos = mesh.position;
       var axis = new THREE.Vector3(0, 1, 0);
       var quaternion = new THREE.Quaternion().setFromUnitVectors(axis, normal)
       var matrix = new THREE.Matrix4().makeRotationFromQuaternion(quaternion);
       var loader = new THREE.TextureLoader();
-      var image = loader.load('/public/assets/checkerboard.jpg');
-      image.minFilter = THREE.LinearFilter;
-      image.needsUpdate = true;
-      var textureMaterial = new THREE.MeshBasicMaterial({map: image});
-      if (texture) scene.remove(texture);
-      texture = new THREE.Mesh(geometry, textureMaterial);
-      texture.castShadow = true;
-      texture.receiveShadow = true;
-      texture.rotation.set(rot.x, rot.y, rot.z, rot.order)
-      texture.castShadow = true;
-      texture.receiveShadow = true;
-      texture.position.set(pos.x, pos.y, pos.z);
-      scene.add(texture);
+      loader.load('/public/assets/checkerboard.jpg', function (image) {
+        image.minFilter = THREE.LinearFilter;
+        image.needsUpdate = true;
+        // image.wrapS = THREE.RepeatWrapping;
+        // image.wrapT = THREE.RepeatWrapping;
+        // image.repeat.set(2, 2);
+        // mesh.material.color = new THREE.Color('yellow')
+        // mesh.material.map = image;
+        // mesh.material.needsUpdate = true;
+        if (texture) scene.remove(texture);
+        var textureMaterial = new THREE.MeshBasicMaterial({map: image});
+        texture = new THREE.Mesh(geometry, textureMaterial);
+        texture.material.color = new THREE.Color('yellow')
+        texture.material.map = image;
+        texture.material.needsUpdate = true;
+        texture.castShadow = true;
+        texture.receiveShadow = true;
+        texture.rotation.set(rot.x, rot.y, rot.z, rot.order)
+        texture.castShadow = true;
+        texture.receiveShadow = true;
+        texture.position.set(pos.x, pos.y, pos.z);
+        scene.add(texture);
+
+      });
       // var image = THREE.ImageUtils.loadTexture('/assets/checkerboard.jpg');
       // texture.material = new THREE.MeshBasicMaterial({map: image});
-      addLine(texture)
+      // addLine(texture)
     }
   });
 }
