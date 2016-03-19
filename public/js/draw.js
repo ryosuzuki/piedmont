@@ -31,11 +31,11 @@ function loadObjects () {
 }
 
 function drawObjects () {
-  // drawSphere()
+  drawSphere()
   // drawBox()
   // drawRing();
   // drawTorus()
-  drawCylinder();
+  // drawCylinder();
   // drawSTL();
 }
 

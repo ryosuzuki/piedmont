@@ -40,8 +40,8 @@ function computeCcwEdges (geometry) {
   geometry.uniq = geometry.uniq.map( function (v) {
     var ccw_edges = [];
     var eid = v.edges[1];
-    ccw_edges.push(eid);
     var checked_faces = [];
+    var checked_edges = [];
     var index;
     var getNextFace = function (eid) {
       for (var i=0; i<v.angles.length; i++) {
@@ -50,21 +50,29 @@ function computeCcwEdges (geometry) {
           if (checked_faces.includes(angle.face)) continue;
           index = v.faces.indexOf(angle.face);
           checked_faces.push(angle.face);
+          checked_edges.push(eid);
           break;
         }
       }
       return index;
     }
-    getNextFace(eid); // get first face
+    var addCcwEdge = function (eid, index) {
+      var angle = v.angles[index];
+      ccw_edges.push({ id: eid, face: angle.face, angle: angle.angle });
+    }
+    index = getNextFace(eid);
+    addCcwEdge(eid, index)
     while (true) {
       var angle = v.angles[index];
       var edges = _.clone(angle.edges);
-      var next_eid = _.pullAll(edges, ccw_edges)[0]
+      var next_eid = _.pullAll(edges, checked_edges)[0]
       if (!next_eid) break;
-      ccw_edges.push(next_eid);
-      index = getNextFace(next_eid)
+      eid = next_eid;
+      index = getNextFace(eid)
+      addCcwEdge(eid, index);
     }
     v.ccw_edges = ccw_edges;
+    v.edges = checked_edges;
     return v;
   });
   return geometry;
@@ -109,9 +117,13 @@ function showBoundary (geometry) {
 
   var checked = [];
   for (var i=0; i<geometry.boundary.length; i++) {
+
     var id = geometry.boundary[i];
     var t = 0;
     var bnds = [];
+    var a_edges = []
+    var b_edges = []
+
     while (t < 10) {
       if (!uniq[id]) break;
       var bnd = uniq[id];
@@ -120,12 +132,35 @@ function showBoundary (geometry) {
       t++
     }
 
-    var forward = []
-    var backward = []
 
     for (var j=0; j<bnds.length-1; j++) {
       var bnd = bnds[j];
       var nnd = bnds[j+1];
+      var index = bnd.edges.indexOf(nnd.id);
+      var new_ccw_edges = []
+      for (var k=0; k<bnd.edges.length; k++) {
+        new_ccw_edges.push(bnd.ccw_edges[index])
+        index = (index+1) % bnd.edges.length;
+      }
+      var total = 0;
+      var angle_a = bnd.total_angle * 0.25;
+      var angle_b = bnd.total_angle * 0.75;
+      for (var k=0; k<new_ccw_edges.length; k++) {
+        var e = new_ccw_edges[k];
+        e.total = total;
+        e.a_diff = Math.abs(e.total - angle_a);
+        e.b_diff = Math.abs(e.total - angle_b);
+        total = total + e.angle;
+      }
+
+      var a_edge = _.sortBy(new_ccw_edges, 'a_diff')[0];
+      var b_edge = _.sortBy(new_ccw_edges, 'b_diff')[0];
+
+      // if (b_edge.id == 119) debugger;
+
+      a_edges.push(geometry.uniq[a_edge.id]);
+      b_edges.push(geometry.uniq[b_edge.id]);
+
       // var edges = getClockwise(bnd.id);
       // edges.indexOf(nnd.id)
 
@@ -140,6 +175,13 @@ function showBoundary (geometry) {
         return angle;
       })
     }
+
+    // TODO: somehow first edges does not work properly
+    a_edges.shift()
+    b_edges.shift()
+    window.a_edges = a_edges;
+    window.b_edges = b_edges;
+
     var g = new THREE.Geometry();
     g.vertices = bnds.map(function (bnd) {
       return bnd.vertex;
@@ -148,6 +190,24 @@ function showBoundary (geometry) {
     m.color.setHex(Math.random() * 0xffffff);
     var particles = new THREE.Points(g, m);
     scene.add(particles);
+
+    var g = new THREE.Geometry();
+    g.vertices = a_edges.map(function (a) {
+      return a.vertex;
+    })
+    var m = new THREE.PointsMaterial( { size: 20, sizeAttenuation: false} );
+    m.color.setHex(Math.random() * 0xffffff);
+    var a_particles = new THREE.Points(g, m);
+    scene.add(a_particles);
+
+    var g = new THREE.Geometry();
+    g.vertices = b_edges.map(function (b) {
+      return b.vertex;
+    })
+    var m = new THREE.PointsMaterial( { size: 20, sizeAttenuation: false} );
+    m.color.setHex(Math.random() * 0xffffff);
+    var b_particles = new THREE.Points(g, m);
+    scene.add(b_particles);
   }
 
   // for (var i=0; i<geometry.boundary.length; i++) {
