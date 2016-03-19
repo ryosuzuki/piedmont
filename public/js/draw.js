@@ -22,6 +22,7 @@ function loadObjects () {
   .then(computeEdges(geometry))
   .then(computeEdgeLength(geometry))
   .then(computeAngle(geometry))
+  .then(computeCcwEdges(geometry))
   .then(computeBoundary(geometry))
   // .then(computeLaplacian(geometry))
 
