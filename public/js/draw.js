@@ -22,8 +22,8 @@ function loadObjects () {
   .then(computeEdges(geometry))
   .then(computeEdgeLength(geometry))
   .then(computeAngle(geometry))
-  // .then(computeBoundary(geometry))
-  .then(computeLaplacian(geometry))
+  .then(computeBoundary(geometry))
+  // .then(computeLaplacian(geometry))
 
   // .then(getBoundary(geometry))
   // .then(getMapping(geometry))
@@ -129,7 +129,7 @@ function drawCylinder () {
   limit = 0.4;
   start = 13;
   cylinder = new THREE.Mesh(
-    new THREE.CylinderGeometry(size, size, size*2, 40),
+    new THREE.CylinderGeometry(size, size, size*2, 40, 3),
     new THREE.MeshBasicMaterial({vertexColors: THREE.FaceColors })
   );
   cylinder.geometry.verticesNeedUpdate = true;

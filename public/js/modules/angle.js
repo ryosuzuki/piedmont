@@ -28,7 +28,7 @@ function computeAngle (geometry) {
   }
   geometry.uniq.map( function (v) {
     v.total_angle = _.sumBy(v.angles, 'angle');
-    v.distortion = (2*Math.PI - v.total_angle) / (2*Math.PI);
+    v.distortion = Math.abs(2*Math.PI - v.total_angle) / (2*Math.PI);
   })
   console.log('Finish computeAngle')
   return geometry;
@@ -43,21 +43,13 @@ function computeBoundary (geometry) {
   var boundary = [];
   var s = 0;
   var i = 0;
-  while (s < 0.5*D_M) {
+  while (i < 3) {
     var bnd = vertices[i];
     boundary.push(bnd.id);
-    if (bnd.distortion < 0) break;
+    // if (bnd.distortion < 0) break;
     s = s + bnd.distortion;
     i++;
   }
-  var v = new THREE.Vector3(2, 0, 0);
-  boundary = _.sortBy(boundary, function (id) {
-    var bnd = geometry.uniq[id].vertex;
-    var a = new THREE.Vector3(bnd.x, bnd.y, bnd.z);
-    var angle = v.angleTo(a)
-    console.log(angle)
-    return angle;
-  })
   geometry.boundary = boundary;
   showBoundary(geometry);
   return geometry;
@@ -65,16 +57,44 @@ function computeBoundary (geometry) {
 
 
 function showBoundary (geometry) {
-  var g = new THREE.Geometry();
-  for (var i=0; i<geometry.boundary.length; i++) {
-    var id = geometry.boundary[i];
-    var bnd = geometry.uniq[id];
-    g.vertices.push(bnd.vertex);
+
+  var checked = [];
+  var findSimilar = function (id) {
+    console.log(id);
+    var bnd = uniq[id];
+    var edges = _.sortBy(bnd.edges, function (e) {
+      return uniq[e].distortion;
+    }).reverse();
+    edges = _.pullAll(edges, checked);
+    var eid = edges[0];
+    checked.push(eid);
+    return eid;
   }
-  var m = new THREE.PointsMaterial( { size: 20, sizeAttenuation: false, alphaTest: 0.5, transparent: true } );
-  m.color.setHSL( 1.0, 0.3, 0.7 );
-  var particles = new THREE.Points(g, m);
-  scene.add(particles);
+
+  for (var i=0; i<geometry.boundary.length; i++) {
+    var g = new THREE.Geometry();
+    var id = geometry.boundary[i];
+    var t = 0;
+    while (t < 10) {
+      if (!uniq[id]) break;
+      var bnd = uniq[id];
+      g.vertices.push(bnd.vertex);
+      id = findSimilar(id);
+      t++
+    }
+    var m = new THREE.PointsMaterial( { size: 20, sizeAttenuation: false} );
+    m.color.setHex(Math.random() * 0xffffff);
+    var particles = new THREE.Points(g, m);
+    scene.add(particles);
+  }
+
+  // for (var i=0; i<geometry.boundary.length; i++) {
+  //   var id = geometry.boundary[i];
+  //   var bnd = geometry.uniq[id];
+  //   g.vertices.push(bnd.vertex);
+  // }
+
+
 }
 
 
