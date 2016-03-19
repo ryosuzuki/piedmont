@@ -34,8 +34,8 @@ function drawObjects () {
   // drawBox()
   // drawRing();
   // drawTorus()
-  // drawCylinder();
-  drawSTL();
+  drawCylinder();
+  // drawSTL();
 }
 
 function drawSTL () {

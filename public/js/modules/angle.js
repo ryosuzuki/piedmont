@@ -43,7 +43,7 @@ function computeBoundary (geometry) {
   var boundary = [];
   var s = 0;
   var i = 0;
-  while (i < 3) {
+  while (i < 1) {
     var bnd = vertices[i];
     boundary.push(bnd.id);
     // if (bnd.distortion < 0) break;
