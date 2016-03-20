@@ -254,7 +254,6 @@ extern "C" {
     V.resize(uniq.Size(), 3);
     F.resize(faces.Size(), 3);;
     N.resize(faces.Size(), 3);;
-    bnd.resize(boundary.Size());;
 
     for (SizeType i=0; i<uniq.Size(); i++) {
       Value &vertex = uniq[i]["vertex"];
@@ -275,26 +274,35 @@ extern "C" {
       N(i, 1) = face["normal"]["y"].GetDouble();
       N(i, 2) = face["normal"]["z"].GetDouble();
     }
+    /*
+    bnd.resize(boundary.Size());;
     for (SizeType i=0; i<boundary.Size(); i++) {
       bnd(i) = boundary[i].GetInt();
     }
+    */
+
+    Eigen::VectorXi bnd;
+    igl::boundary_loop(F, bnd);
 
     MatrixXd bnd_uv;
     igl::map_vertices_to_circle(V, bnd, bnd_uv);
+
     cout << bnd_uv << endl;
+
     igl::harmonic(V, F, bnd, bnd_uv, 1, initial_guess);
     V_uv = initial_guess;
 
-    // LSCM parametrization
-    VectorXi bm(2, 1);
-    bm(0) = bnd(0);
-    bm(1) = bnd(round(bnd.size()/2));
-    cout << bm << endl;
-    MatrixXd bcm(2,2);
-    bcm<<0,0,1,0;
-    igl::lscm(V, F, bm, bcm, V_uv);
+    // // LSCM parametrization
+    // VectorXi bm(2, 1);
+    // bm(0) = bnd(0);
+    // bm(1) = bnd(round(bnd.size()/2));
+    // cout << bm << endl;
+    // MatrixXd bcm(2,2);
+    // bcm<<0,0,1,0;
+    // igl::lscm(V, F, bm, bcm, V_uv);
 
     // V_uv *= 0.5;
+
 
     cout << "Start ARAP calculation" << endl;
     igl::ARAPData arap_data;
@@ -303,14 +311,15 @@ extern "C" {
     MatrixXd bc = MatrixXd::Zero(0, 0);
 
     arap_data.max_iter = 100;
-    arap_precomputation(V, F, 2, bm, arap_data);
+    arap_precomputation(V, F, 2, b, arap_data);
     // V_uv = initial_guess;
-    arap_solve(bcm, arap_data, V_uv);
+    arap_solve(bc, arap_data, V_uv);
 
     // Scale UV to make the texture more clear
     MatrixXd I = MatrixXd::Ones(V_uv.rows(), V_uv.cols());
     V_uv *= 0.5;
     V_uv = V_uv + 0.5 * I;
+
 
     cout << "Get V_uv with ARAP" << endl;
     cout << V_uv << endl;

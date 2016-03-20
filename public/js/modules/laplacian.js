@@ -83,9 +83,18 @@ function showPhiFaces () {
       g.verticesNeedUpdate = true;
     }
   }
-  var m = new THREE.MeshBasicMaterial({color: 0x00ff00});
-  var nm = new THREE.Mesh(g, m);
-  scene.add(nm);
+  // var m = new THREE.MeshBasicMaterial({color: 0x00ff00});
+  // var nm = new THREE.Mesh(g, m);
+  // scene.add(nm);
+  // window.nm = nm;
+
+  Q.call(computeUniq(g))
+  .then(computeEdges(g))
+  .then(computeEdgeLength(g))
+  .then(computeAngle(g))
+  .then(computeCcwEdges(g))
+  .then(computeBoundary(g))
+  .then(getMapping(g))
 
 
   // var m = new THREE.LineBasicMaterial({ linewidth: 10 });
@@ -99,30 +108,27 @@ function showPhiFaces () {
 function computeHarmonicField(geometry) {
   console.log('Start computeHarmonicField')
   var n = geometry.uniq.length;
+  var c = a_edges.length;
   var w = 1000;
   // var b = Array.apply(null, Array(n)).map(Number.prototype.valueOf, 0);
 
-  // if (!Z) {
-  //   var zeros = Array.apply(null, Array(n)).map(Number.prototype.valueOf, 0);
-  //   var Z = [];
-  //   for (var i=0; i<n; i++) {
-  //     var z = _.clone(zeros);
-  //     Z.push(z);
-  //   }
-  // }
-  // var G = _.clone(Z);
-  // for (var i=0; i<a_edges.length; i++) {
-  //   var p = a_edges[i].id;
-  //   G[p][p] = w^2;
-  //   b[p] = w;
-  // }
-  // for (var i=0; i<b_edges.length; i++) {
-  //   var q = b_edges[i].id;
-  //   G[q][q] = w^2;
-  // }
+  var zeros = Array.apply(null, Array(n)).map(Number.prototype.valueOf, 0);
+  var Z = [];
+  for (var i=0; i<n; i++) {
+    var z = _.clone(zeros);
+    Z.push(z);
+  }
+  var GG = _.clone(Z);
+  for (var i=0; i<c; i++) {
+    var p = a_edges[i].id;
+    GG[p][p] = w^2;
+  }
+  for (var i=0; i<c; i++) {
+    var q = b_edges[i].id;
+    GG[q][q] = w^2;
+  }
   // var LU = _.clone(geometry.LU);
 
-  var c = a_edges.length;
   var b = new Array();
   for (var i=0; i<n; i++) {
     b[i] = 0;
@@ -148,13 +154,19 @@ function computeHarmonicField(geometry) {
     z[b_edges[i].id] = w;
     A[n+c+i] = z;
   }
-
   var A_T = numeric.transpose(A);
   var A_A = numeric.dot(A_T, A);
 
-  var A_inv = numeric.inv(A_A);
-  var M = numeric.dot(A_inv, A_T);
-  var phi = numeric.dot(M, b);
+  var L_T = numeric.transpose(L)
+  var LL = numeric.dot(L_T, L);
+  var M = numeric.add(LL, GG);
+
+  var LU = numeric.LU(A_A);
+  var B = numeric.dot(A_T, b)
+  var phi = numeric.LUsolve(LU, B)
+  // var A_inv = numeric.inv(A_A);
+  // var M = numeric.dot(A_inv, A_T);
+  // var phi = numeric.dot(M, b);
   geometry.phi = phi;
 
   /*

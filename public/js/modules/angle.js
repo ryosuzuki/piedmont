@@ -91,7 +91,7 @@ function computeBoundary (geometry) {
   var boundary = [];
   var s = 0;
   var i = 0;
-  while (i < 1) {
+  while (i < 10) {
     var bnd = vertices[i];
     boundary.push(bnd.id);
     // if (bnd.distortion < 0) break;
@@ -119,8 +119,10 @@ function findSimilar (id, checked) {
 function showBoundary (geometry) {
 
   var checked = [];
-  for (var i=0; i<geometry.boundary.length; i++) {
+  // for (var i=0; i<geometry.boundary.length; i++) {
 
+  var hoge = 3;
+  for (var i=hoge; i<hoge+1; i++) {
     var id = geometry.boundary[i];
     var t = 0;
     var bnds = [];
@@ -212,6 +214,7 @@ function showBoundary (geometry) {
     m.color.setHex(Math.random() * 0xffffff);
     var b_particles = new THREE.Points(g, m);
     scene.add(b_particles);
+
   }
 
   // for (var i=0; i<geometry.boundary.length; i++) {
