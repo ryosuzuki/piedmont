@@ -40,13 +40,84 @@ function drawObjects () {
   // drawBox()
   // drawRing();
   // drawTorus()
-  drawCylinder();
-  // drawObj();
+  // drawCylinder();
+  drawObj();
   // drawSTL();
 }
 
 function drawObj () {
 
+  var loader = new THREE.OBJLoader();
+  loader.load('/bunny_1k.obj', function ( object ) {
+    object.children[0].geometry.computeFaceNormals();
+    var geo = object.children[0].geometry;
+    geo.dynamic = true;
+    // var material = new THREE.MeshLambertMaterial({color: 0xffffff, vertexColors: THREE.VertexColors });
+    // mesh = new THREE.Mesh(geometry, material);
+    // scene.add( mesh );
+
+    var positions = geo.attributes.position.array;
+    var uvs = geo.attributes.uv.array;
+    var n = positions.length/9;
+
+    geometry = new THREE.Geometry();
+    for (var i=0; i<n; i++) {
+      var v1 = new THREE.Vector3(
+        positions[9*i],
+        positions[9*i+1],
+        positions[9*i+2]
+      )
+      var v2 = new THREE.Vector3(
+        positions[9*i+3],
+        positions[9*i+4],
+        positions[9*i+5]
+      )
+      var v3 = new THREE.Vector3(
+        positions[9*i+6],
+        positions[9*i+7],
+        positions[9*i+8]
+      )
+      var uv1 = new THREE.Vector2(
+        uvs[6*i],
+        uvs[6*i+1]
+      )
+      var uv2 = new THREE.Vector2(
+        uvs[6*i+2],
+        uvs[6*i+3]
+      )
+      var uv3 = new THREE.Vector2(
+        uvs[6*i+4],
+        uvs[6*i+5]
+      )
+
+      var num = geometry.vertices.length;
+      geometry.vertices.push(v1);
+      geometry.vertices.push(v2);
+      geometry.vertices.push(v3);
+      geometry.faces.push(new THREE.Face3(num, num+1, num+2))
+      geometry.faceVertexUvs[0].push([uv1, uv2, uv3]);
+    }
+    geometry.computeFaceNormals();
+
+    var loader = new THREE.TextureLoader();
+    loader.load('/bunny_1k.png', function (image) {
+      image.minFilter = THREE.LinearFilter;
+      image.needsUpdate = true;
+      var material = new THREE.MeshBasicMaterial({map: image});
+      mesh = new THREE.Mesh(geometry, material);
+      // mesh.material.color = new THREE.Color('yellow')
+      mesh.material.map = image;
+      mesh.material.needsUpdate = true;
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+      mesh.scale.set(10, 10, 10)
+      scene.add(mesh);
+    });
+  });
+
+  /*
   $.ajax({
     url: '/get-obj',
     type: 'POST',
@@ -66,6 +137,7 @@ function drawObj () {
         );
         vertices.push(vertex);
       }
+
       for (var j=0; j<json.faces.length/8; j++) {
         var v1 = vertices[json.faces[8*j+1]]
         var v2 = vertices[json.faces[8*j+2]]
@@ -83,6 +155,7 @@ function drawObj () {
       // scene.add(mesh)
     }
   })
+  */
 
   // var loader = new THREE.OBJLoader();
   // loader.load('/public/assets/bunny_1k.obj', function (object) {
@@ -98,17 +171,15 @@ function drawObj () {
 }
 
 function hoge (geometry) {
-  for (var i=0; i<json.uvs[0].length/2; i++) {
-    var u = json.uvs[0][2*i]
-    var v = json.uvs[0][2*i+1]
-    var uv = new THREE.Vector2(u, v)
-    if (!geometry.uniq[i]) continue;
-    geometry.uniq[i].uv = uv;
+  for (var i=0; i<geometry.uniq.length; i++) {
+    geometry.uniq[i].uv = new THREE.Vector2(
+      json.uvs[0][2*i],
+      json.uvs[0][2*i+1]
+    )
   }
 
-  geometry.faceVertexUvs = [[]]
-  for (var i=0; i<geometry.faces.length; i++) {
-    var face = geometry.faces[i];
+  for (var j=0; j<geometry.faces.length; j++) {
+    var face = geometry.faces[j];
     geometry.faceVertexUvs[0].push([
       geometry.uniq[map[face.a]].uv,
       geometry.uniq[map[face.b]].uv,
