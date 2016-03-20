@@ -101,7 +101,6 @@ function computeBoundary (geometry) {
 
 
 function findSimilar (id, checked) {
-  console.log(id);
   var bnd = uniq[id];
   var edges = _.sortBy(bnd.edges, function (e) {
     return uniq[e].distortion;
@@ -123,6 +122,7 @@ function showBoundary (geometry) {
     var bnds = [];
     var a_edges = []
     var b_edges = []
+    window.bnds = bnds;
 
     while (t < 10) {
       if (!uniq[id]) break;

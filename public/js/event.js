@@ -122,20 +122,20 @@ function onDocumentMouseDown( event ) {
   window.current = intersects[0];
   window.currentIndex = current.faceIndex;
 
-  if (!start) start = current.face.a;
-  p = map[current.face.a];
-  console.log('p: ' + p);
-  q = map[current.face.b];
-  console.log('q: ' + q);
-  Q.fcall(computeHarmonicField(geometry))
-  .then(computeSelect())
-  .then(colorChange())
-  .then(function () {
-    p = undefined;
-    q = undefined;
-    console.log(current);
-    current.object.geometry.colorsNeedUpdate = true;
-  });
+  // if (!start) start = current.face.a;
+  // p = map[current.face.a];
+  // console.log('p: ' + p);
+  // q = map[current.face.b];
+  // console.log('q: ' + q);
+  // Q.fcall(computeHarmonicField(geometry))
+  // .then(computeSelect())
+  // .then(colorChange())
+  // .then(function () {
+  //   p = undefined;
+  //   q = undefined;
+  //   console.log(current);
+  //   current.object.geometry.colorsNeedUpdate = true;
+  // });
 
   // Q.fcall(computeHarmonicField(geometry))
   // p = 917

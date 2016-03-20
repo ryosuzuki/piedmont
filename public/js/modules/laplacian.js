@@ -41,32 +41,91 @@ function computeUniq (geometry) {
 }
 
 
-function computeHarmonicField(geometry) {
-  var n = geometry.uniq.length;
-  var w = 1000;
-  if (!p) p = 0;
-  if (!q) q = n-1;
-  var b = Array.apply(null, Array(n)).map(Number.prototype.valueOf, 0);
-  b[p] = w;
-
-  if (!Z) {
-    var zeros = Array.apply(null, Array(n)).map(Number.prototype.valueOf, 0);
-    var Z = [];
-    for (var i=0; i<n; i++) {
-      var z = _.clone(zeros);
-      Z.push(z);
+function showPhiFaces (val) {
+  var g = new THREE.Geometry();
+  for (var i=0; i<geometry.uniq.length; i++) {
+    var phi = geometry.phi[i];
+    if (phi > val ) {
+      var v = geometry.uniq[i];
+      g.vertices.push(v.vertex);
     }
   }
-  var G = _.clone(Z);
-  G[p][p] = w^2;
-  G[q][q] = w^2;
+  // var m = new THREE.LineBasicMaterial({ linewidth: 10 });
+  // var l = new THREE.Line(g, m);
+  var m = new THREE.PointsMaterial( { size: 20, sizeAttenuation: false} );
+  m.color.setHex(Math.random() * 0xffffff);
+  var p = new THREE.Points(g, m);
+  scene.add(p);
+}
 
-  var LU = _.clone(geometry.LU);
-  var A = numeric.add(LU.LU, G)
-  LU.LU = A;
+function computeHarmonicField(geometry) {
+  console.log('Start computeHarmonicField')
+  var n = geometry.uniq.length;
+  var w = 1000;
+  // var b = Array.apply(null, Array(n)).map(Number.prototype.valueOf, 0);
+
+  // if (!Z) {
+  //   var zeros = Array.apply(null, Array(n)).map(Number.prototype.valueOf, 0);
+  //   var Z = [];
+  //   for (var i=0; i<n; i++) {
+  //     var z = _.clone(zeros);
+  //     Z.push(z);
+  //   }
+  // }
+  // var G = _.clone(Z);
+  // for (var i=0; i<a_edges.length; i++) {
+  //   var p = a_edges[i].id;
+  //   G[p][p] = w^2;
+  //   b[p] = w;
+  // }
+  // for (var i=0; i<b_edges.length; i++) {
+  //   var q = b_edges[i].id;
+  //   G[q][q] = w^2;
+  // }
+  // var LU = _.clone(geometry.LU);
+
+  var c = a_edges.length;
+  var b = new Array();
+  for (var i=0; i<n; i++) {
+    b[i] = 0;
+  }
+  for (var i=0; i<c; i++) {
+    b[n+i] = w;
+  }
+  for (var i=0; i<c; i++) {
+    b[n+c+i] = 0;
+  }
+  var L = geometry.laplacian;
+  var A = [];
+  for (var i=0; i<n; i++) {
+    A[i] = L[i];
+  }
+  for (var i=0; i<c; i++) {
+    var z = Array.apply(null, Array(n)).map(Number.prototype.valueOf, 0);
+    z[a_edges[i].id] = w;
+    A[n+i] = z;
+  }
+  for (var i=0; i<c; i++) {
+    var z = Array.apply(null, Array(n)).map(Number.prototype.valueOf, 0);
+    z[b_edges[i].id] = w;
+    A[n+c+i] = z;
+  }
+
+  var A_T = numeric.transpose(A);
+  var A_A = numeric.dot(A_T, A);
+
+  var A_inv = numeric.inv(A_A);
+  var M = numeric.dot(A_inv, A_T);
+  var phi = numeric.dot(M, b);
+  geometry.phi = phi;
+
+  /*
+  var A = numeric.add(L, G);
   // var phi = numeric.ccsLUPSolve(geometry.ccsLU, b);
+  var LU = numeric.LU(A);
   var phi = numeric.LUsolve(LU, b);
   geometry.phi = phi;
+  */
 
   geometry.phiFaces = geometry.faces.map( function (face) {
     var phi = geometry.phi;
@@ -76,14 +135,34 @@ function computeHarmonicField(geometry) {
     return (a+b+c)/3;
   });
 
+  console.log('Finish computeHarmonicField')
   return geometry;
 }
 
 function computeLaplacian(geometry) {
-  console.log('Start Laplacian')
+  console.log('Start computeLaplacian')
   var uniq = geometry.uniq;
   var n = uniq.length;
 
+  var cells = geometry.faces.map( function (face) {
+    return [
+      geometry.map[face.a],
+      geometry.map[face.b],
+      geometry.map[face.c]
+    ]
+  })
+  var positions = geometry.uniq.map( function (v) {
+    return [
+      v.vertex.x,
+      v.vertex.y,
+      v.vertex.z
+    ]
+  })
+  var lapList = meshLaplacian(cells, positions);
+  var lapMat = csrMatrix.fromList(lapList);
+  var L = lapMat.toDense();
+
+  /*
   var L = [];
   for (var i=0; i<n; ++i) {
     var zeros = Array.apply(null, Array(n)).map(Number.prototype.valueOf, 0)
@@ -102,21 +181,22 @@ function computeLaplacian(geometry) {
       }
     })
   }
+  */
   geometry.laplacian = L;
 
   console.log('Start Cholesky decomposition');
   // var ccsL = numeric.ccsSparse(L);
   // var ccsLU = numeric.ccsLUP(ccsL);
   // geometry.ccsLU = ccsLU;
-  var LU = numeric.LU(L);
-  geometry.LU = LU;
+  // var LU = numeric.LU(L);
+  // geometry.LU = LU;
 
   console.log('Finish computeLaplacian')
   return geometry;
 }
 
 
-function computeHamonicField (geometry) {
+function computeHamonicField2 (geometry) {
   var zeros = Array.apply(null, Array(n)).map(Number.prototype.valueOf, 0);
   var G = [];
   for (var i=0; i<n; i++) {

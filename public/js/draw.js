@@ -24,19 +24,20 @@ function loadObjects () {
   .then(computeAngle(geometry))
   .then(computeCcwEdges(geometry))
   .then(computeBoundary(geometry))
-  // .then(computeLaplacian(geometry))
+  .then(computeLaplacian(geometry))
+  .then(computeHarmonicField(geometry))
 
   // .then(getBoundary(geometry))
   // .then(getMapping(geometry))
 }
 
 function drawObjects () {
-  drawSphere()
+  // drawSphere()
   // drawBox()
   // drawRing();
   // drawTorus()
   // drawCylinder();
-  // drawSTL();
+  drawSTL();
 }
 
 function drawSTL () {
