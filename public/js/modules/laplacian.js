@@ -53,20 +53,47 @@ function showPhiFaces () {
   }
   console.log(c)
   var val = c[7];
-  var g = new THREE.Geometry();
+
+  var selected_uniq = [];
   for (var i=0; i<geometry.uniq.length; i++) {
     var phi = geometry.phi[i];
-    if (phi > val ) {
-      var v = geometry.uniq[i];
-      g.vertices.push(v.vertex);
+    if (phi > val ) selected_uniq.push(geometry.uniq[i]);
+  }
+
+  var checked_faces = [];
+  var g = new THREE.Geometry();
+  for (var i=0; i<selected_uniq.length; i++) {
+    var v = selected_uniq[i];
+    for (var j=0; j<v.faces.length; j++) {
+      var index = v.faces[j];
+      if (checked_faces.includes(index)) continue;
+      var face = geometry.faces[index];
+      var v1 = geometry.vertices[face.a];
+      var v2 = geometry.vertices[face.b];
+      var v3 = geometry.vertices[face.c];
+      var num = g.vertices.length;
+      g.vertices.push(v1);
+      g.vertices.push(v2);
+      g.vertices.push(v3);
+      var f = new THREE.Face3(num, num+1, num+2);
+      f.map = [face.a, face.b, face.c];
+      f.original = index;
+      f.normal = face.normal;
+      g.faces.push(f);
+      g.verticesNeedUpdate = true;
     }
   }
+  var m = new THREE.MeshBasicMaterial({color: 0x00ff00});
+  var nm = new THREE.Mesh(g, m);
+  scene.add(nm);
+
+
   // var m = new THREE.LineBasicMaterial({ linewidth: 10 });
   // var l = new THREE.Line(g, m);
-  var m = new THREE.PointsMaterial( { size: 20, sizeAttenuation: false} );
-  m.color.setHex(Math.random() * 0xffffff);
-  var p = new THREE.Points(g, m);
-  scene.add(p);
+  // var m = new THREE.PointsMaterial( { size: 20, sizeAttenuation: false} );
+  // m.color.setHex(Math.random() * 0xffffff);
+  // var p = new THREE.Points(g, m);
+  // scene.add(p);
 }
 
 function computeHarmonicField(geometry) {
