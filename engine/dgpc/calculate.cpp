@@ -70,14 +70,23 @@ extern "C" {
     cout << endl;
     cout << "i      r      theta" << endl;
     cout << "-------------------" << endl;
-    for(int i = 0; i < my_mesh.n_vertices(); i++) {
+    int n = my_mesh.n_vertices();
+    res->id = new int[n];
+    res->r = new double[n];
+    res->theta = new double[n];
+    int count = 0;
+    for(int i = 0; i < n; i++) {
       const double r = my_dgpc.getDistance(i);
       if(r < numeric_limits<double>::max()) {
-        const double theta = my_dgpc.
-        getAngle(i);
+        const double theta = my_dgpc.getAngle(i);
+        res->id[i] = i;
+        res->r[i] = r;
+        res->theta[i] = theta;
         cout << i << "    " << r << "    "<< theta << endl;
+        count++;
       }
     }
+    res->n = count;
 
   }
 }
