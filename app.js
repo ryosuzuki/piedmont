@@ -14,6 +14,7 @@ var app = koa();
 var server = http.createServer(app.callback());
 var port = process.env.PORT || 3000;
 var compute = require('./engine/compute/index.js');
+var dgpc = require('./engine/dgpc/index.js');
 
 app.use(serve('.'));
 app.use(favicon('/public/assets/favicon.ico'));
@@ -34,6 +35,7 @@ app.use( function *(next) {
 app.use(route.get('/', index));
 app.use(route.get('/favicon.ico', null));
 app.use(route.get('/:id', show));
+app.use(route.post('/get-dgpc', getDgpc));
 app.use(route.post('/get-laplacian', getLaplacian));
 app.use(route.post('/get-mapping', getMapping));
 app.use(route.post('/get-boundary', getBoundary));
@@ -45,6 +47,13 @@ function *index() {
 }
 function *show(id) {
   this.body = yield this.render(id)
+}
+
+function *getDgpc() {
+  var json = this.request.body.json;
+  json = JSON.parse(json);
+  var result = compute.getField(json);
+  this.response.body = result;
 }
 
 function *getLaplacian() {

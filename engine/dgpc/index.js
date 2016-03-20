@@ -8,7 +8,7 @@ var StructType = require('ref-struct');
 var dgpc = {
   getMapping: getMapping,
 }
-var lib = ffi.Library(__dirname + '/compute', {
+var lib = ffi.Library(__dirname + '/dgpc', {
   'getMapping':   ['void', ['string', 'pointer']],
 });
 
@@ -33,18 +33,19 @@ function getMapping (json) {
     boundary: geometry.boundary
   };
   */
-  var uniq = json.uniq;
+  // var uniq = json.uniq;
   console.log('Start getMapping');
-  var n = uniq.length;
+  // var n = uniq.length;
+  var n = 502;
   var result = new Result.mapping({
     n: int,
     id: new IntArray(n),
     r: new IntArray(n),
     theta: new IntArray(n)
   });
-  lib.getMapping(JSON.stringify(json), result.ref());
-
-  repl.start('> ').context.r = result;
+  var file = __dirname + '/mesh/' + json.filename + '.obj'
+  lib.getMapping(file, result.ref());
+  // lib.getMapping(JSON.stringify(json), result.ref());
 
   console.log('Get result from C++');
   console.log('Start converting in Node');
@@ -59,4 +60,6 @@ function getMapping (json) {
   return { uv: uv };
 }
 
+
+module.exports = dgpc;
 

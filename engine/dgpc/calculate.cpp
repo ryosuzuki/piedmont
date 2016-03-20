@@ -1,12 +1,16 @@
 #include <iostream>
 
-#include "Generator.h"
-#include "Mesh.h"
 #include <iostream>
 #include <limits>
 
+#include "Generator.h"
+#include "Mesh.h"
+#include "rapidjson/document.h"
+#include "rapidjson/writer.h"
+#include "rapidjson/stringbuffer.h"
+
+
 using namespace std;
-using namespace Eigen;
 using namespace rapidjson;
 
 extern "C" {
@@ -17,28 +21,17 @@ extern "C" {
     double *theta;
   } Result_Mapping;
 
-  int getMapping(char *json, Result_Mapping *res) {
-
-    //Parse options
-    if(argc < 3) usage_error(argv[0]);
-    const char* filename = argv[1];
-    const int source_idx = atoi(argv[2]);
-
-    double stopdist = -1;
-    if(argc > 3) {
-      stopdist = atof(argv[3]);
-    }
-    double epsilon = -1;
-    if(argc > 4) {
-      epsilon = atof(argv[4]);
-    }
-
-    if(argc > 5) usage_error(argv[0]);
+  void getMapping(char *filename, Result_Mapping *res) {
 
     //Declare point, mesh and generator
     typedef DGPC::Vector3<double> Point;
     typedef DGPC::MeshOM<Point> Mesh;
     typedef DGPC::Generator<Mesh> DGPCgenerator;
+
+    // const char* filename = "mesh/bunny_1k.obj";
+    const int source_idx = 0;
+    double stopdist = -1;
+    double epsilon = -1;
 
     //Read mesh from file
     Mesh my_mesh;
@@ -89,5 +82,13 @@ extern "C" {
     res->n = count;
 
   }
+
+  int main () {
+    char *json;
+    Result_Mapping *res;
+    getMapping(json, res);
+    cout << "OK" << endl;
+  }
+
 }
 
