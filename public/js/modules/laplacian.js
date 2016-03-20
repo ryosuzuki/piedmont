@@ -41,7 +41,18 @@ function computeUniq (geometry) {
 }
 
 
-function showPhiFaces (val) {
+function showPhiFaces () {
+  var N = 15;
+  var t = N/2;
+  var c = [];
+  var phi = _.sortBy(geometry.phi);
+  for (var i=0; i<N; i++) {
+    var q = i/N;
+    var k = d3.quantile(phi, q);
+    c[i] = Math.exp(- Math.pow(k-t, 2) / (2*Math.pow(t, 2)) )
+  }
+  console.log(c)
+  var val = c[7];
   var g = new THREE.Geometry();
   for (var i=0; i<geometry.uniq.length; i++) {
     var phi = geometry.phi[i];

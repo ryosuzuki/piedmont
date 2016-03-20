@@ -37,6 +37,7 @@ function computeAngle (geometry) {
 }
 
 function computeCcwEdges (geometry) {
+  console.log('Start computeCcwEdges');
   geometry.uniq = geometry.uniq.map( function (v) {
     var ccw_edges = [];
     var eid = v.edges[1];
@@ -46,7 +47,8 @@ function computeCcwEdges (geometry) {
     var getNextFace = function (eid) {
       for (var i=0; i<v.angles.length; i++) {
         var angle = v.angles[i];
-        if (eid == angle.edges[0]) {
+        // if (eid == angle.edges[0]) {
+        if (angle.edges.includes(eid)) {
           if (checked_faces.includes(angle.face)) continue;
           index = v.faces.indexOf(angle.face);
           checked_faces.push(angle.face);
@@ -66,7 +68,8 @@ function computeCcwEdges (geometry) {
       var angle = v.angles[index];
       var edges = _.clone(angle.edges);
       var next_eid = _.pullAll(edges, checked_edges)[0]
-      if (!next_eid) break;
+      // if (!next_eid) break;
+      if (!next_eid || next_eid == eid) break;
       eid = next_eid;
       index = getNextFace(eid)
       addCcwEdge(eid, index);
@@ -75,6 +78,7 @@ function computeCcwEdges (geometry) {
     v.edges = checked_edges;
     return v;
   });
+  console.log('Finish computeCcwEdges');
   return geometry;
 }
 
