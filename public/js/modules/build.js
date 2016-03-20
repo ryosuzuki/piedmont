@@ -20853,6 +20853,4 @@ window.areaPolygon = require('area-polygon');
 window.Dijkstra = require('node-dijkstra')
 
 
-
-
 },{"2d-polygon-boolean":5,"area-polygon":20,"bound-points":21,"cdt2d":22,"clean-pslg":40,"csr-matrix":86,"draw-triangles-2d":89,"extract-svg-path":90,"gh-clipping-algorithm":92,"load-svg":102,"mesh-laplacian":110,"mesh-reindex":114,"node-dijkstra":115,"normalize-path-scale":118,"object-assign":120,"parse-svg-path":121,"point-in-triangle":122,"random-float":123,"simplify-path":125,"svg-intersections":127,"svg-path-contours":138,"three-simplicial-complex":144,"triangulate-contours":146,"unindex-mesh":150}]},{},[151]);

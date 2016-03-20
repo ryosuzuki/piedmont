@@ -26,5 +26,3 @@ window.normalize = require('normalize-path-scale')
 window.areaPolygon = require('area-polygon');
 window.Dijkstra = require('node-dijkstra')
 
-
-

@@ -34,6 +34,7 @@
     "bunny": "^1.0.1",
     "cdt2d": "^1.0.0",
     "clean-pslg": "^1.1.0",
+    "co": "^4.6.0",
     "co-views": "^2.1.0",
     "csr-matrix": "^1.0.0",
     "delaunay-triangulate": "^1.1.6",
@@ -74,6 +75,7 @@
     "svg-path-contours": "^2.0.0",
     "swig": "^1.4.2",
     "three": "^0.74.0",
+    "three-obj": "^0.6.2",
     "three-simplicial-complex": "^69.0.6",
     "triangulate-contours": "^1.0.2",
     "unindex-mesh": "^2.0.0"
