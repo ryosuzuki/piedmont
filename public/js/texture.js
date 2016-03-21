@@ -5,6 +5,87 @@ var num = 100;
 
 var texture;
 
+
+function getDgpc (start) {
+  console.log('Start getMapping')
+  var s = new Date().getTime();
+
+  var json = {
+    // uniq: geometry.uniq,
+    // faces: geometry.faces,
+    // map: geometry.map,
+    start: start
+  };
+
+  $.ajax({
+    url: '/get-dgpc',
+    type: 'POST',
+    datatype: 'JSON',
+    data: {
+      json: JSON.stringify(json)
+    },
+    success: function (data) {
+      console.log('Get result');
+      console.log(data);
+      window.data = data;
+
+      for (var i=0; i<data.uv.length; i++) {
+        var hash = data.uv[i];
+        var u = hash.r * Math.cos(hash.theta);
+        var v = hash.r * Math.sin(hash.theta);
+        var uv = new THREE.Vector2(u, v)
+        geometry.uniq[i].uv = uv;
+      }
+
+      geometry.faceVertexUvs = [[]]
+      for (var i=0; i<geometry.faces.length; i++) {
+        var face = geometry.faces[i];
+        geometry.faceVertexUvs[0][i] = [
+          geometry.uniq[map[face.a]].uv,
+          geometry.uniq[map[face.b]].uv,
+          geometry.uniq[map[face.c]].uv,
+        ]
+      }
+      geometry.uvsNeedUpdate = true;
+
+      var e = new Date().getTime();
+      var time = e - s;
+      console.log('Execution time: ' + time + 'ms');
+
+      // var loader = new THREE.TextureLoader();
+      // loader.load('/bunny_1k.png', function (image) {
+      //   image.minFilter = THREE.LinearFilter;
+      //   image.needsUpdate = true;
+      //   image.wrapS = THREE.RepeatWrapping;
+      //   image.wrapT = THREE.RepeatWrapping;
+      //   image.repeat.set(4, 4);
+      //   var material = new THREE.MeshBasicMaterial({map: image});
+      //   mesh = new THREE.Mesh(geometry, material);
+      //   // mesh.material.color = new THREE.Color('yellow')
+      //   mesh.material.map = image;
+      //   mesh.material.needsUpdate = true;
+      //   mesh.castShadow = true;
+      //   mesh.receiveShadow = true;
+      //   mesh.castShadow = true;
+      //   mesh.receiveShadow = true;
+      //   mesh.scale.set(10, 10, 10)
+      //   scene.add(mesh);
+
+      //   var g = new THREE.Geometry();
+      //   g.vertices.push(geometry.uniq[start].vertex);
+      //   var m = new THREE.PointsMaterial( { size: 20, sizeAttenuation: false} );
+      //   m.color.setHex(Math.random() * 0xffffff);
+      //   var p = new THREE.Points(g, m);
+      //   p.scale.set(10, 10, 10)
+      //   scene.add(p);
+
+      // })
+    }
+  })
+}
+
+
+
 function addTexture () {
   createTexture();
   // Q.fcall(createTexture)
@@ -111,7 +192,7 @@ function addLine (texture) {
   scene.add(line);
 }
 
-function getMapping (geometry) {
+function getMapping2 (geometry) {
   console.log('Start getMapping')
   var json = {
     uniq: geometry.uniq,

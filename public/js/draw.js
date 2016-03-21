@@ -25,10 +25,10 @@ function loadObjects () {
   .then(computeCcwEdges(geometry))
   // .then(computeBoundary(geometry))
   // .then(computeLaplacian(geometry))
-  // .then(getDgpc(geometry))
+  .then(getDgpc(500))
   // .then(computeHarmonicField(geometry))
 
-  .then(hoge(geometry))
+  // .then(hoge(geometry))
 
 
   // .then(getBoundary(geometry))
@@ -98,14 +98,6 @@ function drawObj () {
       // geometry.faceVertexUvs[0].push([uv1, uv2, uv3]);
     }
     geometry.computeFaceNormals();
-
-    positions = geometry.vertices.map( function (v) {
-      return [v.x, v.y, v.z];
-    })
-    cells = geometry.faces.map( function (f) {
-      return [f.a, f.b, f.c]
-    })
-    out = unindex(positions, cells)
 
     var loader = new THREE.TextureLoader();
     loader.load('/bunny_1k.png', function (image) {
@@ -246,73 +238,6 @@ function hoge (geometry) {
 
 }
 
-
-function getDgpc (geometry) {
-  console.log('Start getMapping')
-  var json = {
-    filename: 'bunny_1k'
-    // uniq: geometry.uniq,
-    // faces: geometry.faces,
-    // map: geometry.map,
-    // boundary: geometry.boundary
-  };
-  $.ajax({
-    url: '/get-dgpc',
-    type: 'POST',
-    datatype: 'JSON',
-    data: {
-      json: JSON.stringify(json)
-    },
-    success: function (data) {
-      console.log('Get result');
-      console.log(data);
-      window.data = data;
-
-      for (var i=0; i<data.uv.length; i++) {
-        var hash = data.uv[i];
-        if (i>100) break;
-        var u = hash.r * Math.cos(hash.theta);
-        var v = hash.r * Math.sin(hash.theta);
-        var uv = new THREE.Vector2(u, v)
-        geometry.uniq[i].uv = uv;
-      }
-
-      geometry.faceVertexUvs = [[]]
-      for (var i=0; i<geometry.faces.length; i++) {
-        var face = geometry.faces[i];
-        geometry.faceVertexUvs[0][i] = [
-          geometry.uniq[map[face.a]].uv,
-          geometry.uniq[map[face.b]].uv,
-          geometry.uniq[map[face.c]].uv,
-        ]
-      }
-
-      var loader = new THREE.TextureLoader();
-      loader.load('/public/assets/checkerboard.jpg', function (image) {
-        image.minFilter = THREE.LinearFilter;
-        image.needsUpdate = true;
-        // image.wrapS = THREE.RepeatWrapping;
-        // image.wrapT = THREE.RepeatWrapping;
-        // image.repeat.set(2, 2);
-        // mesh.material.color = new THREE.Color('yellow')
-        // mesh.material.map = image;
-        // mesh.material.needsUpdate = true;
-        // if (mesh) scene.remove(mesh);
-        var material = new THREE.MeshBasicMaterial({map: image});
-        mesh = new THREE.Mesh(geometry, material);
-        mesh.material.color = new THREE.Color('yellow')
-        mesh.material.map = image;
-        mesh.material.needsUpdate = true;
-        mesh.castShadow = true;
-        mesh.receiveShadow = true;
-        mesh.castShadow = true;
-        mesh.receiveShadow = true;
-        mesh.scale.set(10, 10, 10)
-        scene.add(mesh);
-      })
-    }
-  })
-}
 
 function drawSTL () {
   var xhr = new XMLHttpRequest();

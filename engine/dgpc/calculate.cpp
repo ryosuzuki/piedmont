@@ -5,10 +5,10 @@
 
 #include "Generator.h"
 #include "Mesh.h"
+
 #include "rapidjson/document.h"
 #include "rapidjson/writer.h"
 #include "rapidjson/stringbuffer.h"
-
 
 using namespace std;
 using namespace rapidjson;
@@ -21,21 +21,22 @@ extern "C" {
     double *theta;
   } Result_Mapping;
 
-  void getMapping(char *filename, Result_Mapping *res) {
+  void getMapping(char *json, Result_Mapping *res) {
 
-    //Declare point, mesh and generator
     typedef DGPC::Vector3<double> Point;
     typedef DGPC::MeshOM<Point> Mesh;
     typedef DGPC::Generator<Mesh> DGPCgenerator;
 
-    // const char* filename = "mesh/bunny_1k.obj";
-    const int source_idx = 0;
+    Document d;
+    d.Parse(json);
+    Value &start  = d["start"];
+    int source_idx = start.GetInt();
+
     double stopdist = -1;
     double epsilon = -1;
 
-    //Read mesh from file
     Mesh my_mesh;
-    my_mesh.openOBJ(filename);
+    my_mesh.openOBJ(json);
 
     //Make a DGPC generator
     DGPCgenerator my_dgpc(my_mesh);

@@ -24,28 +24,29 @@ Result.mapping = StructType({
   'theta': DoubleArray
 })
 
+var fs = require('fs');
+
 function getMapping (json) {
   /*
   var json = {
     uniq:     geometry.uniq,
     faces:    geometry.faces,
     map:      geometry.map,
-    boundary: geometry.boundary
+    start:    0
   };
   */
-  // var uniq = json.uniq;
+  var str = fs.readFileSync(__dirname + '/data.json', 'utf8');
+  json = JSON.parse(str)
   console.log('Start getMapping');
-  // var n = uniq.length;
-  var n = 502;
+  var n = json.uniq.length;
+  if (!json.start) json.start = 0;
   var result = new Result.mapping({
     n: int,
     id: new IntArray(n),
     r: new IntArray(n),
     theta: new IntArray(n)
   });
-  var file = __dirname + '/mesh/' + json.filename + '.obj'
-  lib.getMapping(file, result.ref());
-  // lib.getMapping(JSON.stringify(json), result.ref());
+  lib.getMapping(JSON.stringify(json), result.ref());
 
   console.log('Get result from C++');
   console.log('Start converting in Node');
