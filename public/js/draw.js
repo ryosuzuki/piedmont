@@ -25,7 +25,7 @@ function loadObjects () {
   .then(computeCcwEdges(geometry))
   // .then(computeBoundary(geometry))
   // .then(computeLaplacian(geometry))
-  .then(getDgpc(500))
+  .then(getDgpc(100))
   // .then(computeHarmonicField(geometry))
 
   // .then(hoge(geometry))
@@ -108,8 +108,9 @@ function drawObj () {
       window.image = image;
       // image.repeat.set(4, 4);
       material = new THREE.MeshBasicMaterial({
+        color: 0xffffff,
         vertexColors: THREE.FaceColors,
-        map: image
+        map: image,
       });
 
       loadObjects()
@@ -229,6 +230,7 @@ function hoge (geometry) {
     mesh.receiveShadow = true;
     mesh.scale.set(10, 10, 10)
     scene.add(mesh);
+    objects.push(mesh)
   })
 
 }

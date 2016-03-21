@@ -114,13 +114,35 @@ function finishSelect () {
 var p;
 var q;
 
+var pathStyle = {
+  strokeColor: 'black',
+  strokeWidth: 5,
+  fullySelected: true
+}
+var draft; // = new paper.Path(pathStyle);
+window.onload = function () {
+  paper.setup('canvas');
+  draft = new paper.Path(pathStyle);
+}
 
 function onDocumentMouseDown( event ) {
   var intersects = getIntersects(event);
-  if (intersects.length <= 0) return false;
+  if (intersects.length < 1) return false;
   if (!selectMode && !undoMode) return false;
   window.current = intersects[0];
   window.currentIndex = current.faceIndex;
+  // console.log('current: ' + current.uv.x + ' ' + current.uv.y);
+
+  if (selectMode) {
+    window.paint(current)
+    mesh.material.map.needsUpdate = true;
+    mesh.material.needsUpdate = true;
+
+    var canvas = document.getElementById('canvas');
+    var image = new THREE.Texture(canvas)
+    image.needsUpdate = true;
+    mesh.material.map = image;
+  }
 
   // if (!start) start = current.face.a;
   // p = map[current.face.a];
@@ -159,10 +181,8 @@ function onDocumentMouseDown( event ) {
 
 function onDocumentMouseUp (event) {
   var intersects = getIntersects(event);
-  if (intersects.length <= 0) return false;
+  if (intersects.length < 1) return false;
   console.log(current.face)
-
-
 
   if (selectIndex.length > 0) {
     console.log('Select Done')

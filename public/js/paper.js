@@ -8,9 +8,9 @@ var points = [];
 var paths = [];
 var draft;
 var pathStyle = {
-  strokeColor: 'black',
-  strokeWidth: 5,
-  fullySelected: true
+  strokeColor: 'red',
+  strokeWidth: 0.01,
+  // fullySelected: true
 }
 
 
@@ -22,6 +22,17 @@ window.onload = function () {
   paper.setup('canvas');
 
   var tool = new paper.Tool();
+
+  draft = new paper.Path(pathStyle);
+  window.paint = function (current) {
+    // var x = 700 * (current.uv.x + 0.5)
+    // var y = 700 * (current.uv.y + 0.5)
+    var x = current.uv.x
+    var y = current.uv.y
+    var point = new paper.Point(x, y);
+    draft.add(point);
+  }
+
   tool.onMouseDown = function (event) {
     if (draft) {
       draft.selected = false;
@@ -71,6 +82,8 @@ window.onload = function () {
 
   paper.view.onFrame = function (event) {
   }
+  paper.view.setCenter(0, 0)
+  paper.view.setZoom(300, 300)
   paper.view.draw();
 
 }
@@ -102,6 +115,13 @@ function beautify (draft) {
   path.style.fillColor = 'red';
   circles.push(path);
   console.log('circle');
+
+
+  var canvas = document.getElementById('canvas');
+  var image = new THREE.Texture(canvas)
+  image.needsUpdate = true;
+  mesh.material.map = image;
+
   return path;
 
   /*

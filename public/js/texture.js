@@ -78,8 +78,13 @@ function getDgpc (start) {
       mesh.geometry.faceVertexUvs = faceVertexUvs;
       mesh.geometry.uvsNeedUpdate = true;
 
-      mesh.material.color.setHex(Math.random() * 0xffffff);
-      mesh.material.map = new THREE.TextureLoader().load('/bunny_1k.png');;
+      // mesh.material.color.setHex(Math.random() * 0xffffff);
+      // mesh.material.map = new THREE.TextureLoader().load('/bunny_1k.png')
+      var canvas = document.getElementById('canvas');
+      var image = new THREE.Texture(canvas)
+      image.needsUpdate = true;
+      mesh.material.color = 0xffffff;
+      mesh.material.map = image;
       // mesh.material.map = image;
       mesh.material.needsUpdate = true;
       mesh.castShadow = true;
@@ -88,6 +93,7 @@ function getDgpc (start) {
       mesh.receiveShadow = true;
       mesh.scale.set(3, 3, 3)
       scene.add(mesh);
+      objects.push(mesh)
 
 
       // var loader = new THREE.TextureLoader();
