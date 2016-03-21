@@ -5,6 +5,7 @@ var num = 100;
 
 var texture;
 
+var mesh;
 
 function getDgpc (start) {
   console.log('Start getMapping')
@@ -37,16 +38,95 @@ function getDgpc (start) {
         geometry.uniq[i].uv = uv;
       }
 
-      geometry.faceVertexUvs = [[]]
+      geometry.dynamic = true;
+      geometry.uvsNeedUpdate = true;
+      geometry.buffersNeedUpdate = true;
+      geometry.verticesNeedUpdate = true;
+      geometry.elementsNeedUpdate = true;
+      geometry.morphTargetsNeedUpdate = true;
+      geometry.uvsNeedUpdate = true;
+      geometry.normalsNeedUpdate = true;
+      geometry.colorsNeedUpdate = true;
+      geometry.tangentsNeedUpdate = true;
+      material.needsUpdate = true;
+
+
+      for (var i=0; i<geometry.faceVertexUvs.length; i++) {
+        geometry.faceVertexUvs[i] = [];
+      }
+
+      var faceVertexUvs = [[]]
       for (var i=0; i<geometry.faces.length; i++) {
         var face = geometry.faces[i];
-        geometry.faceVertexUvs[0][i] = [
+        faceVertexUvs[0][i] = [
           geometry.uniq[map[face.a]].uv,
           geometry.uniq[map[face.b]].uv,
           geometry.uniq[map[face.c]].uv,
         ]
       }
+
+      geometry.faceVertexUvs = faceVertexUvs;
       geometry.uvsNeedUpdate = true;
+      geometry.computeFaceNormals()
+      geometry.computeVertexNormals()
+      geometry.dynamic = true;
+      geometry.uvsNeedUpdate = true;
+
+
+      scene.remove(mesh);
+      mesh = new THREE.Mesh(geometry, material);
+      mesh.geometry.faceVertexUvs = faceVertexUvs;
+      mesh.geometry.uvsNeedUpdate = true;
+
+      mesh.material.color.setHex(Math.random() * 0xffffff);
+      mesh.material.map = new THREE.TextureLoader().load('/bunny_1k.png');;
+      // mesh.material.map = image;
+      mesh.material.needsUpdate = true;
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+      mesh.scale.set(3, 3, 3)
+      scene.add(mesh);
+
+
+      // var loader = new THREE.TextureLoader();
+      // loader.load('/bunny_1k.png', function (image) {
+      //   image.minFilter = THREE.LinearFilter;
+      //   image.needsUpdate = true;
+      //   image.wrapS = THREE.RepeatWrapping;
+      //   image.wrapT = THREE.RepeatWrapping;
+      //   // image.repeat.set(4, 4);
+      //   mesh.material = new THREE.MeshBasicMaterial({
+      //     vertexColors: THREE.FaceColors,
+      //     map: image
+      //   });
+      //   // mesh = new THREE.Mesh(geometry, material);
+      //   // mesh.material.color = new THREE.Color('yellow')
+
+      //   mesh.geometry.dynamic = true;
+      //   mesh.geometry.uvsNeedUpdate = true;
+      //   mesh.geometry.verticesNeedUpdate = true;
+      //   mesh.geometry.elementsNeedUpdate = true;
+      //   mesh.geometry.morphTargetsNeedUpdate = true;
+      //   mesh.geometry.uvsNeedUpdate = true;
+      //   mesh.geometry.normalsNeedUpdate = true;
+      //   mesh.geometry.colorsNeedUpdate = true;
+      //   mesh.geometry.tangentsNeedUpdate = true;
+      //   mesh.material.needsUpdate = true;
+      //   mesh.material.map.needsUpdate = true;
+      //   mesh.material.map = image;
+      //   mesh.material.needsUpdate = true;
+
+      //   // mesh.castShadow = true;
+      //   // mesh.receiveShadow = true;
+      //   // mesh.castShadow = true;
+      //   // mesh.receiveShadow = true;
+      //   // mesh.scale.set(10, 10, 10)
+      //   // scene.add(mesh);
+      // });
+
+
 
       var e = new Date().getTime();
       var time = e - s;

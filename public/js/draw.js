@@ -105,18 +105,14 @@ function drawObj () {
       image.needsUpdate = true;
       image.wrapS = THREE.RepeatWrapping;
       image.wrapT = THREE.RepeatWrapping;
+      window.image = image;
       // image.repeat.set(4, 4);
-      var material = new THREE.MeshBasicMaterial({map: image});
-      mesh = new THREE.Mesh(geometry, material);
-      // mesh.material.color = new THREE.Color('yellow')
-      mesh.material.map = image;
-      mesh.material.needsUpdate = true;
-      mesh.castShadow = true;
-      mesh.receiveShadow = true;
-      mesh.castShadow = true;
-      mesh.receiveShadow = true;
-      mesh.scale.set(10, 10, 10)
-      scene.add(mesh);
+      material = new THREE.MeshBasicMaterial({
+        vertexColors: THREE.FaceColors,
+        map: image
+      });
+
+      loadObjects()
     });
   });
 
@@ -129,7 +125,6 @@ function drawObj () {
     success: function (data) {
       console.log('Get result');
       window.json = JSON.parse(data);
-      loadObjects()
       /*
       geometry = new THREE.Geometry();
       var vertices = [];

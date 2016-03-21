@@ -35,11 +35,13 @@ function getMapping (json) {
     start:    0
   };
   */
+  var start = json.start;
   var str = fs.readFileSync(__dirname + '/data.json', 'utf8');
   json = JSON.parse(str)
+  json.start = start;
+  if (!json.start) json.start = 0;
   console.log('Start getMapping');
   var n = json.uniq.length;
-  if (!json.start) json.start = 0;
   var result = new Result.mapping({
     n: int,
     id: new IntArray(n),
