@@ -48,16 +48,16 @@ function drawObjects () {
 function drawObj () {
 
   var loader = new THREE.OBJLoader();
-  loader.load('/bunny_1k.obj', function ( object ) {
+  loader.load('/demo.obj', function ( object ) {
     object.children[0].geometry.computeFaceNormals();
-    var geo = object.children[0].geometry;
+    geo = object.children[0].geometry;
     geo.dynamic = true;
     // var material = new THREE.MeshLambertMaterial({color: 0xffffff, vertexColors: THREE.VertexColors });
     // mesh = new THREE.Mesh(geometry, material);
     // scene.add( mesh );
 
     var positions = geo.attributes.position.array;
-    var uvs = geo.attributes.uv.array;
+    // var uvs = geo.attributes.uv.array;
     var n = positions.length/9;
 
     geometry = new THREE.Geometry();
@@ -77,32 +77,43 @@ function drawObj () {
         positions[9*i+7],
         positions[9*i+8]
       )
-      var uv1 = new THREE.Vector2(
-        uvs[6*i],
-        uvs[6*i+1]
-      )
-      var uv2 = new THREE.Vector2(
-        uvs[6*i+2],
-        uvs[6*i+3]
-      )
-      var uv3 = new THREE.Vector2(
-        uvs[6*i+4],
-        uvs[6*i+5]
-      )
+      // var uv1 = new THREE.Vector2(
+      //   uvs[6*i],
+      //   uvs[6*i+1]
+      // )
+      // var uv2 = new THREE.Vector2(
+      //   uvs[6*i+2],
+      //   uvs[6*i+3]
+      // )
+      // var uv3 = new THREE.Vector2(
+      //   uvs[6*i+4],
+      //   uvs[6*i+5]
+      // )
 
       var num = geometry.vertices.length;
       geometry.vertices.push(v1);
       geometry.vertices.push(v2);
       geometry.vertices.push(v3);
       geometry.faces.push(new THREE.Face3(num, num+1, num+2))
-      geometry.faceVertexUvs[0].push([uv1, uv2, uv3]);
+      // geometry.faceVertexUvs[0].push([uv1, uv2, uv3]);
     }
     geometry.computeFaceNormals();
+
+    positions = geometry.vertices.map( function (v) {
+      return [v.x, v.y, v.z];
+    })
+    cells = geometry.faces.map( function (f) {
+      return [f.a, f.b, f.c]
+    })
+    out = unindex(positions, cells)
 
     var loader = new THREE.TextureLoader();
     loader.load('/bunny_1k.png', function (image) {
       image.minFilter = THREE.LinearFilter;
       image.needsUpdate = true;
+      image.wrapS = THREE.RepeatWrapping;
+      image.wrapT = THREE.RepeatWrapping;
+      // image.repeat.set(4, 4);
       var material = new THREE.MeshBasicMaterial({map: image});
       mesh = new THREE.Mesh(geometry, material);
       // mesh.material.color = new THREE.Color('yellow')
@@ -117,7 +128,7 @@ function drawObj () {
     });
   });
 
-  /*
+
   $.ajax({
     url: '/get-obj',
     type: 'POST',
@@ -126,7 +137,8 @@ function drawObj () {
     success: function (data) {
       console.log('Get result');
       window.json = JSON.parse(data);
-
+      loadObjects()
+      /*
       geometry = new THREE.Geometry();
       var vertices = [];
       for (var i=0; i<json.vertices.length/3; i++) {
@@ -149,13 +161,14 @@ function drawObj () {
         var face = new THREE.Face3(num, num+1, num+2);
         geometry.faces.push(face);
       }
-      loadObjects()
+
       // var material = new THREE.MeshBasicMaterial({color: 0x00ff00});
       // mesh = new THREE.Mesh(geometry, material);
       // scene.add(mesh)
+      */
     }
   })
-  */
+
 
   // var loader = new THREE.OBJLoader();
   // loader.load('/public/assets/bunny_1k.obj', function (object) {
@@ -178,8 +191,26 @@ function hoge (geometry) {
     )
   }
 
-  for (var j=0; j<geometry.faces.length; j++) {
-    var face = geometry.faces[j];
+  // var s = '';
+  // for (var i=0; i<geometry.uniq.length; i++) {
+  //   s += 'v ' +
+  //   geometry.uniq[i].vertex.x + ' ' +
+  //   geometry.uniq[i].vertex.y + ' ' +
+  //   geometry.uniq[i].vertex.z + '\n';
+  // }
+  // for (var i=0; i<geometry.faces.length; i++) {
+  //   s += 'f ' +
+  //   (geometry.map[geometry.faces[i].a] + 1) + ' ' +
+  //   (geometry.map[geometry.faces[i].b] + 1) + ' ' +
+  //   (geometry.map[geometry.faces[i].c] + 1) + '\n'
+  // }
+  // var blob = new Blob([s], {type: 'text/plain'});
+  // saveAs(blob, 'demo.obj');
+
+
+  geometry.faceVertexUvs = [[]]
+  for (var i=0; i<geometry.faces.length; i++) {
+    var face = geometry.faces[i];
     geometry.faceVertexUvs[0].push([
       geometry.uniq[map[face.a]].uv,
       geometry.uniq[map[face.b]].uv,
@@ -193,9 +224,9 @@ function hoge (geometry) {
   loader.load('/bunny_1k.png', function (image) {
     image.minFilter = THREE.LinearFilter;
     image.needsUpdate = true;
-    // image.wrapS = THREE.RepeatWrapping;
-    // image.wrapT = THREE.RepeatWrapping;
-    // image.repeat.set(4, 4);
+    image.wrapS = THREE.RepeatWrapping;
+    image.wrapT = THREE.RepeatWrapping;
+    image.repeat.set(10, 10);
     // mesh.material.color = new THREE.Color('yellow')
     // mesh.material.map = image;
     // mesh.material.needsUpdate = true;

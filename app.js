@@ -54,7 +54,7 @@ function *show(id) {
 }
 
 function *getObj() {
-  var json = fs.readFileSync('bunny_1k.json');
+  var json = fs.readFileSync('demo.json');
   // var json = fs.readFileSync('cow.json');
   this.response.body = json;
 }
