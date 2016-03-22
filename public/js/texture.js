@@ -95,6 +95,8 @@ function getDgpc (start) {
       scene.add(mesh);
       objects.push(mesh)
 
+      initializeViewingTexture()
+
 
       // var loader = new THREE.TextureLoader();
       // loader.load('/bunny_1k.png', function (image) {

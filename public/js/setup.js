@@ -20,25 +20,38 @@ function init() {
   scene.add( camera );
 
   scene.add(new THREE.AmbientLight(0xccc));
-  var light = new THREE.SpotLight(0xffffff, 1.5);
-  light.position.set(size*7, size*7, -size*7);
-  light.castShadow = true;
-  light.shadow.camera.near = size*3;
-  light.shadow.camera.far = camera.far;
-  light.shadow.camera.fov = 70;
-  light.shadow.bias = -0.000222;
-  light.shadow.mapSize.width = 1024;
-  light.shadow.mapSize.height = 1024;
+  var ambientLight = new THREE.AmbientLight(0x999999);
+  scene.add(ambientLight);
+  var light = new THREE.DirectionalLight(0xFFFFFF, 0.2);
+  light.position.set(320, 390, 700);
   scene.add(light);
+  var light2 = new THREE.DirectionalLight(0xFFFFFF, 0.2);
+  light2.position.set(-720, -190, -300);
+  scene.add(light2);
+
+  var headLight = new THREE.PointLight(0xFFFFFF, 0.25);
+  scene.add(headLight);
+
+  // var light = new THREE.SpotLight(0xffffff, 1.5);
+  // light.position.set(size*7, size*7, -size*7);
+  // light.castShadow = true;
+  // light.shadow.camera.near = size*3;
+  // light.shadow.camera.far = camera.far;
+  // light.shadow.camera.fov = 70;
+  // light.shadow.bias = -0.000222;
+  // light.shadow.mapSize.width = 1024;
+  // light.shadow.mapSize.height = 1024;
+  // scene.add(light);
   spotlight = light;
 
   var grid = new THREE.GridHelper(size*5, size/2);
   grid.position.y = 0.01;
   grid.material.opacity = 0.25;
   grid.material.transparent = true;
-  scene.add(grid);
+  // scene.add(grid);
 
-  renderer = new THREE.WebGLRenderer({ antialias: true });
+  renderer = new THREE.WebGLRenderer({alpha: true, antialias: true });
+  // renderer.setClearColor(0xbbbbbb, 1.0);
   renderer.setClearColor(0xf0f0f0);
   renderer.setSize( window.innerWidth, window.innerHeight );
   renderer.shadowMap.enabled = true;

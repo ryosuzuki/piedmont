@@ -120,10 +120,6 @@ var pathStyle = {
   fullySelected: true
 }
 var draft; // = new paper.Path(pathStyle);
-window.onload = function () {
-  paper.setup('canvas');
-  draft = new paper.Path(pathStyle);
-}
 
 function onDocumentMouseDown( event ) {
   var intersects = getIntersects(event);
@@ -134,14 +130,7 @@ function onDocumentMouseDown( event ) {
   // console.log('current: ' + current.uv.x + ' ' + current.uv.y);
 
   if (selectMode) {
-    window.paint(current)
-    mesh.material.map.needsUpdate = true;
-    mesh.material.needsUpdate = true;
-
-    var canvas = document.getElementById('canvas');
-    var image = new THREE.Texture(canvas)
-    image.needsUpdate = true;
-    mesh.material.map = image;
+    updateTexture()
   }
 
   // if (!start) start = current.face.a;
