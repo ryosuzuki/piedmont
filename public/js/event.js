@@ -130,21 +130,29 @@ var pathStyle = {
 var path;
 var start;
 
+
 function onDocumentMouseDown( event ) {
 
   var intersects = getIntersects(event);
   if (intersects.length < 1) return false;
   if (!selectMode && !undoMode) return false;
   window.current = intersects[0];
-  window.currentIndex = current.faceIndex;
-
+  // window.currentIndex = current.faceIndex;
   // console.log('current: ' + current.uv.x + ' ' + current.uv.y);
   if (selectMode) {
-    var pos = new THREE.Vector2(event.pageX, event.pageY);
-    drawLine(pos.x, pos.y)
+    var ci = current.faceIndex
+    if (ci !== window.currentIndex) {
+      window.currentIndex = ci
+      var start = map[current.face.a]
+      getDgpc(start)
+    }
 
-    window.event = event
-    if (currentIndex) affectedFaces = _.union(affectedFaces, [currentIndex])
+
+    // var pos = new THREE.Vector2(event.pageX, event.pageY);
+    // drawLine(pos.x, pos.y)
+
+    // window.event = event
+    // if (currentIndex) affectedFaces = _.union(affectedFaces, [currentIndex])
     // paper.view.onFrame = function (event) { }
   }
 
@@ -183,8 +191,8 @@ function onWindowResize () {
   camera.updateProjectionMatrix();
   renderer.setSize( window.innerWidth, window.innerHeight );
 
-  drawingCanvas.width = renderer.domElement.width
-  drawingCanvas.height = renderer.domElement.height
+  // drawingCanvas.width = renderer.domElement.width
+  // drawingCanvas.height = renderer.domElement.height
 }
 
 function onDocumentTouchStart( event ) {
@@ -200,7 +208,7 @@ Mousetrap.bind('command', function () {
   if (selectMode) {
     $('#mode').addClass('pink').text('Select Mode (Press ⌘)')
   } else {
-    finishPainting()
+    // finishPainting()
     $('#mode').removeClass('pink').text('View Mode (Press ⌘)')
   }
 }, 'keyup')

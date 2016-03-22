@@ -39,12 +39,14 @@ function getMapping (filename, start) {
 
   console.log('Get result from C++');
   console.log('Start converting in Node');
-  var uv = [];
+  var uv = {};
   for (var i=0; i<result.n; i++) {
-    uv[i] = {};
-    uv[i].id = result.id[i];
-    uv[i].r = result.r[i];
-    uv[i].theta = result.theta[i];
+    var id = result.id[i]
+    var r = result.r[i]
+    var theta = result.theta[i]
+    var u = r * Math.cos(theta) + 0.5;
+    var v = r * Math.sin(theta) + 0.5;
+    uv[id] = { r: r, theta: theta, u: u, v: v };
   }
   console.log('Finish');
   return { uv: uv };
@@ -76,12 +78,14 @@ function getMapping2 (json) {
 
   console.log('Get result from C++');
   console.log('Start converting in Node');
-  var uv = [];
+  var uv = {};
   for (var i=0; i<result.n; i++) {
-    uv[i] = {};
-    uv[i].id = result.id[i];
-    uv[i].r = result.r[i];
-    uv[i].theta = result.theta[i];
+    var id = result.id[i]
+    var r = result.r[i]
+    var theta = result.theta[i]
+    var u = r * Math.cos(theta);
+    var v = r * Math.sin(theta);
+    uv[id] = { r: r, theta: theta, u: u, v: v };
   }
   console.log('Finish');
   return { uv: uv };

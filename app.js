@@ -58,7 +58,6 @@ app.io.route('connection', function *(next, json) {
     uniq[i].vertex.y + ' ' +
     uniq[i].vertex.z + '\n';
   }
-  console.log(str)
   for (var i=0; i<faces.length; i++) {
     str += 'f ' +
     (map[faces[i].a] + 1) + ' ' +
@@ -72,10 +71,9 @@ app.io.route('connection', function *(next, json) {
 app.io.route('update', function *(next, start) {
   console.log('update')
   var filename = __dirname + '/data/hoge.obj'
-  var start = 0
   var result = dgpc.getMapping(filename, start)
-  console.log(result)
-
+  console.log('get result: ' + result.uv.length)
+  this.emit('res-update', result)
 })
 
 function *index() {

@@ -27,7 +27,9 @@ function loadObjects () {
 
   // .then(computeBoundary(geometry))
   // .then(computeLaplacian(geometry))
-  // .then(getDgpc(100))
+
+
+  // .then(getDgpc(500))
   // .then(computeHarmonicField(geometry))
 
   // .then(hoge(geometry))
@@ -60,7 +62,7 @@ function drawObjects () {
 function drawObj () {
 
   var loader = new THREE.OBJLoader();
-  loader.load('/demo.obj', function ( object ) {
+  loader.load('/data/hoge.obj', function ( object ) {
     object.children[0].geometry.computeFaceNormals();
     geo = object.children[0].geometry;
     geo.dynamic = true;
@@ -111,63 +113,28 @@ function drawObj () {
     }
     geometry.computeFaceNormals();
 
+    var material = new THREE.MeshLambertMaterial({
+      color: 0xffffff,
+      vertexColors: THREE.FaceColors,
+    });
+    mesh = new THREE.Mesh(geometry, material);
+    mesh.scale.set(6, 6, 6)
+    scene.add(mesh);
+    objects.push(mesh)
+    loadObjects()
+
     var loader = new THREE.TextureLoader();
-    loader.load('/bunny_1k.png', function (image) {
+    loader.load('/public/assets/bunny_1k.png', function (image) {
       image.minFilter = THREE.LinearFilter;
       image.needsUpdate = true;
       image.wrapS = THREE.RepeatWrapping;
       image.wrapT = THREE.RepeatWrapping;
+      image.repeat.set(4, 4);
       window.image = image;
-      // image.repeat.set(4, 4);
-      material = new THREE.MeshBasicMaterial({
-        color: 0xffffff,
-        vertexColors: THREE.FaceColors,
-        map: image,
-      });
-
-      loadObjects()
     });
   });
 
 
-  $.ajax({
-    url: '/get-obj',
-    type: 'POST',
-    datatype: 'JSON',
-    data: { },
-    success: function (data) {
-      console.log('Get result');
-      window.json = JSON.parse(data);
-      /*
-      geometry = new THREE.Geometry();
-      var vertices = [];
-      for (var i=0; i<json.vertices.length/3; i++) {
-        var vertex = new THREE.Vector3(
-          json.vertices[3*i],
-          json.vertices[3*i+1],
-          json.vertices[3*i+2]
-        );
-        vertices.push(vertex);
-      }
-
-      for (var j=0; j<json.faces.length/8; j++) {
-        var v1 = vertices[json.faces[8*j+1]]
-        var v2 = vertices[json.faces[8*j+2]]
-        var v3 = vertices[json.faces[8*j+3]]
-        var num = geometry.vertices.length;
-        geometry.vertices.push(v1)
-        geometry.vertices.push(v2)
-        geometry.vertices.push(v3)
-        var face = new THREE.Face3(num, num+1, num+2);
-        geometry.faces.push(face);
-      }
-
-      // var material = new THREE.MeshBasicMaterial({color: 0x00ff00});
-      // mesh = new THREE.Mesh(geometry, material);
-      // scene.add(mesh)
-      */
-    }
-  })
 
 
   // var loader = new THREE.OBJLoader();
@@ -398,4 +365,44 @@ function drawBox () {
   mesh.material.color.set(new THREE.Color('blue'))
   loadObjects();
 }
+
+
+  // $.ajax({
+  //   url: '/get-obj',
+  //   type: 'POST',
+  //   datatype: 'JSON',
+  //   data: { },
+  //   success: function (data) {
+  //     console.log('Get result');
+  //     window.json = JSON.parse(data);
+
+  //     geometry = new THREE.Geometry();
+  //     var vertices = [];
+  //     for (var i=0; i<json.vertices.length/3; i++) {
+  //       var vertex = new THREE.Vector3(
+  //         json.vertices[3*i],
+  //         json.vertices[3*i+1],
+  //         json.vertices[3*i+2]
+  //       );
+  //       vertices.push(vertex);
+  //     }
+
+  //     for (var j=0; j<json.faces.length/8; j++) {
+  //       var v1 = vertices[json.faces[8*j+1]]
+  //       var v2 = vertices[json.faces[8*j+2]]
+  //       var v3 = vertices[json.faces[8*j+3]]
+  //       var num = geometry.vertices.length;
+  //       geometry.vertices.push(v1)
+  //       geometry.vertices.push(v2)
+  //       geometry.vertices.push(v3)
+  //       var face = new THREE.Face3(num, num+1, num+2);
+  //       geometry.faces.push(face);
+  //     }
+
+  //     // var material = new THREE.MeshBasicMaterial({color: 0x00ff00});
+  //     // mesh = new THREE.Mesh(geometry, material);
+  //     // scene.add(mesh)
+
+  //   }
+  // })
 
