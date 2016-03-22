@@ -54,7 +54,7 @@ function init() {
   // renderer.setClearColor(0xbbbbbb, 1.0);
   renderer.setClearColor(0xf0f0f0);
   renderer.setSize( window.innerWidth, window.innerHeight );
-  renderer.shadowMap.enabled = true;
+  // renderer.shadowMap.enabled = true;
   document.getElementById('viewport').appendChild( renderer.domElement );
 
   controls = new THREE.OrbitControls( camera, renderer.domElement );

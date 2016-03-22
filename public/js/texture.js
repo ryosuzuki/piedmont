@@ -91,7 +91,7 @@ function getDgpc (start) {
       mesh.receiveShadow = true;
       mesh.castShadow = true;
       mesh.receiveShadow = true;
-      mesh.scale.set(3, 3, 3)
+      mesh.scale.set(6, 6, 6)
       scene.add(mesh);
       objects.push(mesh)
 

@@ -2,7 +2,7 @@ html, body {
   height: 100%;
 }
 
-#canvas {
+#drawing {
   position: absolute;
   top: 0px;
   left: 0px;

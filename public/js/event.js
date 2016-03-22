@@ -142,8 +142,7 @@ function onDocumentMouseDown( event ) {
     drawLine(pos.x, pos.y)
 
     window.event = event
-    console.log(event)
-    updateTexture()
+    affectedFaces = _.union(affectedFaces, [currentIndex])
     // paper.view.onFrame = function (event) { }
   }
 

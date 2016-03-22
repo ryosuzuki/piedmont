@@ -27,6 +27,7 @@ window.onload = function () {
   window.finishPainting = function () {
     path.simplify(10)
     paper.view.draw()
+    updateTexture()
     path = new paper.Path(pathStyle)
   }
 
@@ -61,11 +62,6 @@ function initializeViewingTexture () {
 }
 
 
-
-function startStroke (pos) {
-}
-
-
 function getScreenPosition (pos) {
   var vector = new THREE.Vector3();
   var canvas = renderer.domElement;
@@ -74,11 +70,13 @@ function getScreenPosition (pos) {
   vector.x = Math.round( (   vector.x + 1 ) * canvas.width  / 2 ),
   vector.y = Math.round( ( - vector.y + 1 ) * canvas.height / 2 );
   vector.z = 0;
+  console.log(vector)
   return { x: vector.x, y: vector.y }
 }
 
+var affectedFaces = []
 function updateTexture () {
-  var affectedFaces = [currentIndex]
+  // affectedFaces = [currentIndex]
   // var uMax = Number.NEGATIVE_INFINITY
   // var uMin = Number.POSITIVE_INFINITY
   // var vMax = Number.NEGATIVE_INFINITY
@@ -92,27 +90,38 @@ function updateTexture () {
     var s2 = getScreenPosition(v2)
     var s3 = getScreenPosition(v3)
 
-    var drawingContext = drawingCanvas.getContext('2d')
-    drawingContext.beginPath()
-    drawingContext.moveTo(s1.x, s1.y)
-    drawingContext.lineTo(s2.x, s2.y)
-    drawingContext.lineTo(s3.x, s3.y)
-    drawingContext.clip()
+    // var drawingContext = drawingCanvas.getContext('2d')
+    // drawingContext.beginPath()
+    // drawingContext.moveTo(s1.x, s1.y)
+    // drawingContext.lineTo(s2.x, s2.y)
+    // drawingContext.lineTo(s3.x, s3.y)
+    // drawingContext.clip()
 
     var xMax = _.max([s1.x, s2.x, s3.x])
     var xMin = _.min([s1.x, s2.x, s3.x])
     var yMax = _.max([s1.y, s2.y, s3.y])
     var yMin = _.min([s1.y, s2.y, s3.y])
 
+    // var xMin = 300
+    // var yMin = 300
     var width = xMax - xMin
     var height = yMax - yMin
     var patchCanvas = document.createElement('canvas')
     patchCanvas.width = width
     patchCanvas.height = height
-    patchCanvas.getContext('2d').drawImage(drawingCanvas, xMin, yMin, width, height, 0, 0, width, height)
+    var patchContext = patchCanvas.getContext('2d')
+    patchContext.drawImage(drawingCanvas, xMin, yMin, width, height, 0, 0, width, height)
+    patchContext.fillStyle = 'blue'
+    patchContext.fillRect(0, 0, width, height)
+    document.getElementById('debug').appendChild(patchCanvas)
 
+
+    // var context = backgroundCanvas.getContext('2d')
+    // context.beginPath()
+    // context.fillStyle = 'red'
+    // context.fillRect(0, 0, 1, 1)
     var patchMaterial = new THREE.MeshLambertMaterial({
-      map: new THREE.Texture(drawingCanvas),
+      map: new THREE.Texture(patchCanvas),
       transparent: true
     })
     patchMaterial.map.minFilter = THREE.LinearFilter
@@ -125,6 +134,10 @@ function updateTexture () {
     // vMax = Math.max(vMax, uvs[0].y, uvs[1].y, uvs[2].y);
     // vMin = Math.min(vMin, uvs[0].y, uvs[1].y, uvs[2].y);
   }
+  mesh.material = viewingMaterial
+  // mesh.geometry.uvsNeedUpdate = true
+
+
   // xMax = uMax * drawingCanvas.width
   // xMin = uMin * drawingCanvas.width
   // yMax = (1 - vMin) * drawingCanvas.height
