@@ -1,11 +1,15 @@
-COMPILER = g++
-CFLAGS = -dynamiclib -std=c++11 -Wno-c++11-extensions -w
-TARGET = dgpc.dylib
-SOURCES = calculate.cpp
-INCLUDE = -I./src/ \
-	-I/usr/local/opt/rapidjson/include/
-LIBS = -L/usr/local/opt/open-mesh/lib/ \
-	/usr/local/opt/open-mesh/lib/libOpenMeshCore.a
+# COMPILER = g++
+# CFLAGS = -dynamiclib -std=c++11 -Wno-c++11-extensions -w
+# TARGET = dgpc.dylib
+# SOURCES = calculate.cpp
+COMPILER = em++
+CFLAGS = -std=c++11 -Wno-c++11-extensions -w
+TARGET = hoge.js
+SOURCES = main.cpp
+INCLUDE = -I./src/
+LIBS = -L./lib/ \
+	./lib/libOpenMeshCore.a \
+	./lib/libOpenMeshTools.a
 
 compile:
 	$(COMPILER) $(CFLAGS) -o $(TARGET) $(INCLUDE) $(LIBS) $(SOURCES)

@@ -144,7 +144,7 @@ function onDocumentMouseDown( event ) {
     drawLine(pos.x, pos.y)
 
     window.event = event
-    affectedFaces = _.union(affectedFaces, [currentIndex])
+    if (currentIndex) affectedFaces = _.union(affectedFaces, [currentIndex])
     // paper.view.onFrame = function (event) { }
   }
 
@@ -182,6 +182,9 @@ function onWindowResize () {
   camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();
   renderer.setSize( window.innerWidth, window.innerHeight );
+
+  drawingCanvas.width = renderer.domElement.width
+  drawingCanvas.height = renderer.domElement.height
 }
 
 function onDocumentTouchStart( event ) {

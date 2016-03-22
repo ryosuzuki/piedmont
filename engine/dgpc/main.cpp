@@ -33,12 +33,12 @@ int main(int argc, char** argv) {
   //Read mesh from file
   Mesh my_mesh;
   my_mesh.openOBJ(filename);
-  
+
   //Make a DGPC generator
   DGPCgenerator my_dgpc(my_mesh);
 
   //Set options
-  if(stopdist > 0) 
+  if(stopdist > 0)
     my_dgpc.setStopDist(stopdist);
 
   if(epsilon > 0)

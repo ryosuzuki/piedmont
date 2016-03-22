@@ -19,13 +19,6 @@
 
 #include "Vector3.h"
 
-#include "rapidjson/document.h"
-#include "rapidjson/writer.h"
-#include "rapidjson/stringbuffer.h"
-
-using namespace std;
-using namespace rapidjson;
-
 namespace DGPC {
 
   template<class P>
@@ -38,47 +31,59 @@ namespace DGPC {
   public:
     typedef Point point_type;
 
-    bool openOBJ(char* json) {
+    bool openOBJ(const char* filename) {
+
+      std::ifstream in(filename);
+      std::string line;
+
       int maxpoly = 0;
 
-      Document d;
-      d.Parse(json);
+      while ( std::getline(in, line) ) {
 
-      Value &uniq  = d["uniq"];
-      Value &faces = d["faces"];
-      Value &map   = d["map"];
+        std::istringstream i(line.c_str ());
 
-      for (SizeType i=0; i<uniq.Size(); i++) {
-        typename point_type::value_type x, y, z;
-        Value &vertex = uniq[i]["vertex"];
-        x = vertex["x"].GetDouble();
-        y = vertex["y"].GetDouble();
-        z = vertex["z"].GetDouble();
-        this->add_vertex(Point(x, y, z));
+        if(line[0] == 'v' && isblank(line[1])) {
+          char t;
+          typename point_type::value_type v0, v1, v2;
+          i >> t;
+          i >> v0;
+          i >> v1;
+          i >> v2;
+
+          this->add_vertex(Point(v0, v1, v2));
+        } else if(line[0] == 'f') {
+          char t;
+          i >> t;
+
+          std::vector< typename MeshOM<Point>::VertexHandle > face;
+
+          while (!i.eof()) {
+            int v;
+            i >> v;
+            v -= 1; //OBJ is 1-based, we are 0-based
+            face.push_back( this->vertex_handle(v) );
+
+            char next = i.peek();
+            while(!isspace(next) && !i.eof()) {
+              //Ignore normals and texture coordinates
+              i >> next;
+              next = i.peek();
+              if(next == '\r') i >> next; //Raise eof. Fix for obj files with '\r\n' line endings
+            }
+
+          }
+          this->add_face(face);
+
+          int poly = face.size();
+          if(poly > maxpoly) maxpoly = poly;
+
+        }
       }
-
-      for (SizeType i=0; i<faces.Size(); i++) {
-        vector< typename MeshOM<Point>::VertexHandle > face;
-
-        Value &f = faces[i];
-        int a = f["a"].GetInt();
-        int b = f["b"].GetInt();
-        int c = f["c"].GetInt();
-        int va = map[a].GetInt();
-        int vb = map[b].GetInt();
-        int vc = map[c].GetInt();
-        face.push_back( this->vertex_handle(va) );
-        face.push_back( this->vertex_handle(vb) );
-        face.push_back( this->vertex_handle(vc) );
-
-        this->add_face(face);
-        int poly = face.size();
-        if(poly > maxpoly) maxpoly = poly;
-      }
+      in.close();
 
       const int nv = this->n_vertices();
       const int nf = this->n_faces();
-      printf("Geometry Info: %d vertices and %d faces (most complex face has %d nodes)\n", nv, nf, maxpoly);
+      printf("%s: %d vertices and %d faces (most complex face has %d nodes)\n", filename, nv, nf, maxpoly);
 
       return true;
     }

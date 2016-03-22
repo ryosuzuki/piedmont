@@ -8,8 +8,7 @@ var drawingCanvas;
 
 window.onload = function () {
   drawingCanvas = document.getElementById('drawing')
-  drawingCanvas.width = renderer.domElement.width
-  drawingCanvas.height = renderer.domElement.height
+
   paper.setup(drawingCanvas)
 
   paper.view.on('frame', onDocumentMouseDown)
@@ -41,6 +40,8 @@ window.onload = function () {
 
 function initializeViewingTexture () {
   // document.getElementById('drawing').appendChild(drawingCanvas)
+  drawingCanvas.width = window.innerWidth
+  drawingCanvas.height = window.innerHeight
 
   var context = backgroundCanvas.getContext('2d')
   context.beginPath()
@@ -72,12 +73,14 @@ function getScreenPosition (pos) {
   vector.x = Math.round( (   vector.x + 1 ) * canvas.width  / 2 ),
   vector.y = Math.round( ( - vector.y + 1 ) * canvas.height / 2 );
   vector.z = 0;
-  console.log(vector)
+  // console.log(vector)
   return { x: vector.x, y: vector.y }
 }
 
 var affectedFaces = []
 function updateTexture () {
+
+
   // affectedFaces = [currentIndex]
   // var uMax = Number.NEGATIVE_INFINITY
   // var uMin = Number.POSITIVE_INFINITY
@@ -92,25 +95,27 @@ function updateTexture () {
     var s2 = getScreenPosition(v2)
     var s3 = getScreenPosition(v3)
 
-    // var drawingContext = drawingCanvas.getContext('2d')
-    // drawingContext.beginPath()
-    // drawingContext.moveTo(s1.x, s1.y)
-    // drawingContext.lineTo(s2.x, s2.y)
-    // drawingContext.lineTo(s3.x, s3.y)
-    // drawingContext.clip()
-
     var xMax = _.max([s1.x, s2.x, s3.x])
     var xMin = _.min([s1.x, s2.x, s3.x])
     var yMax = _.max([s1.y, s2.y, s3.y])
     var yMin = _.min([s1.y, s2.y, s3.y])
     console.log({xMin: xMin, xMax: xMax, yMin: yMin, yMax: yMax})
-    var width = 400 //xMax - xMin
-    var height = 400 // yMax - yMin
+
+    var width = xMax - xMin
+    var height = yMax - yMin
+
+    var drawingContext = drawingCanvas.getContext('2d')
+    // drawingContext.fillStyle = 'blue'
+    // drawingContext.fillRect(0, 0, drawingCanvas.width, drawingCanvas.height)
+    drawingContext.beginPath()
+    drawingContext.rect(xMin, yMin, xMax, yMax)
+    drawingContext.clip()
+
     var patchCanvas = document.createElement('canvas')
     patchCanvas.width = width
     patchCanvas.height = height
     var patchContext = patchCanvas.getContext('2d')
-    patchContext.drawImage(drawingCanvas, 0, 0, width, height, 0, 0, width, height)
+    patchContext.drawImage(drawingCanvas, xMin, yMin, width, height, 0, 0, width, height)
     // patchContext.fillStyle = 'blue'
     // patchContext.fillRect(0, 0, width, height)
     document.getElementById('debug').appendChild(patchCanvas)
