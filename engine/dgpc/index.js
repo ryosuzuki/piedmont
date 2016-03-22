@@ -9,7 +9,7 @@ var dgpc = {
   getMapping: getMapping,
 }
 var lib = ffi.Library(__dirname + '/dgpc', {
-  'getMapping':   ['void', ['string', 'pointer']],
+  'getMapping':   ['void', ['string', 'int', 'pointer']],
 });
 
 var int = ref.types.int;
@@ -26,7 +26,31 @@ Result.mapping = StructType({
 
 var fs = require('fs');
 
-function getMapping (json) {
+function getMapping (filename, start) {
+  console.log('Start getMapping');
+  var size = 600
+  var result = new Result.mapping({
+    n: int,
+    id: new IntArray(size),
+    r: new IntArray(size),
+    theta: new IntArray(size)
+  });
+  lib.getMapping(filename, start, result.ref());
+
+  console.log('Get result from C++');
+  console.log('Start converting in Node');
+  var uv = [];
+  for (var i=0; i<result.n; i++) {
+    uv[i] = {};
+    uv[i].id = result.id[i];
+    uv[i].r = result.r[i];
+    uv[i].theta = result.theta[i];
+  }
+  console.log('Finish');
+  return { uv: uv };
+}
+
+function getMapping2 (json) {
   /*
   var json = {
     uniq:     geometry.uniq,

@@ -23,9 +23,11 @@ function loadObjects () {
   .then(computeEdgeLength(geometry))
   .then(computeAngle(geometry))
   .then(computeCcwEdges(geometry))
+  .then(createObj(geometry))
+
   // .then(computeBoundary(geometry))
   // .then(computeLaplacian(geometry))
-  .then(getDgpc(100))
+  // .then(getDgpc(100))
   // .then(computeHarmonicField(geometry))
 
   // .then(hoge(geometry))
@@ -33,6 +35,16 @@ function loadObjects () {
 
   // .then(getBoundary(geometry))
   // .then(getMapping(geometry))
+}
+
+var socket = io()
+function createObj (geometry) {
+  var json = {
+    uniq: geometry.uniq,
+    faces: geometry.faces,
+    map: geometry.map
+  }
+  socket.emit('connection', json)
 }
 
 function drawObjects () {

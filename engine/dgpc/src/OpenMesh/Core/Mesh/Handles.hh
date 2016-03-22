@@ -40,7 +40,7 @@
  * ========================================================================= */
 
 /*===========================================================================*\
- *                                                                           *             
+ *                                                                           *
  *   $Revision: 1278 $                                                         *
  *   $Date: 2015-06-09 10:58:41 +0200 (Di, 09 Jun 2015) $                   *
  *                                                                           *
@@ -65,9 +65,9 @@ namespace OpenMesh {
 
 /// Base class for all handle types
 class BaseHandle
-{ 
+{
 public:
-  
+
   explicit BaseHandle(int _idx=-1) : idx_(_idx) {}
 
   /// Get the underlying index of this handle
@@ -81,16 +81,16 @@ public:
   /// reset handle to be invalid
   void invalidate() { idx_ = -1; }
 
-  bool operator==(const BaseHandle& _rhs) const { 
-    return (this->idx_ == _rhs.idx_); 
+  bool operator==(const BaseHandle& _rhs) const {
+    return (this->idx_ == _rhs.idx_);
   }
 
-  bool operator!=(const BaseHandle& _rhs) const { 
-    return (this->idx_ != _rhs.idx_); 
+  bool operator!=(const BaseHandle& _rhs) const {
+    return (this->idx_ != _rhs.idx_);
   }
 
-  bool operator<(const BaseHandle& _rhs) const { 
-    return (this->idx_ < _rhs.idx_); 
+  bool operator<(const BaseHandle& _rhs) const {
+    return (this->idx_ < _rhs.idx_);
   }
 
 
@@ -101,14 +101,14 @@ public:
 
 private:
 
-  int idx_; 
+  int idx_;
 };
 
 
 //-----------------------------------------------------------------------------
 
 /// Write handle \c _hnd to stream \c _os
-inline std::ostream& operator<<(std::ostream& _os, const BaseHandle& _hnd) 
+std::ostream& operator<<(std::ostream& _os, const BaseHandle& _hnd)
 {
   return (_os << _hnd.idx());
 }

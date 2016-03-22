@@ -40,7 +40,7 @@
  * ========================================================================= */
 
 /*===========================================================================*\
- *                                                                           *             
+ *                                                                           *
  *   $Revision: 1258 $                                                         *
  *   $Date: 2015-04-28 15:07:46 +0200 (Di, 28 Apr 2015) $                   *
  *                                                                           *
@@ -54,23 +54,23 @@
 #include <OpenMesh/Core/Mesh/TriMesh_ArrayKernelT.hh>
 
 //== NAMESPACES ===============================================================
-namespace OpenMesh 
+namespace OpenMesh
 {
 
 template <class Traits>
-inline TriMesh_ArrayKernelT<Traits>& TRIMESH_CAST(PolyMesh_ArrayKernelT<Traits>& _poly_mesh)
+TriMesh_ArrayKernelT<Traits>& TRIMESH_CAST(PolyMesh_ArrayKernelT<Traits>& _poly_mesh)
 { return reinterpret_cast< TriMesh_ArrayKernelT<Traits>& >(_poly_mesh); }
 
 template <class Traits>
-inline const TriMesh_ArrayKernelT<Traits>& TRIMESH_CAST(const PolyMesh_ArrayKernelT<Traits>& _poly_mesh)
+const TriMesh_ArrayKernelT<Traits>& TRIMESH_CAST(const PolyMesh_ArrayKernelT<Traits>& _poly_mesh)
 { return reinterpret_cast< const TriMesh_ArrayKernelT<Traits>& >(_poly_mesh); }
 
 template <class Traits>
-inline PolyMesh_ArrayKernelT<Traits>& POLYMESH_CAST(TriMesh_ArrayKernelT<Traits>& _tri_mesh)
+PolyMesh_ArrayKernelT<Traits>& POLYMESH_CAST(TriMesh_ArrayKernelT<Traits>& _tri_mesh)
 { return reinterpret_cast< PolyMesh_ArrayKernelT<Traits>& >(_tri_mesh); }
 
 template <class Traits>
-inline const PolyMesh_ArrayKernelT<Traits>& POLYMESH_CAST(const TriMesh_ArrayKernelT<Traits>& _tri_mesh)
+const PolyMesh_ArrayKernelT<Traits>& POLYMESH_CAST(const TriMesh_ArrayKernelT<Traits>& _tri_mesh)
 { return reinterpret_cast< const PolyMesh_ArrayKernelT<Traits>& >(_tri_mesh); }
 
 };

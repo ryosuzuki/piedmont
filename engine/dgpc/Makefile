@@ -1,11 +1,7 @@
-# COMPILER = g++
-# CFLAGS = -dynamiclib -std=c++11 -Wno-c++11-extensions -w
-# TARGET = dgpc.dylib
-# SOURCES = calculate.cpp
-COMPILER = em++
-CFLAGS = -std=c++11 -Wno-c++11-extensions -w
-TARGET = hoge.js
-SOURCES = main.cpp
+COMPILER = g++
+CFLAGS = -dynamiclib -std=c++11 -Wno-c++11-extensions -w
+TARGET = dgpc.dylib
+SOURCES = calculate.cpp
 INCLUDE = -I./src/
 LIBS = -L./lib/ \
 	./lib/libOpenMeshCore.a \

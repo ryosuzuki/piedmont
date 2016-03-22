@@ -40,7 +40,7 @@
  * ========================================================================= */
 
 /*===========================================================================*\
- *                                                                           *             
+ *                                                                           *
  *   $Revision: 1258 $                                                         *
  *   $Date: 2015-04-28 15:07:46 +0200 (Di, 28 Apr 2015) $                   *
  *                                                                           *
@@ -62,21 +62,21 @@ public:
   TriConnectivity() {}
   virtual ~TriConnectivity() {}
 
-  inline static bool is_triangles()
+  static bool is_triangles()
   { return true; }
 
   /** assign_connectivity() methods. See ArrayKernel::assign_connectivity()
       for more details. When the source connectivity is not triangles, in
       addition "fan" connectivity triangulation is performed*/
-  inline void assign_connectivity(const TriConnectivity& _other)
+  void assign_connectivity(const TriConnectivity& _other)
   { PolyConnectivity::assign_connectivity(_other); }
-  
-  inline void assign_connectivity(const PolyConnectivity& _other)
-  { 
-    PolyConnectivity::assign_connectivity(_other); 
+
+  void assign_connectivity(const PolyConnectivity& _other)
+  {
+    PolyConnectivity::assign_connectivity(_other);
     triangulate();
   }
-  
+
   /** \name Addding items to a mesh
   */
 
@@ -91,7 +91,7 @@ public:
    *
    * */
   FaceHandle add_face(const VertexHandle* _vhandles, size_t _vhs_size);
-  
+
   /** \brief Add a face with arbitrary valence to the triangle mesh
      *
      * Override OpenMesh::Mesh::PolyMeshT::add_face(). Faces that aren't
@@ -113,13 +113,13 @@ public:
    * @return FaceHandle of the added face (invalid, if the operation failed)
    */
   FaceHandle add_face(VertexHandle _vh0, VertexHandle _vh1, VertexHandle _vh2);
-  
+
   //@}
 
   /** Returns the opposite vertex to the halfedge _heh in the face
       referenced by _heh returns InvalidVertexHandle if the _heh is
       boundary  */
-  inline VertexHandle opposite_vh(HalfedgeHandle _heh) const
+  VertexHandle opposite_vh(HalfedgeHandle _heh) const
   {
     return is_boundary(_heh) ? InvalidVertexHandle :
                                to_vertex_handle(next_halfedge_handle(_heh));
@@ -185,7 +185,7 @@ public:
    * @param _fh Face handle that should be splitted
    * @param _vh Vertex handle that will be inserted at the face
    */
-  inline void split(FaceHandle _fh, VertexHandle _vh)
+  void split(FaceHandle _fh, VertexHandle _vh)
   { PolyConnectivity::split(_fh, _vh); }
 
   /** \brief Face split (= 1-to-3) split, calls corresponding PolyMeshT function).
@@ -193,7 +193,7 @@ public:
    * @param _fh Face handle that should be splitted
    * @param _vh Vertex handle that will be inserted at the face
    */
-  inline void split_copy(FaceHandle _fh, VertexHandle _vh)
+  void split_copy(FaceHandle _fh, VertexHandle _vh)
   { PolyConnectivity::split_copy(_fh, _vh); }
 
   //@}

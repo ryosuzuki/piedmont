@@ -21,22 +21,18 @@ extern "C" {
     double *theta;
   } Result_Mapping;
 
-  void getMapping(char *json, Result_Mapping *res) {
+  typedef DGPC::Vector3<double> Point;
+  typedef DGPC::MeshOM<Point> Mesh;
+  typedef DGPC::Generator<Mesh> DGPCgenerator;
 
-    typedef DGPC::Vector3<double> Point;
-    typedef DGPC::MeshOM<Point> Mesh;
-    typedef DGPC::Generator<Mesh> DGPCgenerator;
-
-    Document d;
-    d.Parse(json);
-    Value &start  = d["start"];
-    int source_idx = start.GetInt();
+  void getMapping(char *filename, int start, Result_Mapping *res) {
 
     double stopdist = -1;
     double epsilon = -1;
 
     Mesh my_mesh;
-    my_mesh.openOBJ(json);
+    my_mesh.openOBJ(filename);
+
 
     //Make a DGPC generator
     DGPCgenerator my_dgpc(my_mesh);
@@ -49,7 +45,7 @@ extern "C" {
       my_dgpc.setEps(epsilon);
 
     //Set source node
-    my_dgpc.setNodeSource(source_idx);
+    my_dgpc.setNodeSource(start);
 
     //Optionally, the library also supports to set the source point:
     //Point p = Point(0,0,0);  //R3 coordinate of source
@@ -84,12 +80,18 @@ extern "C" {
 
   }
 
-  int main () {
-    char *json;
-    Result_Mapping *res;
-    getMapping(json, res);
-    cout << "OK" << endl;
-  }
-
 }
 
+/*
+typedef DGPC::Vector3<double> Point;
+typedef DGPC::MeshOM<Point> Mesh;
+typedef DGPC::Generator<Mesh> DGPCgenerator;
+
+Document d;
+d.Parse(json);
+Value &start  = d["start"];
+int source_idx = start.GetInt();
+
+Mesh my_mesh;
+my_mesh.openOBJ(json);
+*/

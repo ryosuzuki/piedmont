@@ -40,7 +40,7 @@
  * ========================================================================= */
 
 /*===========================================================================*\
- *                                                                           *             
+ *                                                                           *
  *   $Revision: 1258 $                                                         *
  *   $Date: 2015-04-28 15:07:46 +0200 (Di, 28 Apr 2015) $                   *
  *                                                                           *
@@ -78,11 +78,11 @@ class GenericCirculator_CenterEntityFnsT {
 template<class Mesh>
 class GenericCirculator_CenterEntityFnsT<Mesh, typename Mesh::VertexHandle, true> {
     public:
-        inline static void increment(const Mesh *mesh, typename Mesh::HalfedgeHandle &heh, typename Mesh::HalfedgeHandle &start, int &lap_counter) {
+        static void increment(const Mesh *mesh, typename Mesh::HalfedgeHandle &heh, typename Mesh::HalfedgeHandle &start, int &lap_counter) {
             heh = mesh->cw_rotated_halfedge_handle(heh);
             if (heh == start) ++lap_counter;
         }
-        inline static void decrement(const Mesh *mesh, typename Mesh::HalfedgeHandle &heh, typename Mesh::HalfedgeHandle &start, int &lap_counter) {
+        static void decrement(const Mesh *mesh, typename Mesh::HalfedgeHandle &heh, typename Mesh::HalfedgeHandle &start, int &lap_counter) {
             if (heh == start) --lap_counter;
             heh = mesh->ccw_rotated_halfedge_handle(heh);
         }
@@ -91,11 +91,11 @@ class GenericCirculator_CenterEntityFnsT<Mesh, typename Mesh::VertexHandle, true
 template<class Mesh>
 class GenericCirculator_CenterEntityFnsT<Mesh, typename Mesh::FaceHandle, true> {
     public:
-        inline static void increment(const Mesh *mesh, typename Mesh::HalfedgeHandle &heh, typename Mesh::HalfedgeHandle &start, int &lap_counter) {
+        static void increment(const Mesh *mesh, typename Mesh::HalfedgeHandle &heh, typename Mesh::HalfedgeHandle &start, int &lap_counter) {
             heh = mesh->next_halfedge_handle(heh);
             if (heh == start) ++lap_counter;
         }
-        inline static void decrement(const Mesh *mesh, typename Mesh::HalfedgeHandle &heh, typename Mesh::HalfedgeHandle &start, int &lap_counter) {
+        static void decrement(const Mesh *mesh, typename Mesh::HalfedgeHandle &heh, typename Mesh::HalfedgeHandle &start, int &lap_counter) {
             if (heh == start) --lap_counter;
             heh = mesh->prev_halfedge_handle(heh);
         }
@@ -107,11 +107,11 @@ class GenericCirculator_CenterEntityFnsT<Mesh, typename Mesh::FaceHandle, true> 
 template<class Mesh>
 class GenericCirculator_CenterEntityFnsT<Mesh, typename Mesh::VertexHandle, false> {
     public:
-        inline static void increment(const Mesh *mesh, typename Mesh::HalfedgeHandle &heh, typename Mesh::HalfedgeHandle &start, int &lap_counter) {
+        static void increment(const Mesh *mesh, typename Mesh::HalfedgeHandle &heh, typename Mesh::HalfedgeHandle &start, int &lap_counter) {
             heh = mesh->ccw_rotated_halfedge_handle(heh);
             if (heh == start) ++lap_counter;
         }
-        inline static void decrement(const Mesh *mesh, typename Mesh::HalfedgeHandle &heh, typename Mesh::HalfedgeHandle &start, int &lap_counter) {
+        static void decrement(const Mesh *mesh, typename Mesh::HalfedgeHandle &heh, typename Mesh::HalfedgeHandle &start, int &lap_counter) {
             if (heh == start) --lap_counter;
             heh = mesh->cw_rotated_halfedge_handle(heh);
         }
@@ -120,11 +120,11 @@ class GenericCirculator_CenterEntityFnsT<Mesh, typename Mesh::VertexHandle, fals
 template<class Mesh>
 class GenericCirculator_CenterEntityFnsT<Mesh, typename Mesh::FaceHandle, false>  {
     public:
-        inline static void increment(const Mesh *mesh, typename Mesh::HalfedgeHandle &heh, typename Mesh::HalfedgeHandle &start, int &lap_counter) {
+        static void increment(const Mesh *mesh, typename Mesh::HalfedgeHandle &heh, typename Mesh::HalfedgeHandle &start, int &lap_counter) {
             heh = mesh->prev_halfedge_handle(heh);
             if (heh == start) ++lap_counter;
         }
-        inline static void decrement(const Mesh *mesh, typename Mesh::HalfedgeHandle &heh, typename Mesh::HalfedgeHandle &start, int &lap_counter) {
+        static void decrement(const Mesh *mesh, typename Mesh::HalfedgeHandle &heh, typename Mesh::HalfedgeHandle &start, int &lap_counter) {
             if (heh == start) --lap_counter;
             heh = mesh->next_halfedge_handle(heh);
         }
@@ -134,13 +134,13 @@ class GenericCirculator_CenterEntityFnsT<Mesh, typename Mesh::FaceHandle, false>
 template<class Mesh, class CenterEntityHandle, class ValueHandle>
 class GenericCirculator_DereferenciabilityCheckT {
     public:
-        //inline static bool isDereferenciable(const Mesh *mesh, const typename Mesh::HalfedgeHandle &heh, const typename Mesh::HalfedgeHandle &start, const int &lap_counter);
+        //static bool isDereferenciable(const Mesh *mesh, const typename Mesh::HalfedgeHandle &heh, const typename Mesh::HalfedgeHandle &start, const int &lap_counter);
 };
 
 template<class Mesh>
 class GenericCirculator_DereferenciabilityCheckT<Mesh, typename Mesh::FaceHandle, typename Mesh::FaceHandle> {
     public:
-        inline static bool isDereferenciable(const Mesh *mesh, const typename Mesh::HalfedgeHandle &heh) {
+        static bool isDereferenciable(const Mesh *mesh, const typename Mesh::HalfedgeHandle &heh) {
             return mesh->face_handle(mesh->opposite_halfedge_handle(heh)).is_valid();
         }
 };
@@ -148,7 +148,7 @@ class GenericCirculator_DereferenciabilityCheckT<Mesh, typename Mesh::FaceHandle
 template<class Mesh>
 class GenericCirculator_DereferenciabilityCheckT<Mesh, typename Mesh::VertexHandle, typename Mesh::FaceHandle> {
     public:
-        inline static bool isDereferenciable(const Mesh *mesh, const typename Mesh::HalfedgeHandle &heh) {
+        static bool isDereferenciable(const Mesh *mesh, const typename Mesh::HalfedgeHandle &heh) {
             return mesh->face_handle(heh).is_valid();
         }
 };
@@ -156,14 +156,14 @@ class GenericCirculator_DereferenciabilityCheckT<Mesh, typename Mesh::VertexHand
 template<class Mesh, class CenterEntityHandle, class ValueHandle, bool CW = true>
 class GenericCirculator_ValueHandleFnsT {
     public:
-        inline static bool is_valid(const typename Mesh::HalfedgeHandle &heh, const int lap_counter) {
+        static bool is_valid(const typename Mesh::HalfedgeHandle &heh, const int lap_counter) {
             return ( heh.is_valid() && (lap_counter == 0 ) );
         }
-        inline static void init(const Mesh*, typename Mesh::HalfedgeHandle&, typename Mesh::HalfedgeHandle&, int&) {};
-        inline static void increment(const Mesh *mesh, typename Mesh::HalfedgeHandle &heh, typename Mesh::HalfedgeHandle &start, int &lap_counter) {
+        static void init(const Mesh*, typename Mesh::HalfedgeHandle&, typename Mesh::HalfedgeHandle&, int&) {};
+        static void increment(const Mesh *mesh, typename Mesh::HalfedgeHandle &heh, typename Mesh::HalfedgeHandle &start, int &lap_counter) {
             GenericCirculator_CenterEntityFnsT<Mesh, CenterEntityHandle, CW>::increment(mesh, heh, start, lap_counter);
         }
-        inline static void decrement(const Mesh *mesh, typename Mesh::HalfedgeHandle &heh, typename Mesh::HalfedgeHandle &start, int &lap_counter) {
+        static void decrement(const Mesh *mesh, typename Mesh::HalfedgeHandle &heh, typename Mesh::HalfedgeHandle &start, int &lap_counter) {
             GenericCirculator_CenterEntityFnsT<Mesh, CenterEntityHandle, CW>::decrement(mesh, heh, start, lap_counter);
         }
 };
@@ -173,19 +173,19 @@ class GenericCirculator_ValueHandleFnsT<Mesh, CenterEntityHandle, typename Mesh:
     public:
         typedef GenericCirculator_DereferenciabilityCheckT<Mesh, CenterEntityHandle, typename Mesh::FaceHandle> GenericCirculator_DereferenciabilityCheck;
 
-        inline static bool is_valid(const typename Mesh::HalfedgeHandle &heh, const int lap_counter) {
+        static bool is_valid(const typename Mesh::HalfedgeHandle &heh, const int lap_counter) {
             return ( heh.is_valid() &&  (lap_counter == 0));
         }
-        inline static void init(const Mesh *mesh, typename Mesh::HalfedgeHandle &heh, typename Mesh::HalfedgeHandle &start, int &lap_counter) {
+        static void init(const Mesh *mesh, typename Mesh::HalfedgeHandle &heh, typename Mesh::HalfedgeHandle &start, int &lap_counter) {
             if (heh.is_valid() && !GenericCirculator_DereferenciabilityCheck::isDereferenciable(mesh, heh) && lap_counter == 0 )
                 increment(mesh, heh, start, lap_counter);
         };
-        inline static void increment(const Mesh *mesh, typename Mesh::HalfedgeHandle &heh, typename Mesh::HalfedgeHandle &start, int &lap_counter) {
+        static void increment(const Mesh *mesh, typename Mesh::HalfedgeHandle &heh, typename Mesh::HalfedgeHandle &start, int &lap_counter) {
             do {
                 GenericCirculator_CenterEntityFnsT<Mesh, CenterEntityHandle, CW>::increment(mesh, heh, start, lap_counter);
             } while (is_valid(heh, lap_counter) && !GenericCirculator_DereferenciabilityCheck::isDereferenciable(mesh, heh));
         }
-        inline static void decrement(const Mesh *mesh, typename Mesh::HalfedgeHandle &heh, typename Mesh::HalfedgeHandle &start, int &lap_counter) {
+        static void decrement(const Mesh *mesh, typename Mesh::HalfedgeHandle &heh, typename Mesh::HalfedgeHandle &start, int &lap_counter) {
             do {
                 GenericCirculator_CenterEntityFnsT<Mesh, CenterEntityHandle, CW>::decrement(mesh, heh, start, lap_counter);
             } while (is_valid(heh, lap_counter) && !GenericCirculator_DereferenciabilityCheck::isDereferenciable(mesh, heh));
@@ -207,31 +207,31 @@ class GenericCirculatorBaseT {
         GenericCirculatorBaseT(const GenericCirculatorBaseT &rhs) :
             mesh_(rhs.mesh_), start_(rhs.start_), heh_(rhs.heh_), lap_counter_(rhs.lap_counter_) {}
 
-        inline typename Mesh::FaceHandle toFaceHandle() const {
+        typename Mesh::FaceHandle toFaceHandle() const {
             return mesh_->face_handle(heh_);
         }
 
-        inline typename Mesh::FaceHandle toOppositeFaceHandle() const {
+        typename Mesh::FaceHandle toOppositeFaceHandle() const {
             return mesh_->face_handle(toOppositeHalfedgeHandle());
         }
 
-        inline typename Mesh::EdgeHandle toEdgeHandle() const {
+        typename Mesh::EdgeHandle toEdgeHandle() const {
             return mesh_->edge_handle(heh_);
         }
 
-        inline typename Mesh::HalfedgeHandle toHalfedgeHandle() const {
+        typename Mesh::HalfedgeHandle toHalfedgeHandle() const {
             return heh_;
         }
 
-        inline typename Mesh::HalfedgeHandle toOppositeHalfedgeHandle() const {
+        typename Mesh::HalfedgeHandle toOppositeHalfedgeHandle() const {
             return mesh_->opposite_halfedge_handle(heh_);
         }
 
-        inline typename Mesh::VertexHandle toVertexHandle() const {
+        typename Mesh::VertexHandle toVertexHandle() const {
             return mesh_->to_vertex_handle(heh_);
         }
 
-        inline GenericCirculatorBaseT &operator=(const GenericCirculatorBaseT &rhs) {
+        GenericCirculatorBaseT &operator=(const GenericCirculatorBaseT &rhs) {
             mesh_ = rhs.mesh_;
             start_ = rhs.start_;
             heh_ = rhs.heh_;
@@ -239,11 +239,11 @@ class GenericCirculatorBaseT {
             return *this;
         }
 
-        inline bool operator==(const GenericCirculatorBaseT &rhs) const {
+        bool operator==(const GenericCirculatorBaseT &rhs) const {
             return mesh_ == rhs.mesh_ && start_ == rhs.start_ && heh_ == rhs.heh_ && lap_counter_ == rhs.lap_counter_;
         }
 
-        inline bool operator!=(const GenericCirculatorBaseT &rhs) const {
+        bool operator!=(const GenericCirculatorBaseT &rhs) const {
             return !operator==(rhs);
         }
 
@@ -387,14 +387,14 @@ class GenericCirculatorT : protected GenericCirculatorBaseT<Mesh> {
 template<class Mesh, class CenterEntityHandle, class ValueHandle>
 class GenericCirculator_ValueHandleFnsT_DEPRECATED {
     public:
-        inline static bool is_valid(const typename Mesh::HalfedgeHandle &heh,const typename Mesh::HalfedgeHandle &start, const int lap_counter) {
+        static bool is_valid(const typename Mesh::HalfedgeHandle &heh,const typename Mesh::HalfedgeHandle &start, const int lap_counter) {
             return ( heh.is_valid() && ((start != heh) || (lap_counter == 0 )) );
         }
-        inline static void init(const Mesh*, typename Mesh::HalfedgeHandle&, typename Mesh::HalfedgeHandle&, int&) {};
-        inline static void increment(const Mesh *mesh, typename Mesh::HalfedgeHandle &heh, typename Mesh::HalfedgeHandle &start, int &lap_counter) {
+        static void init(const Mesh*, typename Mesh::HalfedgeHandle&, typename Mesh::HalfedgeHandle&, int&) {};
+        static void increment(const Mesh *mesh, typename Mesh::HalfedgeHandle &heh, typename Mesh::HalfedgeHandle &start, int &lap_counter) {
             GenericCirculator_CenterEntityFnsT<Mesh, CenterEntityHandle, true>::increment(mesh, heh, start, lap_counter);
         }
-        inline static void decrement(const Mesh *mesh, typename Mesh::HalfedgeHandle &heh, typename Mesh::HalfedgeHandle &start, int &lap_counter) {
+        static void decrement(const Mesh *mesh, typename Mesh::HalfedgeHandle &heh, typename Mesh::HalfedgeHandle &start, int &lap_counter) {
             GenericCirculator_CenterEntityFnsT<Mesh, CenterEntityHandle, true>::decrement(mesh, heh, start, lap_counter);
         }
 };
@@ -404,19 +404,19 @@ class GenericCirculator_ValueHandleFnsT_DEPRECATED<Mesh, CenterEntityHandle, typ
     public:
         typedef GenericCirculator_DereferenciabilityCheckT<Mesh, CenterEntityHandle, typename Mesh::FaceHandle> GenericCirculator_DereferenciabilityCheck;
 
-        inline static bool is_valid(const typename Mesh::HalfedgeHandle &heh, const typename Mesh::HalfedgeHandle &start, const int lap_counter) {
+        static bool is_valid(const typename Mesh::HalfedgeHandle &heh, const typename Mesh::HalfedgeHandle &start, const int lap_counter) {
             return ( heh.is_valid() &&  ((start != heh) || (lap_counter == 0 )));
         }
-        inline static void init(const Mesh *mesh, typename Mesh::HalfedgeHandle &heh, typename Mesh::HalfedgeHandle &start, int &lap_counter) {
+        static void init(const Mesh *mesh, typename Mesh::HalfedgeHandle &heh, typename Mesh::HalfedgeHandle &start, int &lap_counter) {
             if (heh.is_valid() && !GenericCirculator_DereferenciabilityCheck::isDereferenciable(mesh, heh) && lap_counter == 0 )
                 increment(mesh, heh, start, lap_counter);
         };
-        inline static void increment(const Mesh *mesh, typename Mesh::HalfedgeHandle &heh, typename Mesh::HalfedgeHandle &start, int &lap_counter) {
+        static void increment(const Mesh *mesh, typename Mesh::HalfedgeHandle &heh, typename Mesh::HalfedgeHandle &start, int &lap_counter) {
             do {
                 GenericCirculator_CenterEntityFnsT<Mesh, CenterEntityHandle, true>::increment(mesh, heh, start, lap_counter);
             } while (is_valid(heh, start, lap_counter) && !GenericCirculator_DereferenciabilityCheck::isDereferenciable(mesh, heh));
         }
-        inline static void decrement(const Mesh *mesh, typename Mesh::HalfedgeHandle &heh, typename Mesh::HalfedgeHandle &start, int &lap_counter) {
+        static void decrement(const Mesh *mesh, typename Mesh::HalfedgeHandle &heh, typename Mesh::HalfedgeHandle &start, int &lap_counter) {
             do {
                 GenericCirculator_CenterEntityFnsT<Mesh, CenterEntityHandle, true>::decrement(mesh, heh, start, lap_counter);
             } while (is_valid(heh, start, lap_counter) && !GenericCirculator_DereferenciabilityCheck::isDereferenciable(mesh, heh));

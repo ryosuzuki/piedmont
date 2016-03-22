@@ -1,11 +1,8 @@
 var fs = require('fs');
 var repl = require('repl');
 var dgpc = require('./index.js');
-
-var str = fs.readFileSync('data.json', 'utf8');
-var json = JSON.parse(str);
-
-var result = dgpc.getMapping(json);
+var filename = './mesh/bunny_1k.obj'
+var result = dgpc.getMapping(filename, 0);
 
 repl.start('> ').context.r = result;
 

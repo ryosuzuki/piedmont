@@ -41,7 +41,7 @@
 
 
 /*===========================================================================*\
- *                                                                           *             
+ *                                                                           *
  *   $Revision: 1258 $                                                         *
  *   $Date: 2015-04-28 15:07:46 +0200 (Di, 28 Apr 2015) $                   *
  *                                                                           *
@@ -84,7 +84,7 @@ protected:
 
 protected:
 
-  inline static Scalar                      compute_proj_weight(uint _valence)
+  static Scalar                      compute_proj_weight(uint _valence)
   {
     //return pow(3.0 / 2.0 + cos(2.0 * M_PI / _valence), 2) / 2.0 - 1.0;
     double denom = (3.0 + 2.0*cos(2.0*M_PI/(double)_valence));
@@ -92,7 +92,7 @@ protected:
     return (Scalar) weight;
   }
 
-  inline static Scalar                      compute_limit_weight(uint _valence)
+  static Scalar                      compute_limit_weight(uint _valence)
   {
     double proj_weight = compute_proj_weight(_valence);
     proj_weight = proj_weight/(proj_weight + _valence);//normalize the proj_weight
@@ -100,7 +100,7 @@ protected:
     return (Scalar)weight;
   }
 
-  inline static Scalar                      compute_step_weight(uint _valence)
+  static Scalar                      compute_step_weight(uint _valence)
   {
     double proj_weight = compute_proj_weight(_valence);
     proj_weight = proj_weight/(proj_weight + _valence);//normalize the proj_weight
@@ -108,12 +108,12 @@ protected:
     return (Scalar)weight;
   }
 
-  inline static Scalar                      compute_tang0_weight(uint _valence, uint _ver_id)
+  static Scalar                      compute_tang0_weight(uint _valence, uint _ver_id)
   {
     return (Scalar)cos(2.0*M_PI*(double)_ver_id/(double)_valence);
   }
 
-  inline static Scalar                      compute_tang1_weight(uint _valence, uint _ver_id)
+  static Scalar                      compute_tang1_weight(uint _valence, uint _ver_id)
   {
     return (Scalar)sin(2.0*M_PI*(double)_ver_id/(double)_valence);
   }
@@ -143,32 +143,32 @@ public:
     cache_weights();
   }
 
-  inline Scalar                             proj_weight(uint _valence) const
+  Scalar                             proj_weight(uint _valence) const
   {
     assert(_valence < cache_size );
     return proj_weights_[_valence];
   }
 
-  inline Scalar                             limit_weight(uint _valence) const
+  Scalar                             limit_weight(uint _valence) const
   {
     assert(_valence < cache_size );
     return limit_weights_[_valence];
   }
 
-  inline Scalar                             step_weight(uint _valence, uint _step) const
+  Scalar                             step_weight(uint _valence, uint _step) const
   {
     assert(_valence < cache_size);
     return pow(step_weights_[_valence], (int)_step);//can be precomputed
   }
 
-  inline Scalar                             tang0_weight(uint _valence, uint _ver_id) const
+  Scalar                             tang0_weight(uint _valence, uint _ver_id) const
   {
     assert(_valence < cache_size );
     assert(_ver_id < _valence);
     return tang0_weights_[_valence][_ver_id];
   }
 
-  inline Scalar                             tang1_weight(uint _valence, uint _ver_id) const
+  Scalar                             tang1_weight(uint _valence, uint _ver_id) const
   {
     assert(_valence < cache_size );
     assert(_ver_id < _valence);

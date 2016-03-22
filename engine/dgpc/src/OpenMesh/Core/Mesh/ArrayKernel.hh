@@ -209,7 +209,7 @@ public:
 
 public:
 
-  inline VertexHandle new_vertex()
+  VertexHandle new_vertex()
   {
     vertices_.push_back(Vertex());
     vprops_resize(n_vertices());//TODO:should it be push_back()?
@@ -217,7 +217,7 @@ public:
     return handle(vertices_.back());
   }
 
-  inline HalfedgeHandle new_edge(VertexHandle _start_vh, VertexHandle _end_vh)
+  HalfedgeHandle new_edge(VertexHandle _start_vh, VertexHandle _end_vh)
   {
 //     assert(_start_vh != _end_vh);
     edges_.push_back(Edge());
@@ -232,14 +232,14 @@ public:
     return heh0;
   }
 
-  inline FaceHandle new_face()
+  FaceHandle new_face()
   {
     faces_.push_back(Face());
     fprops_resize(n_faces());
     return handle(faces_.back());
   }
 
-  inline FaceHandle new_face(const Face& _f)
+  FaceHandle new_face(const Face& _f)
   {
     faces_.push_back(_f);
     fprops_resize(n_faces());
@@ -484,41 +484,41 @@ public:
   StatusInfo&                               status(FaceHandle _fh)
   { return property(face_status_, _fh); }
 
-  inline bool                               has_vertex_status() const
+  bool                               has_vertex_status() const
   { return vertex_status_.is_valid();    }
 
-  inline bool                               has_halfedge_status() const
+  bool                               has_halfedge_status() const
   { return halfedge_status_.is_valid();  }
 
-  inline bool                               has_edge_status() const
+  bool                               has_edge_status() const
   { return edge_status_.is_valid(); }
 
-  inline bool                               has_face_status() const
+  bool                               has_face_status() const
   { return face_status_.is_valid(); }
 
-  inline VertexStatusPropertyHandle         vertex_status_pph() const
+  VertexStatusPropertyHandle         vertex_status_pph() const
   { return vertex_status_;  }
 
-  inline HalfedgeStatusPropertyHandle       halfedge_status_pph() const
+  HalfedgeStatusPropertyHandle       halfedge_status_pph() const
   { return halfedge_status_; }
 
-  inline EdgeStatusPropertyHandle           edge_status_pph() const
+  EdgeStatusPropertyHandle           edge_status_pph() const
   { return edge_status_;  }
 
-  inline FaceStatusPropertyHandle           face_status_pph() const
+  FaceStatusPropertyHandle           face_status_pph() const
   { return face_status_; }
 
   /// status property by handle
-  inline VertexStatusPropertyHandle         status_pph(VertexHandle /*_hnd*/) const
+  VertexStatusPropertyHandle         status_pph(VertexHandle /*_hnd*/) const
   { return vertex_status_pph(); }
 
-  inline HalfedgeStatusPropertyHandle       status_pph(HalfedgeHandle /*_hnd*/) const
+  HalfedgeStatusPropertyHandle       status_pph(HalfedgeHandle /*_hnd*/) const
   { return halfedge_status_pph(); }
 
-  inline EdgeStatusPropertyHandle           status_pph(EdgeHandle /*_hnd*/) const
+  EdgeStatusPropertyHandle           status_pph(EdgeHandle /*_hnd*/) const
   { return edge_status_pph();  }
 
-  inline FaceStatusPropertyHandle           status_pph(FaceHandle /*_hnd*/) const
+  FaceStatusPropertyHandle           status_pph(FaceHandle /*_hnd*/) const
   { return face_status_pph();  }
 
   /// Status Request API
@@ -601,13 +601,13 @@ private:
   KernelConstFaceIter   faces_end() const       { return faces_.end(); }
 
   /// bit mask container by handle
-  inline BitMaskContainer&                  bit_masks(VertexHandle /*_dummy_hnd*/)
+  BitMaskContainer&                  bit_masks(VertexHandle /*_dummy_hnd*/)
   { return vertex_bit_masks_; }
-  inline BitMaskContainer&                  bit_masks(EdgeHandle /*_dummy_hnd*/)
+  BitMaskContainer&                  bit_masks(EdgeHandle /*_dummy_hnd*/)
   { return edge_bit_masks_; }
-  inline BitMaskContainer&                  bit_masks(FaceHandle /*_dummy_hnd*/)
+  BitMaskContainer&                  bit_masks(FaceHandle /*_dummy_hnd*/)
   { return face_bit_masks_; }
-  inline BitMaskContainer&                  bit_masks(HalfedgeHandle /*_dummy_hnd*/)
+  BitMaskContainer&                  bit_masks(HalfedgeHandle /*_dummy_hnd*/)
   { return halfedge_bit_masks_; }
 
   template <class Handle>

@@ -40,7 +40,7 @@
  * ========================================================================= */
 
 /*===========================================================================*\
- *                                                                           *             
+ *                                                                           *
  *   $Revision: 1258 $                                                         *
  *   $Date: 2015-04-28 15:07:46 +0200 (Di, 28 Apr 2015) $                   *
  *                                                                           *
@@ -193,17 +193,17 @@ public:
       If the mesh types vary, use PolyMeshT::assign() instead. */
 
    // --- creation ---
-  inline VertexHandle new_vertex()
+  VertexHandle new_vertex()
   { return Kernel::new_vertex(); }
 
-  inline VertexHandle new_vertex(const Point& _p)
+  VertexHandle new_vertex(const Point& _p)
   {
     VertexHandle vh(Kernel::new_vertex());
     this->set_point(vh, _p);
     return vh;
   }
 
-  inline VertexHandle add_vertex(const Point& _p)
+  VertexHandle add_vertex(const Point& _p)
   { return new_vertex(_p); }
 
   // --- normal vectors ---
@@ -271,7 +271,7 @@ public:
    *            Call request_face_normals() and request_halfedge_normals() before using it!
    *
    * @param _heh Handle of the halfedge
-   * @param _feature_angle If the dihedral angle across this edge is greater than this value, the edge is considered as a feature edge (angle in radians) 
+   * @param _feature_angle If the dihedral angle across this edge is greater than this value, the edge is considered as a feature edge (angle in radians)
    */
   virtual Normal calc_halfedge_normal(HalfedgeHandle _heh, const double _feature_angle = 0.8) const;
 
@@ -508,18 +508,18 @@ public:
   // --- misc ---
 
   /// Face split (= 1-to-n split)
-  inline void split(FaceHandle _fh, const Point& _p)
+  void split(FaceHandle _fh, const Point& _p)
   { Kernel::split(_fh, add_vertex(_p)); }
 
-  inline void split(FaceHandle _fh, VertexHandle _vh)
+  void split(FaceHandle _fh, VertexHandle _vh)
   { Kernel::split(_fh, _vh); }
 
-  inline void split(EdgeHandle _eh, const Point& _p)
+  void split(EdgeHandle _eh, const Point& _p)
   { Kernel::split_edge(_eh, add_vertex(_p)); }
 
-  inline void split(EdgeHandle _eh, VertexHandle _vh)
+  void split(EdgeHandle _eh, VertexHandle _vh)
   { Kernel::split_edge(_eh, _vh); }
-  
+
 };
 
 /**

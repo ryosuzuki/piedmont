@@ -40,7 +40,7 @@
  * ========================================================================= */
 
 /*===========================================================================*\
- *                                                                           *             
+ *                                                                           *
  *   $Revision: 1258 $                                                         *
  *   $Date: 2015-04-28 15:07:46 +0200 (Di, 28 Apr 2015) $                   *
  *                                                                           *
@@ -388,20 +388,20 @@ public:
   PolyConnectivity()  {}
   virtual ~PolyConnectivity() {}
 
-  inline static bool is_triangles()
+  static bool is_triangles()
   { return false; }
 
   /** assign_connectivity() method. See ArrayKernel::assign_connectivity()
       for more details. */
-  inline void assign_connectivity(const PolyConnectivity& _other)
+  void assign_connectivity(const PolyConnectivity& _other)
   { ArrayKernel::assign_connectivity(_other); }
-  
+
   /** \name Adding items to a mesh
   */
   //@{
 
-  /// Add a new vertex 
-  inline VertexHandle add_vertex()
+  /// Add a new vertex
+  VertexHandle add_vertex()
   { return new_vertex(); }
 
   /** \brief Add and connect a new face
@@ -412,8 +412,8 @@ public:
   * @param _vhandles sorted list of vertex handles (also defines order in which the vertices are added to the face)
   */
   FaceHandle add_face(const std::vector<VertexHandle>& _vhandles);
- 
-   
+
+
   /** \brief Add and connect a new face
   *
   * Create a new face consisting of three vertices provided by the handles.
@@ -436,7 +436,7 @@ public:
   * @param _vh3 Fourth vertex handle
   */
   FaceHandle add_face(VertexHandle _vh0, VertexHandle _vh1, VertexHandle _vh2, VertexHandle _vh3);
- 
+
   /** \brief Add and connect a new face
   *
   * Create a new face consisting of vertices provided by a handle array.
@@ -457,8 +457,8 @@ public:
       \attention This method need the Attributes::Status attribute and
       changes the \em tagged bit.  */
   bool is_collapse_ok(HalfedgeHandle _he);
-    
-    
+
+
   /** Mark vertex and all incident edges and faces deleted.
       Items marked deleted will be removed by garbageCollection().
       \attention Needs the Attributes::Status attribute for vertices,
@@ -489,7 +489,7 @@ public:
   void delete_face(FaceHandle _fh, bool _delete_isolated_vertices=true);
 
   //@}
-  
+
   /** \name Begin and end iterators
   */
   //@{
@@ -737,9 +737,9 @@ public:
   /// const face - face circulator
   ConstFaceFaceCCWIter cff_ccwiter(FaceHandle _fh) const
   { return ConstFaceFaceCCWIter(*this, _fh); }
-  
+
   // 'begin' circulators
-  
+
   /// vertex - vertex circulator
   VertexVertexIter vv_begin(VertexHandle _vh)
   { return VertexVertexIter(*this, _vh); }
@@ -924,9 +924,9 @@ public:
   /// const halfedge circulator ccw
   ConstHalfedgeLoopCCWIter chl_ccwbegin(HalfedgeHandle _heh) const
   { return ConstHalfedgeLoopCCWIter(*this, _heh); }
-  
+
   // 'end' circulators
-  
+
   /// vertex - vertex circulator
   VertexVertexIter vv_end(VertexHandle _vh)
   { return VertexVertexIter(*this, _vh, true); }
@@ -1396,15 +1396,15 @@ public:
   /** @} */
 
   // --- shortcuts ---
-  
-  /// returns the face handle of the opposite halfedge 
-  inline FaceHandle opposite_face_handle(HalfedgeHandle _heh) const
+
+  /// returns the face handle of the opposite halfedge
+  FaceHandle opposite_face_handle(HalfedgeHandle _heh) const
   { return face_handle(opposite_halfedge_handle(_heh)); }
-    
+
   // --- misc ---
 
   /** Adjust outgoing halfedge handle for vertices, so that it is a
-      boundary halfedge whenever possible. 
+      boundary halfedge whenever possible.
   */
   void adjust_outgoing_halfedge(VertexHandle _vh);
 
@@ -1414,9 +1414,9 @@ public:
   uint valence(VertexHandle _vh) const;
   /// Face valence
   uint valence(FaceHandle _fh) const;
-  
-  // --- connectivity operattions 
-    
+
+  // --- connectivity operattions
+
   /** Halfedge collapse: collapse the from-vertex of halfedge _heh
       into its to-vertex.
 
@@ -1429,11 +1429,11 @@ public:
       only marks degenerate items as deleted.
 
       \attention A halfedge collapse may lead to topological inconsistencies.
-      Therefore you should check this using is_collapse_ok().  
+      Therefore you should check this using is_collapse_ok().
   */
   void collapse(HalfedgeHandle _heh);
   /** return true if the this the only link between the faces adjacent to _eh.
-      _eh is allowed to be boundary, in which case true is returned iff _eh is 
+      _eh is allowed to be boundary, in which case true is returned iff _eh is
       the only boundary edge of its ajdacent face.
   */
   bool is_simple_link(EdgeHandle _eh) const;
@@ -1442,34 +1442,34 @@ public:
       than one boundary edge.
   */
   bool is_simply_connected(FaceHandle _fh) const;
-  /** Removes the edge _eh. Its adjacent faces are merged. _eh and one of the 
-      adjacent faces are set deleted. The handle of the remaining face is 
+  /** Removes the edge _eh. Its adjacent faces are merged. _eh and one of the
+      adjacent faces are set deleted. The handle of the remaining face is
       returned (InvalidFaceHandle is returned if _eh is a boundary edge).
-      
+
       \pre is_simple_link(_eh). This ensures that there are no hole faces
       or isolated vertices appearing in result of the operation.
-      
+
       \attention Needs the Attributes::Status attribute for edges and faces.
-      
+
       \note This function does not perform a garbage collection. It
       only marks items as deleted.
   */
   FaceHandle remove_edge(EdgeHandle _eh);
   /** Inverse of remove_edge. _eh should be the handle of the edge and the
-      vertex and halfedge handles pointed by edge(_eh) should be valid. 
+      vertex and halfedge handles pointed by edge(_eh) should be valid.
   */
   void reinsert_edge(EdgeHandle _eh);
   /** Inserts an edge between to_vh(_prev_heh) and from_vh(_next_heh).
       A new face is created started at heh0 of the inserted edge and
-      its halfedges loop includes both _prev_heh and _next_heh. If an 
-      old face existed which includes the argument halfedges, it is 
-      split at the new edge. heh0 is returned. 
-      
+      its halfedges loop includes both _prev_heh and _next_heh. If an
+      old face existed which includes the argument halfedges, it is
+      split at the new edge. heh0 is returned.
+
       \note assumes _prev_heh and _next_heh are either boundary or pointed
       to the same face
   */
   HalfedgeHandle insert_edge(HalfedgeHandle _prev_heh, HalfedgeHandle _next_heh);
-    
+
   /** \brief Face split (= 1-to-n split).
      *
      * Split an arbitrary face into triangles by connecting each vertex of fh to vh.
@@ -1498,7 +1498,7 @@ public:
    * @param _vh Vertex handle of the new vertex that will be inserted in the face
    */
   void split_copy(FaceHandle _fh, VertexHandle _vh);
-  
+
   /** \brief Triangulate the face _fh
 
     Split an arbitrary face into triangles by connecting
@@ -1514,10 +1514,10 @@ public:
   */
   void triangulate(FaceHandle _fh);
 
-  /** \brief triangulate the entire mesh  
+  /** \brief triangulate the entire mesh
   */
   void triangulate();
-  
+
   /** Edge split (inserts a vertex on the edge only)
    *
    * This edge split only splits the edge without introducing new faces!
@@ -1560,7 +1560,7 @@ public:
   Face&            deref(FaceHandle _h)           { return face(_h); }
   //@}
 
-protected:  
+protected:
   /// Helper for halfedge collapse
   void collapse_edge(HalfedgeHandle _hh);
   /// Helper for halfedge collapse

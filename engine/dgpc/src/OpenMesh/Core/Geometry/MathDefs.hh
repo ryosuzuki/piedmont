@@ -41,7 +41,7 @@
 
 
 /*===========================================================================*\
- *                                                                           *             
+ *                                                                           *
  *   $Revision: 1258 $                                                         *
  *   $Date: 2015-04-28 15:07:46 +0200 (Di, 28 Apr 2015) $                   *
  *                                                                           *
@@ -63,27 +63,27 @@ namespace OpenMesh
 /** comparison operators with user-selected precision control
 */
 template <class T, typename Real>
-inline bool is_zero(const T& _a, Real _eps)
+bool is_zero(const T& _a, Real _eps)
 { return fabs(_a) < _eps; }
 
 template <class T1, class T2, typename Real>
-inline bool is_eq(const T1& a, const T2& b, Real _eps)
+bool is_eq(const T1& a, const T2& b, Real _eps)
 { return is_zero(a-b, _eps); }
 
 template <class T1, class T2, typename Real>
-inline bool is_gt(const T1& a, const T2& b, Real _eps)
+bool is_gt(const T1& a, const T2& b, Real _eps)
 { return (a > b) && !is_eq(a,b,_eps); }
 
 template <class T1, class T2, typename Real>
-inline bool is_ge(const T1& a, const T2& b, Real _eps)
+bool is_ge(const T1& a, const T2& b, Real _eps)
 { return (a > b) || is_eq(a,b,_eps); }
 
 template <class T1, class T2, typename Real>
-inline bool is_lt(const T1& a, const T2& b, Real _eps)
+bool is_lt(const T1& a, const T2& b, Real _eps)
 { return (a < b) && !is_eq(a,b,_eps); }
 
 template <class T1, class T2, typename Real>
-inline bool is_le(const T1& a, const T2& b, Real _eps)
+bool is_le(const T1& a, const T2& b, Real _eps)
 { return (a < b) || is_eq(a,b,_eps); }
 
 /*const float flt_eps__ = 10*FLT_EPSILON;
@@ -91,40 +91,40 @@ const double dbl_eps__ = 10*DBL_EPSILON;*/
 const float flt_eps__ = (float)1e-05;
 const double dbl_eps__ = 1e-09;
 
-inline float eps__(float) 
+float eps__(float)
 { return flt_eps__; }
 
-inline double eps__(double)
+double eps__(double)
 { return dbl_eps__; }
 
 template <class T>
-inline bool is_zero(const T& a)
+bool is_zero(const T& a)
 { return is_zero(a, eps__(a)); }
 
 template <class T1, class T2>
-inline bool is_eq(const T1& a, const T2& b)
+bool is_eq(const T1& a, const T2& b)
 { return is_zero(a-b); }
 
 template <class T1, class T2>
-inline bool is_gt(const T1& a, const T2& b)
+bool is_gt(const T1& a, const T2& b)
 { return (a > b) && !is_eq(a,b); }
 
 template <class T1, class T2>
-inline bool is_ge(const T1& a, const T2& b)
+bool is_ge(const T1& a, const T2& b)
 { return (a > b) || is_eq(a,b); }
 
 template <class T1, class T2>
-inline bool is_lt(const T1& a, const T2& b)
+bool is_lt(const T1& a, const T2& b)
 { return (a < b) && !is_eq(a,b); }
 
 template <class T1, class T2>
-inline bool is_le(const T1& a, const T2& b)
+bool is_le(const T1& a, const T2& b)
 { return (a < b) || is_eq(a,b); }
 
 /// Trigonometry/angles - related
 
 template <class T>
-inline T sane_aarg(T _aarg)
+T sane_aarg(T _aarg)
 {
   if (_aarg < -1)
   {
@@ -149,22 +149,22 @@ T angle(T _cos_angle, T _sin_angle)
 }
 
 template <class T>
-inline T positive_angle(T _angle)
+T positive_angle(T _angle)
 { return _angle < 0 ? (2*M_PI + _angle) : _angle; }
 
 template <class T>
-inline T positive_angle(T _cos_angle, T _sin_angle)
+T positive_angle(T _cos_angle, T _sin_angle)
 { return positive_angle(angle(_cos_angle, _sin_angle)); }
 
 template <class T>
-inline T deg_to_rad(const T& _angle)
+T deg_to_rad(const T& _angle)
 { return M_PI*(_angle/180); }
 
 template <class T>
-inline T rad_to_deg(const T& _angle)
+T rad_to_deg(const T& _angle)
 { return 180*(_angle/M_PI); }
 
-inline double log_(double _value)
+double log_(double _value)
 { return log(_value); }
 
 }//namespace OpenMesh
