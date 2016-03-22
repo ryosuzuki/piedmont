@@ -48,7 +48,7 @@ function init() {
   grid.position.y = 0.01;
   grid.material.opacity = 0.25;
   grid.material.transparent = true;
-  // scene.add(grid);
+  scene.add(grid);
 
   renderer = new THREE.WebGLRenderer({alpha: true, antialias: true });
   // renderer.setClearColor(0xbbbbbb, 1.0);

@@ -66,6 +66,8 @@ function getScreenPosition (pos) {
   var vector = new THREE.Vector3();
   var canvas = renderer.domElement;
   vector.set(pos.x, pos.y, pos.z);
+  mesh.updateMatrixWorld()
+  vector.applyMatrix4( mesh.matrixWorld )
   vector.project( camera );
   vector.x = Math.round( (   vector.x + 1 ) * canvas.width  / 2 ),
   vector.y = Math.round( ( - vector.y + 1 ) * canvas.height / 2 );
@@ -101,20 +103,17 @@ function updateTexture () {
     var xMin = _.min([s1.x, s2.x, s3.x])
     var yMax = _.max([s1.y, s2.y, s3.y])
     var yMin = _.min([s1.y, s2.y, s3.y])
-
-    // var xMin = 300
-    // var yMin = 300
-    var width = xMax - xMin
-    var height = yMax - yMin
+    console.log({xMin: xMin, xMax: xMax, yMin: yMin, yMax: yMax})
+    var width = 400 //xMax - xMin
+    var height = 400 // yMax - yMin
     var patchCanvas = document.createElement('canvas')
     patchCanvas.width = width
     patchCanvas.height = height
     var patchContext = patchCanvas.getContext('2d')
-    patchContext.drawImage(drawingCanvas, xMin, yMin, width, height, 0, 0, width, height)
-    patchContext.fillStyle = 'blue'
-    patchContext.fillRect(0, 0, width, height)
+    patchContext.drawImage(drawingCanvas, 0, 0, width, height, 0, 0, width, height)
+    // patchContext.fillStyle = 'blue'
+    // patchContext.fillRect(0, 0, width, height)
     document.getElementById('debug').appendChild(patchCanvas)
-
 
     // var context = backgroundCanvas.getContext('2d')
     // context.beginPath()
@@ -133,7 +132,9 @@ function updateTexture () {
     // uMin = Math.min(uMin, uvs[0].x, uvs[1].x, uvs[2].x);
     // vMax = Math.max(vMax, uvs[0].y, uvs[1].y, uvs[2].y);
     // vMin = Math.min(vMin, uvs[0].y, uvs[1].y, uvs[2].y);
+    // break;
   }
+
   mesh.material = viewingMaterial
   // mesh.geometry.uvsNeedUpdate = true
 

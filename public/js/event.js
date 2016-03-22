@@ -131,11 +131,13 @@ var path;
 var start;
 
 function onDocumentMouseDown( event ) {
+
   var intersects = getIntersects(event);
   if (intersects.length < 1) return false;
   if (!selectMode && !undoMode) return false;
   window.current = intersects[0];
   window.currentIndex = current.faceIndex;
+
   // console.log('current: ' + current.uv.x + ' ' + current.uv.y);
   if (selectMode) {
     var pos = new THREE.Vector2(event.pageX, event.pageY);
@@ -172,7 +174,7 @@ function getIntersects (event) {
   mouse.x = ( event.clientX / renderer.domElement.clientWidth ) * 2 - 1;
   mouse.y = - ( event.clientY / renderer.domElement.clientHeight ) * 2 + 1;
   raycaster.setFromCamera( mouse, camera );
-  var intersects = raycaster.intersectObjects(objects);
+  var intersects = raycaster.intersectObjects(scene.children);
   return intersects
 }
 
