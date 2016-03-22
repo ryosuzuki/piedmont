@@ -121,6 +121,15 @@ var pathStyle = {
 }
 var draft; // = new paper.Path(pathStyle);
 
+var pathStyle = {
+  strokeColor: 'red',
+  strokeWidth: 10,
+  // fullySelected: true
+}
+
+var path;
+var start;
+
 function onDocumentMouseDown( event ) {
   var intersects = getIntersects(event);
   if (intersects.length < 1) return false;
@@ -128,51 +137,23 @@ function onDocumentMouseDown( event ) {
   window.current = intersects[0];
   window.currentIndex = current.faceIndex;
   // console.log('current: ' + current.uv.x + ' ' + current.uv.y);
-
   if (selectMode) {
+    var pos = new THREE.Vector2(event.pageX, event.pageY);
+    drawLine(pos.x, pos.y)
+
+    window.event = event
+    console.log(event)
     updateTexture()
+    // paper.view.onFrame = function (event) { }
   }
 
-  // if (!start) start = current.face.a;
-  // p = map[current.face.a];
-  // console.log('p: ' + p);
-  // q = map[current.face.b];
-  // console.log('q: ' + q);
-  // Q.fcall(computeHarmonicField(geometry))
-  // .then(computeSelect())
-  // .then(colorChange())
-  // .then(function () {
-  //   p = undefined;
-  //   q = undefined;
-  //   console.log(current);
-  //   current.object.geometry.colorsNeedUpdate = true;
-  // });
-
-  // Q.fcall(computeHarmonicField(geometry))
-  // p = 917
-  // 498
-  // 780
-  // q = 257
-  // 153
-  // 1298
-  // Q.fcall(getField(geometry, p, q))
-
-  // .then(computeSelect())
-  // .then(colorChange())
-  // .then(function () {
-  //   p = undefined;
-  //   q = undefined;
-  //   console.log(current);
-  //   current.object.geometry.colorsNeedUpdate = true;
-  // });
 
 }
 
 function onDocumentMouseUp (event) {
+
   var intersects = getIntersects(event);
   if (intersects.length < 1) return false;
-  console.log(current.face)
-
   if (selectIndex.length > 0) {
     console.log('Select Done')
   }
@@ -210,15 +191,20 @@ function onDocumentTouchStart( event ) {
 }
 
 Mousetrap.bind('command', function () {
-  undoMode = false;
-  selectMode = true;
-  $('#mode').addClass('pink').text('Select Mode')
-}, 'keydown');
-Mousetrap.bind('command', function () {
-  selectMode = false;
-  $('#mode').removeClass('pink').text('View Mode (⌘ + Mouse)')
-  finishSelect();
-}, 'keyup');
+  undoMode = false
+  selectMode = !selectMode
+  if (selectMode) {
+    $('#mode').addClass('pink').text('Select Mode (Press ⌘)')
+  } else {
+    finishPainting()
+    $('#mode').removeClass('pink').text('View Mode (Press ⌘)')
+  }
+}, 'keyup')
+// Mousetrap.bind('command', function () {
+//   selectMode = false;
+//   $('#mode').removeClass('pink').text('View Mode (⌘ + Mouse)')
+//   finishSelect();
+// }, 'keyup');
 Mousetrap.bind('option', function () {
   undoMode = true;
   selectMode = false;
@@ -229,3 +215,37 @@ Mousetrap.bind('option', function () {
   $('#mode').removeClass('brown').text('View Mode (⌘ + Mouse)');
   finishSelect();
 }, 'keyup');
+
+
+  // if (!start) start = current.face.a;
+  // p = map[current.face.a];
+  // console.log('p: ' + p);
+  // q = map[current.face.b];
+  // console.log('q: ' + q);
+  // Q.fcall(computeHarmonicField(geometry))
+  // .then(computeSelect())
+  // .then(colorChange())
+  // .then(function () {
+  //   p = undefined;
+  //   q = undefined;
+  //   console.log(current);
+  //   current.object.geometry.colorsNeedUpdate = true;
+  // });
+
+  // Q.fcall(computeHarmonicField(geometry))
+  // p = 917
+  // 498
+  // 780
+  // q = 257
+  // 153
+  // 1298
+  // Q.fcall(getField(geometry, p, q))
+
+  // .then(computeSelect())
+  // .then(colorChange())
+  // .then(function () {
+  //   p = undefined;
+  //   q = undefined;
+  //   console.log(current);
+  //   current.object.geometry.colorsNeedUpdate = true;
+  // });

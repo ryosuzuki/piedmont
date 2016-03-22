@@ -4,11 +4,11 @@ html, body {
 
 #canvas {
   position: absolute;
-  top: 100px;
-  left: 20px;
-  width: 128px;
-  height: 128px;
-  background: #fff;
+  top: 0px;
+  left: 0px;
+  // width: 128px;
+  // height: 128px;
+  // background: #fff;
 }
 
 .top-buttons {
