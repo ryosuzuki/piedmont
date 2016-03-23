@@ -49,8 +49,14 @@ function drawSVG (points) {
   return d;
 }
 
-function replaceObject (svgMesh) {
+function go () {
+  Q.fcall(computeUniq(g))
+  .then(replaceObject(svg, g))
+}
+
+function replaceObject (svgMesh, geometry) {
   if (ng) scene.remove(ng);
+  geometry.computeFaceNormals()
 
   for (var i=0; i<geometry.uniq.length; i++) {
     var v = geometry.uniq[i];
@@ -86,17 +92,26 @@ function replaceObject (svgMesh) {
 
   // Centerize positions around [0, 1]
   positions = positions.map(function (p) {
-    return [(p[0]*0.2)+0.5, (p[1]*0.2)+0.5];
+    return [
+      ( p[0] * 0.5 * 200 / 2560 + 0.5 ),
+      ( p[1] * 0.5 * 200 / 2560 + 0.5 )
+    ];
   })
+
+  var d = drawSVG(positions);
+
+
   window.positions = positions;
   var count = 0;
   // geometry.computeFaceNormals();
   // geometry.computeVertexNormals();
-  for (var i=0; i<selectIndex.length; i++) {
-    var index = selectIndex[i]
-    var face = geometry.faces[index];
 
-    var ouv = geometry.faceVertexUvs[0][index];
+  // for (var i=0; i<selectIndex.length; i++) {
+  //   var index = selectIndex[i]
+  for (var i=0; i<geometry.faces.length; i++) {
+    var face = geometry.faces[i];
+
+    var ouv = geometry.faceVertexUvs[0][i];
     var va  = geometry.vertices[face.a];
     var vb  = geometry.vertices[face.b];
     var vc  = geometry.vertices[face.c];
@@ -126,7 +141,7 @@ function replaceObject (svgMesh) {
     var normal_a = geometry.uniq[geometry.map[face.a]].vertex_normal;
     var normal_b = geometry.uniq[geometry.map[face.b]].vertex_normal;
     var normal_c = geometry.uniq[geometry.map[face.c]].vertex_normal;
-    var h = 0.1;
+    var h = 0.01;
     var face_info = {
       va: va,
       vb: vb,
@@ -143,6 +158,9 @@ function replaceObject (svgMesh) {
     var triangle = ouv.map( function (v) {
       return [v.x, v.y];
     })
+
+    // var d = drawSVG(triangle);
+
     var points = polygonBoolean(triangle, positions, 'not')
     if (points.length > 1) {
       points = (points[0].length < points[1].length) ? points[0] : points[1]
@@ -178,6 +196,7 @@ function replaceObject (svgMesh) {
       ng.faces.push(new THREE.Face3(num, num+1, num+2))
     } else {
       var intersections = greinerHormann.intersection(positions, triangle)
+
       console.log(intersection)
       for (var k=0; k<intersections.length; k++) {
         var intersection = intersections[k]
@@ -256,6 +275,7 @@ function replaceObject (svgMesh) {
   }
   console.log('done')
   scene.remove(mesh)
+  scene.remove(dm)
   scene.remove(texture)
   nm = new THREE.Mesh(ng, material);
   nm.geometry.verticesNeedUpdate = true;
@@ -268,6 +288,7 @@ function replaceObject (svgMesh) {
   nm.rotation.x = mesh.rotation.x;
   nm.rotation.y = mesh.rotation.y;
   nm.rotation.z = mesh.rotation.z;
+  nm.scale.set(6, 6, 6)
   scene.add(nm);
 }
 

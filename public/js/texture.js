@@ -12,7 +12,7 @@ function getDgpc (start) {
   socket.emit('update', start)
 }
 
-paper.install(window)
+// paper.install(window)
 window.onload = function () {
   paper.setup('drawing')
   drawMickey()
@@ -51,7 +51,7 @@ function drawMickey () {
     var points = window.svg.positions.map(function(p) {
       return [ p[0]*100 + width/2, p[1]*100 + height/2 ]
     })
-    var path = new Path();
+    var path = new paper.Path();
     path.strokeColor = 'black';
     path.fillColor = 'black';
     for (var i=0; i<points.length; i++) {
@@ -66,7 +66,8 @@ function drawMickey () {
 }
 
 function showDrawingCanvas () {
-  scene.remove(nm)
+  if (ng) return false
+  scene.remove(dm)
   var canvas = document.getElementById('drawing')
   var m = new THREE.MeshLambertMaterial({
     map: new THREE.Texture(canvas),
@@ -78,17 +79,16 @@ function showDrawingCanvas () {
   // m.map.wrapT = THREE.RepeatWrapping;
   // m.map.repeat.set(2, 2);
   m.map.needsUpdate = true;
-  nm = new THREE.Mesh(g, m);
-  nm.scale.set(6, 6, 6)
-  nm.position.setY(-1)
-  scene.add(nm);
-
+  dm = new THREE.Mesh(g, m);
+  dm.scale.set(6, 6, 6)
+  dm.position.setY(-1)
+  scene.add(dm);
 }
 
-var nm
+var dm
 var g
 function updateMapping (uvs) {
-  scene.remove(nm)
+  scene.remove(dm)
   g = new THREE.Geometry()
   for (var i=0; i<geometry.faces.length; i++) {
     var face = geometry.faces[i]
@@ -113,7 +113,7 @@ function updateMapping (uvs) {
   //   map: image,
   //   // transparent: true
   // });
-  // nm = new THREE.Mesh(g, m);
+  // dm = new THREE.Mesh(g, m);
   // nm.scale.set(6, 6, 6)
   // scene.add(nm);
 

@@ -34,15 +34,15 @@ function onDocumentMouseDown( event ) {
   window.current = intersects[0];
   if (selectMode) {
     // drawLine(pos.x, pos.y)
-    showDrawingCanvas(pos)
+    if (pos) showDrawingCanvas(pos)
   } else {
     var ci = current.faceIndex
-    if (ci !== window.currentIndex && current.face) {
+    // if (ci !== window.currentIndex && current.face) {
       window.currentIndex = ci
-      window.pos = new THREE.Vector2(event.pageX, event.pageY);
+      window.pos = new THREE.Vector2(event.pageX, event.pageY)
       var start = map[current.face.a]
       getDgpc(start)
-    }
+    // }
 
     // window.event = event
     // if (currentIndex) affectedFaces = _.union(affectedFaces, [currentIndex])
@@ -75,7 +75,7 @@ function getIntersects (event) {
   mouse.x = ( event.clientX / renderer.domElement.clientWidth ) * 2 - 1;
   mouse.y = - ( event.clientY / renderer.domElement.clientHeight ) * 2 + 1;
   raycaster.setFromCamera( mouse, camera );
-  var intersects = raycaster.intersectObjects(scene.children);
+  var intersects = raycaster.intersectObjects(objects);
   return intersects
 }
 
