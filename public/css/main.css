@@ -4,8 +4,9 @@ html, body {
 
 #drawing {
   position: absolute;
-  width: 100px;
-  height: 100px;
+  // width: 2560px;
+  // height: 2560px;
+  display: none;
   // top: 0px;
   // left: 0px;
   // width: 100%;

@@ -12,22 +12,23 @@ function getDgpc (start) {
   socket.emit('update', start)
 }
 
+paper.install(window)
 window.onload = function () {
   paper.setup('drawing')
 }
 
 function showDrawingCanvas () {
-  var width = 100
-  var height = 100
+  var width = 2560
+  var height = 2560
   var canvas = document.getElementById('drawing')
   canvas.width = width
   canvas.height = height
   canvas.style.left = ( pos.x - width / 2 ) + 'px'
   canvas.style.top = ( pos.y - height / 2) + 'px'
   var context = canvas.getContext('2d')
-  var center = new paper.Point(width/2, height/2)
-  var circle = new paper.Path.Circle(center, 1)
-  circle.fillColor = 'red';
+  var center = new Point(width/2, height/2)
+  var shape = new Path.Star(center, 5, 20, 50)
+  shape.fillColor = 'blue';
   paper.view.draw()
 
   scene.remove(nm)
@@ -35,7 +36,11 @@ function showDrawingCanvas () {
     map: new THREE.Texture(canvas),
     transparent: true
   });
+  // m.map.magFilter = THREE.NearestFilter
   m.map.minFilter = THREE.LinearFilter
+  // m.map.wrapS = THREE.RepeatWrapping;
+  // m.map.wrapT = THREE.RepeatWrapping;
+  // m.map.repeat.set(2, 2);
   m.map.needsUpdate = true;
   nm = new THREE.Mesh(g, m);
   nm.scale.set(6, 6, 6)
