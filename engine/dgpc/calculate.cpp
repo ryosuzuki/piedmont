@@ -56,10 +56,10 @@ extern "C" {
     int last_node = my_dgpc.run();
 
     //Fetch and print result
-    cout << "Computed distances until node " << last_node << endl;
-    cout << endl;
-    cout << "i      r      theta" << endl;
-    cout << "-------------------" << endl;
+    // cout << "Computed distances until node " << last_node << endl;
+    // cout << endl;
+    // cout << "i      r      theta" << endl;
+    // cout << "-------------------" << endl;
     int n = my_mesh.n_vertices();
     res->id = new int[n];
     res->r = new double[n];
@@ -72,7 +72,7 @@ extern "C" {
         res->id[i] = i;
         res->r[i] = r;
         res->theta[i] = theta;
-        cout << i << "    " << r << "    "<< theta << endl;
+        // cout << i << "    " << r << "    "<< theta << endl;
         count++;
       }
     }

@@ -119,6 +119,7 @@ function drawObj () {
     });
     mesh = new THREE.Mesh(geometry, material);
     mesh.scale.set(6, 6, 6)
+    mesh.position.setY(-1)
     scene.add(mesh);
     objects.push(mesh)
     loadObjects()
