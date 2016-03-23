@@ -59,8 +59,14 @@ function drawSVG (points) {
   return d;
 }
 
-function replaceObject (svgMesh) {
+function go () {
+  Q.fcall(computeUniq(g))
+  .then(replaceObject(svg, g))
+}
+
+function replaceObject (svgMesh, geometry) {
   if (ng) scene.remove(ng);
+  geometry.computeFaceNormals()
 
   ng = new THREE.Geometry();
   for (var i=0; i<geometry.faces.length; i++) {
@@ -74,9 +80,9 @@ function replaceObject (svgMesh) {
     ng.vertices.push(va);
     ng.vertices.push(vb);
     ng.vertices.push(vc);
-    ng.faces.push(new THREE.Face3(num, num+1, num+2))
+    // ng.faces.push(new THREE.Face3(num, num+1, num+2))
 
-    var h = -0.1;
+    var h = -0.01;
     var v = new THREE.Vector3();
     var h_normal = normal.clone().multiplyScalar(h);
     var outer_a = v.clone().addVectors(va, h_normal)
@@ -86,25 +92,28 @@ function replaceObject (svgMesh) {
     ng.vertices.push(outer_a)
     ng.vertices.push(outer_b)
     ng.vertices.push(outer_c)
-    ng.faces.push(new THREE.Face3(num, num+1, num+2))
-    ng.faces.push(new THREE.Face3(num+2, num+1, num+1))
-
-
+    // ng.faces.push(new THREE.Face3(num, num+1, num+2))
+    // ng.faces.push(new THREE.Face3(num+2, num+1, num+1))
   }
 
   var positions = svgMesh.positions;
 
   // Centerize positions around [0, 1]
   positions = positions.map(function (p) {
-    return [(p[0]*0.2)+0.5, (p[1]*0.2)+0.5];
+    return [
+      ( p[0] * 0.5 * 200 / 2560 + 0.5 ),
+      ( p[1] * 0.5 * 200 / 2560 + 0.5 )
+    ];
   })
+
   window.positions = positions;
   var count = 0;
-  for (var i=0; i<selectIndex.length; i++) {
-    var index = selectIndex[i]
-    var face = geometry.faces[index];
+  // for (var i=0; i<selectIndex.length; i++) {
+  //   var index = selectIndex[i]
+  for (var i=0; i<geometry.faces.length; i++) {
+    var face = geometry.faces[i];
 
-    var ouv = geometry.faceVertexUvs[0][index];
+    var ouv = geometry.faceVertexUvs[0][i];
     var va  = geometry.vertices[face.a];
     var vb  = geometry.vertices[face.b];
     var vc  = geometry.vertices[face.c];
@@ -135,7 +144,7 @@ function replaceObject (svgMesh) {
       ng.vertices.push(vc)
       ng.faces.push(new THREE.Face3(num, num+1, num+2))
 
-      var h = -0.1;
+      var h = -0.01;
       var v = new THREE.Vector3();
       var h_normal = normal.clone().multiplyScalar(h);
       var outer_a = v.clone().addVectors(va, h_normal)
@@ -185,7 +194,7 @@ function replaceObject (svgMesh) {
           var inner_b = ng.vertices[num+1]
           var inner_c = ng.vertices[num+2]
 
-          var h = -0.1;
+          var h = -0.01;
           var v = new THREE.Vector3();
           var h_normal = normal.clone().multiplyScalar(h);
           var outer_a = v.clone().addVectors(inner_a, h_normal)
@@ -242,6 +251,7 @@ function replaceObject (svgMesh) {
   }
   console.log('done')
   scene.remove(mesh)
+  scene.remove(dm)
   scene.remove(texture)
   nm = new THREE.Mesh(ng, material);
   nm.geometry.verticesNeedUpdate = true;
@@ -254,6 +264,7 @@ function replaceObject (svgMesh) {
   nm.rotation.x = mesh.rotation.x;
   nm.rotation.y = mesh.rotation.y;
   nm.rotation.z = mesh.rotation.z;
+  nm.scale.set(6, 6, 6)
   scene.add(nm);
 }
 
