@@ -6,10 +6,12 @@ var viewingMaterial = new THREE.MeshFaceMaterial
 var drawingCanvas;
 // var drawingCanvas = document.createElement('canvas')
 
+
+paper.install(window)
 window.onload = function () {
   drawingCanvas = document.getElementById('drawing')
 
-  paper.setup(drawingCanvas)
+  paper.setup('drawing')
 
   paper.view.on('frame', onDocumentMouseDown)
   paper.view.onMouseDown = onDocumentMouseDown

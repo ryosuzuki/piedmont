@@ -12,20 +12,52 @@ function getDgpc (start) {
   socket.emit('update', start)
 }
 
+window.onload = function () {
+  paper.setup('drawing')
+}
+
+function showDrawingCanvas () {
+  var width = 100
+  var height = 100
+  var canvas = document.getElementById('drawing')
+  canvas.width = width
+  canvas.height = height
+  canvas.style.left = ( pos.x - width / 2 ) + 'px'
+  canvas.style.top = ( pos.y - height / 2) + 'px'
+  var context = canvas.getContext('2d')
+  var center = new paper.Point(width/2, height/2)
+  var circle = new paper.Path.Circle(center, 1)
+  circle.fillColor = 'red';
+  paper.view.draw()
+
+  scene.remove(nm)
+  var m = new THREE.MeshLambertMaterial({
+    map: new THREE.Texture(canvas),
+    transparent: true
+  });
+  m.map.minFilter = THREE.LinearFilter
+  m.map.needsUpdate = true;
+  nm = new THREE.Mesh(g, m);
+  nm.scale.set(6, 6, 6)
+  scene.add(nm);
+
+}
+
 $(function () {
   socket.on('res-update', function (data) {
-    console.log(data)
+    // console.log(data)
     var e = new Date().getTime();
     var time = e - s;
-    console.log('Execution time: ' + time + 'ms');
+    // console.log('Execution time: ' + time + 'ms');
     updateMapping(data.uv)
   })
 })
 
-var nm;
+var nm
+var g
 function updateMapping (uvs) {
   scene.remove(nm)
-  var g = new THREE.Geometry()
+  g = new THREE.Geometry()
   for (var i=0; i<geometry.faces.length; i++) {
     var face = geometry.faces[i]
     var a = geometry.uniq[map[face.a]]
@@ -42,15 +74,16 @@ function updateMapping (uvs) {
     var uv_c = new THREE.Vector2(uvs[c.id].u, uvs[c.id].v)
     g.faceVertexUvs[0].push([uv_a, uv_b, uv_c])
   }
+  showDrawingCanvas()
 
-  var m = new THREE.MeshLambertMaterial({
-    color: 0xffffff,
-    map: image,
-    // transparent: true
-  });
-  nm = new THREE.Mesh(g, m);
-  nm.scale.set(6, 6, 6)
-  scene.add(nm);
+  // var m = new THREE.MeshLambertMaterial({
+  //   color: 0xffffff,
+  //   map: image,
+  //   // transparent: true
+  // });
+  // nm = new THREE.Mesh(g, m);
+  // nm.scale.set(6, 6, 6)
+  // scene.add(nm);
 
   // initializeViewingTexture()
 }
