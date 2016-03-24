@@ -7,67 +7,39 @@ var material = new THREE.MeshBasicMaterial({
 material.color.set(new THREE.Color('blue'))
 
 var ng;
-
-function createSvg () {
-  loadSvg('/public/assets/mickey-2.svg', function (err, svg) {
-    var d = $('path', svg).attr('d');
-    // var d = "M 120, 120 m -70, 0 a 70,70 0 1,0 150,0 a 70,70 0 1,0 -150,0";
-    var m = svgMesh3d(d, {
-      scale: 1,
-      simplify: 0.001,
-      randomization: false,
-      normalize: true
-    })
-
-    var complex = reindex(unindex(m.positions, m.cells));
-    var geometry = new createGeom(complex)
-    geometry.vertices = geometry.vertices.map( function (vertex) {
-      vertex.z = size*2;
-      return vertex;
-    })
-    var mesh = new THREE.Mesh(geometry, material)
-    mesh.scale.set(0.5, 0.5, 0.5)
-    // scene.add(mesh);
-    replaceObject(m);
-  })
-}
-
-function drawSVG (points) {
-  path = new paper.Path();
-  path.strokeColor = 'black';
-  for (var i=0; i<points.length; i++) {
-    var point = points[i];
-    var next = points[(i+1)%points.length];
-    path.moveTo(new paper.Point(point[0], point[1]))
-    path.lineTo(new paper.Point(next[0], next[1]))
-  }
-  path.closed = true;
-  paper.view.draw();
-  var d = $(path.exportSVG()).attr('d')
-  // TODO: Combine these two code
-  var points = points.map(function(p) { return [(p[0]+0.75)*200, (-p[1]+0.75)*200]})
-  var path2 = new paper.Path();
-  path2.strokeColor = 'black';
-  for (var i=0; i<points.length; i++) {
-    var point = points[i];
-    var next = points[(i+1)%points.length];
-    path2.moveTo(new paper.Point(point[0], point[1]))
-    path2.lineTo(new paper.Point(next[0], next[1]))
-  }
-  path2.closed = true;
-  paper.view.draw();
-  return d;
-}
-
 function go () {
   Q.fcall(computeUniq(g))
-  .then(replaceObject(svg, g))
+  .then(replaceObject(g))
 }
 
-function replaceObject (svgMesh, geometry) {
+function getSvgPositions () {
+  var d = mickey.pathData
+  var svgMesh = svgMesh3d(d, {
+    scale: 1,
+    simplify: 0.001,
+    normalize: true
+  })
+  positions = svgMesh.positions
+  /*
+    1. normalize: size 2 -> 1
+    2. scale: [x, y] -> scale * [x, y]
+    3. move center: [0, 0] -> [0.5, 0.5]
+  */
+  positions = positions.map(function(p) {
+    return [ p[0]*0.5, p[1]*0.5 ]
+  })
+  positions = positions.map(function(p) {
+    return [ p[0]*scale, p[1]*scale ]
+  })
+  positions = positions.map(function(p) {
+    return [ p[0]+currentUv.x, p[1]+currentUv.y ]
+  })
+  return positions
+}
+
+function replaceObject (geometry) {
   if (ng) scene.remove(ng);
   geometry.computeFaceNormals()
-
   ng = new THREE.Geometry();
   for (var i=0; i<geometry.faces.length; i++) {
     // if (selectIndex.includes(i)) continue;
@@ -96,65 +68,7 @@ function replaceObject (svgMesh, geometry) {
     // ng.faces.push(new THREE.Face3(num+2, num+1, num+1))
   }
 
-
-  var positions = svgMesh.positions;
-  positions = positions.map( function (p) {
-    return [ p[0], 1-p[1] ]
-  })
-  // positions = positions.map( function (p) {
-  //   return [ p[0], p[1]-0.02 ]
-  // })
-
-  var width = height = 256
-  // normalize
-  positions = positions.map( function (p) {
-    return [ p[0]/width, p[1]/height ]
-  })
-  // scale
-  positions = positions.map( function (p) {
-    return [ p[0]*scale, p[1]*scale ]
-  })
-  // rotate
-  positions = positions.map( function (p) {
-    return [
-      p[0]*Math.cos(rotate) - p[1]*Math.sin(rotate),
-      p[0]*Math.sin(rotate) - p[1]*Math.cos(rotate)
-    ]
-  })
-
-  // parallel transition
-  positions = positions.map( function (p) {
-    return [ p[0]+currentUv.x, p[1]+currentUv.y ]
-  })
-
-
-
-  var d = mickey.pathData // $(mickey.exportSVG()).attr('d')
-  var hoge = svgMesh3d(d, {
-    scale: 1,
-    simplify: 0.001,
-    normalize: true
-    // customize: true,
-  })
-  positions = hoge.positions
-  var scale = 1/50
-  var width = 256
-  var height = 256
-  // normalize size: 2 (-1<->1) -> size: 1 (-0.5<->0.5)
-  positions = hoge.positions.map(function(p) {
-    return [ p[0]*0.5, p[1]*0.5 ]
-  })
-  // scale
-  positions = hoge.positions.map(function(p) {
-    return [ p[0]*scale, p[1]*scale ]
-  })
-  // move center [0, 0] -> [0.5, 0.5]
-  positions = positions.map(function(p) {
-    return [ p[0]+currentUv.x, p[1]+currentUv.y ]
-  })
-
-
-
+  var positions = getSvgPositions()
   window.positions = positions;
   var count = 0;
   // for (var i=0; i<selectIndex.length; i++) {
@@ -356,3 +270,92 @@ function uvTo3D (nuv, ouv, va, vb, vc) {
   })
   return nxyz;
 }
+
+
+function drawSVG (points) {
+  path = new paper.Path();
+  path.strokeColor = 'black';
+  for (var i=0; i<points.length; i++) {
+    var point = points[i];
+    var next = points[(i+1)%points.length];
+    path.moveTo(new paper.Point(point[0], point[1]))
+    path.lineTo(new paper.Point(next[0], next[1]))
+  }
+  path.closed = true;
+  paper.view.draw();
+  var d = $(path.exportSVG()).attr('d')
+  // TODO: Combine these two code
+  var points = points.map(function(p) { return [(p[0]+0.75)*200, (-p[1]+0.75)*200]})
+  var path2 = new paper.Path();
+  path2.strokeColor = 'black';
+  for (var i=0; i<points.length; i++) {
+    var point = points[i];
+    var next = points[(i+1)%points.length];
+    path2.moveTo(new paper.Point(point[0], point[1]))
+    path2.lineTo(new paper.Point(next[0], next[1]))
+  }
+  path2.closed = true;
+  paper.view.draw();
+  return d;
+}
+
+
+
+/*
+function createSvg () {
+  loadSvg('/public/assets/mickey-2.svg', function (err, svg) {
+    var d = $('path', svg).attr('d');
+    // var d = "M 120, 120 m -70, 0 a 70,70 0 1,0 150,0 a 70,70 0 1,0 -150,0";
+    var m = svgMesh3d(d, {
+      scale: 1,
+      simplify: 0.001,
+      randomization: false,
+      normalize: true
+    })
+
+    var complex = reindex(unindex(m.positions, m.cells));
+    var geometry = new createGeom(complex)
+    geometry.vertices = geometry.vertices.map( function (vertex) {
+      vertex.z = size*2;
+      return vertex;
+    })
+    var mesh = new THREE.Mesh(geometry, material)
+    mesh.scale.set(0.5, 0.5, 0.5)
+    // scene.add(mesh);
+    replaceObject(m);
+  })
+}
+*/
+
+  /*
+  var positions = svgMesh.positions;
+  positions = positions.map( function (p) {
+    return [ p[0], 1-p[1] ]
+  })
+  // positions = positions.map( function (p) {
+  //   return [ p[0], p[1]-0.02 ]
+  // })
+
+  var width = height = 256
+  // normalize
+  positions = positions.map( function (p) {
+    return [ p[0]/width, p[1]/height ]
+  })
+  // scale
+  positions = positions.map( function (p) {
+    return [ p[0]*scale, p[1]*scale ]
+  })
+  // rotate
+  positions = positions.map( function (p) {
+    return [
+      p[0]*Math.cos(rotate) - p[1]*Math.sin(rotate),
+      p[0]*Math.sin(rotate) - p[1]*Math.cos(rotate)
+    ]
+  })
+
+  // parallel transition
+  positions = positions.map( function (p) {
+    return [ p[0]+currentUv.x, p[1]+currentUv.y ]
+  })
+  */
+
