@@ -46,9 +46,16 @@ function getTextureImage () {
     // shape.fillColor = 'blue';
     // paper.project.importSVG(svg)
 
+    var scale = 50
+    var left = 300
+    var top = 50
     var points = window.svg.positions.map(function(p) {
-      return [ p[0]*100 + width/2, p[1]*100 + height/2 ]
+      return [
+        p[0] * scale + width/2 + left,
+        p[1] * scale + height/2 + top
+      ]
     })
+
     var path = new paper.Path();
     path.strokeColor = 'black';
     path.fillColor = 'black';

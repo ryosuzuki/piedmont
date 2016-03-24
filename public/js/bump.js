@@ -60,6 +60,7 @@ function replaceObject (svgMesh, geometry) {
 
   /*
   => angle.js
+  */
   for (var i=0; i<geometry.uniq.length; i++) {
     var v = geometry.uniq[i];
     var vertex_normal = new THREE.Vector3();
@@ -74,7 +75,6 @@ function replaceObject (svgMesh, geometry) {
     vertex_normal.divideScalar(v.faces.length).normalize();
     geometry.uniq[i].vertex_normal = vertex_normal;
   }
-  */
 
   ng = new THREE.Geometry();
   for (var i=0; i<geometry.faces.length; i++) {
@@ -94,13 +94,13 @@ function replaceObject (svgMesh, geometry) {
   var positions = svgMesh.positions;
 
   // Centerize positions around [0, 1]
-  positions = positions.map(function (p) {
+  var scale = 20
+  positions = positions.map( function (p) {
     return [
-      ( p[0] * 0.5 * 200 / 2560 + 0.5 ),
-      ( p[1] * 0.5 * 200 / 2560 + 0.5 )
+      ( p[0] * scale / 2560 + 0.5 ),
+      ( p[1] * scale / 2560 + 0.5 )
     ];
   })
-
   var d = drawSVG(positions);
 
 

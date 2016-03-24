@@ -8,7 +8,9 @@ var mesh;
 var dm
 var g
 var uvs = {}
+var origin_uvs = {}
 
+var running = false
 $(function () {
   socket.on('res-update', function (result) {
     var e = new Date().getTime();
@@ -21,6 +23,11 @@ $(function () {
 })
 
 function getDgpc (start) {
+  if (running) return false
+  // if (origin_uvs[start] && origin_uvs[start].r < 0.1) return false
+  running = true
+
+  console.log('start: ' + start)
   if (_.has(window.uvs, start)) {
     updateMapping(start)
   } else {
@@ -33,64 +40,9 @@ var origin
 var updated_uvs = {}
 function updateMapping (start) {
   var uvs
-  if (!origin) origin = start
-
-  if (_.size(window.uvs) > 1) {
-    var origin_uvs = window.uvs[origin]
-    var current_uvs = window.uvs[start]
-
-    var theta_0 = origin_uvs[start].theta
-
-    var r_origin = current_uvs[origin].r
-    var theta_origin = current_uvs[origin].theta
-
-    var v = new THREE.Vector3()
-    var vp = geometry.uniq[origin]
-    var vq = geometry.uniq[start]
-    var np = vp.vertex_normal
-    var nq = vq.vertex_normal
-    var ep = geometry.uniq[vp.edges[0]]
-    var eq = geometry.uniq[vq.edges[0]]
-    var xp = v.clone().subVectors(ep.vertex, vp.vertex)
-    var xq = v.clone().subVectors(eq.vertex, vq.vertex)
-
-    var u_pq = new THREE.Vector2(origin_uvs[start].u, origin_uvs[start].v)
-
-    var u_p = new THREE.Vector2(0, 0)
-    var u_q = new THREE.Vector2(origin_uvs[start].u, origin_uvs[start].v)
-
-    for (var id in current_uvs) {
-      if (updated_uvs[id]) continue
-      var hash = current_uvs[id]
-      if (hash.r > 0.1) continue
-      var u_q
-      var angle = Math.acos(np.dot(nq))
-      var xq_prime = xq.clone().applyAxisAngle(nq, angle)
-      var theta_pq = Math.acos(xp.dot(xq_prime))
-      var u_qr = new THREE.Vector2(current_uvs[id].u, current_uvs[id].v)
-
-      var u_qr_hat = u_qr.clone().rotateAround(u_p, theta_pq)
-      var u_pr = u_p.clone().addVectors(u_pq, u_qr_hat)
-
-      var u_r = u_pr
-      var distance_p = u_r.distanceTo(u_p)
-      var distance_q = u_r.distanceTo(u_q)
-      var alpha = (distance_p*distance_q)/(distance_p+distance_q)
-      updated_uvs[id] = {
-        u: (alpha/distance_p)*hash.u + (alpha/distance_q)*u_pr.x,
-        v: (alpha/distance_p)*hash.v + (alpha/distance_q)*u_pr.y
-      }
-    }
-    window.updated_uvs = updated_uvs
-
-  } else {
-    for (var id in origin_uvs) {
-      var hash = origin_uvs[id]
-      if (hash.r > 0.1) continue
-      updated_uvs[id]
-    }
-  }
-  uvs = updated_uvs
+  origin = start
+  window.origin_uvs = window.uvs[origin]
+  var uvs = origin_uvs
   scene.remove(dm)
   g = new THREE.Geometry()
   for (var i=0; i<geometry.faces.length; i++) {
@@ -99,18 +51,21 @@ function updateMapping (start) {
     var b = geometry.uniq[map[face.b]]
     var c = geometry.uniq[map[face.c]]
     // if (uvs[a.id].r > 0.2 || uvs[b.id].r > 0.2 || uvs[c.id].r > 0.2 ) continue
-    var num = g.vertices.length
-    g.vertices.push(a.vertex)
-    g.vertices.push(b.vertex)
-    g.vertices.push(c.vertex)
-    g.faces.push(new THREE.Face3(num, num+1, num+2))
-    var uv_a = new THREE.Vector2(uvs[a.id].u, uvs[a.id].v)
-    var uv_b = new THREE.Vector2(uvs[b.id].u, uvs[b.id].v)
-    var uv_c = new THREE.Vector2(uvs[c.id].u, uvs[c.id].v)
-    g.faceVertexUvs[0].push([uv_a, uv_b, uv_c])
+    if (uvs[a.id] && uvs[b.id] && uvs[c.id]) {
+      var num = g.vertices.length
+      g.vertices.push(a.vertex)
+      g.vertices.push(b.vertex)
+      g.vertices.push(c.vertex)
+      g.faces.push(new THREE.Face3(num, num+1, num+2))
+      var uv_a = new THREE.Vector2(uvs[a.id].u, uvs[a.id].v)
+      var uv_b = new THREE.Vector2(uvs[b.id].u, uvs[b.id].v)
+      var uv_c = new THREE.Vector2(uvs[c.id].u, uvs[c.id].v)
+      g.faceVertexUvs[0].push([uv_a, uv_b, uv_c])
+    }
   }
-  // showDrawingCanvas()
-  showCheckerMark()
+  showDrawingCanvas()
+  // showCheckerMark()
+  running = false
 }
 
 function showCheckerMark () {
@@ -123,6 +78,18 @@ function showCheckerMark () {
   dm.scale.set(6, 6, 6)
   dm.position.setY(-1)
   scene.add(dm);
+
+
+  for (var id in origin_uvs) {
+    var hash = origin_uvs[id]
+    if (hash.theta == 0 && id !== origin) {
+      ep = geometry.uniq[id]
+    }
+  }
+  console.log(ep.id)
+  getDgpc(ep.id)
+
+
 }
 
 function showDrawingCanvas () {
@@ -530,3 +497,79 @@ function getDgpc2 (start) {
       updated_uvs[id] = { r: r, theta: theta, u: u, v: v }
     }
     */
+
+  /*
+  if (_.size(window.uvs) > 1) {
+    var current_uvs = window.uvs[start]
+
+    var theta_0 = origin_uvs[start].theta
+
+    var r_origin = current_uvs[origin].r
+    var theta_origin = current_uvs[origin].theta
+
+    var v = new THREE.Vector3()
+    var vp = geometry.uniq[origin]
+    var vq = geometry.uniq[start]
+    var np = vp.vertex_normal
+    var nq = vq.vertex_normal
+
+    var ep
+    var eq
+    for (var id in origin_uvs) {
+      var hash = origin_uvs[id]
+      if (hash.theta == 0 && id !== origin) {
+        ep = geometry.uniq[id]
+      }
+    }
+    for (var id in current_uvs) {
+      var hash = current_uvs[id]
+      if (hash.theta == 0 && id !== start) {
+        eq = geometry.uniq[id]
+      }
+    }
+    var xp = v.clone().subVectors(ep.vertex, vp.vertex).normalize()
+    var xq = v.clone().subVectors(eq.vertex, vq.vertex).normalize()
+
+    var u_pq = new THREE.Vector2(updated_uvs[start].u, updated_uvs[start].v)
+    var u_p = new THREE.Vector2(0, 0)
+    var u_q = new THREE.Vector2(updated_uvs[start].u, updated_uvs[start].v)
+    var angle = Math.acos(np.dot(nq))
+    var xq_prime = xq.clone().applyAxisAngle(nq, angle).normalize()
+    var theta_pq = Math.acos(xp.dot(xq_prime))
+
+    theta_pq = origin_uvs[eq.id].theta
+
+    console.log(theta_pq)
+    for (var id in current_uvs) {
+      var hash = current_uvs[id]
+      // if (hash.r > 0.05) continue
+      // hash = origin_uvs[id]
+      if (updated_uvs[id]) continue
+      if (!updated_uvs[start]) continue
+      var u_qr = new THREE.Vector2(hash.u, hash.v)
+      var u_qr_hat = u_qr.clone().rotateAround(u_q, -theta_pq)
+      var u_pr = u_p.clone().addVectors(u_pq, u_qr_hat)
+
+      var u_r = u_pr
+      var distance_p = u_r.distanceTo(u_p)
+      var distance_q = u_r.distanceTo(u_q)
+      var alpha = (distance_q)/(distance_p+distance_q)
+      updated_uvs[id] = {
+        u: alpha*hash.u + (1-alpha)*u_pr.x,
+        v: alpha*hash.v + (1-alpha)*u_pr.y
+      }
+    }
+    window.updated_uvs = updated_uvs
+    debugger
+
+  } else {
+    for (var id in origin_uvs) {
+      var hash = origin_uvs[id]
+      updated_uvs[id] = {
+        u: hash.u,
+        v: hash.v
+      }
+    }
+  }
+  */
+

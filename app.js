@@ -71,6 +71,7 @@ app.io.route('connection', function *(next, json) {
 app.io.route('update', function *(next, start) {
   console.log('update')
   var filename = __dirname + '/data/hoge.obj'
+  console.log(start)
   var result = dgpc.getMapping(filename, start)
   result.start = start
   this.emit('res-update', result)

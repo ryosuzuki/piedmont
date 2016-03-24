@@ -70,7 +70,7 @@ function replaceObject (svgMesh, geometry) {
 
   ng = new THREE.Geometry();
   for (var i=0; i<geometry.faces.length; i++) {
-    if (selectIndex.includes(i)) continue;
+    // if (selectIndex.includes(i)) continue;
     var face = geometry.faces[i];
     var normal = face.normal;
     var va  = geometry.vertices[face.a];
@@ -96,15 +96,24 @@ function replaceObject (svgMesh, geometry) {
     // ng.faces.push(new THREE.Face3(num+2, num+1, num+1))
   }
 
+
   var positions = svgMesh.positions;
 
   // Centerize positions around [0, 1]
-  positions = positions.map(function (p) {
+  var scale = 50
+  var left = 300
+  var top = 50
+  positions = positions.map( function (p) {
     return [
-      ( p[0] * 0.5 * 200 / 2560 + 0.5 ),
-      ( p[1] * 0.5 * 200 / 2560 + 0.5 )
+      ( (p[0]) * scale / 2560 + 0.5 + left / 2560 ),
+      ( (p[1]) * scale / 2560 + 0.5 + top / 2560)
     ];
   })
+
+  positions = positions.map( function (p) {
+    return [ p[0], 1-p[1] ]
+  })
+
 
   window.positions = positions;
   var count = 0;
