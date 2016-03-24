@@ -27,6 +27,14 @@ var pathStyle = {
 }
 var draft;
 
+
+function mickeyScale (scale) {
+  window.scale *= scale
+  mickey.scale(scale)
+  paper.view.draw()
+  dm.material.map.needsUpdate = true
+}
+
 function onDocumentMouseDown( event ) {
   var intersects = getIntersects(event);
   if (intersects.length < 1) return false;
@@ -42,6 +50,22 @@ function onDocumentMouseDown( event ) {
       window.pos = new THREE.Vector2(event.pageX, event.pageY)
       var start = map[current.face.a]
       getDgpc(start)
+
+      var width = height = 256
+      if (current.uv) {
+        window.currentUv = current.uv
+        var center = new paper.Point(
+          current.uv.x * width,
+          (1-current.uv.y) * height
+        )
+        mickey.position = center
+        paper.view.draw()
+        dm.material.map.needsUpdate = true
+      }
+
+
+
+      // console.log(current.uv)
     // }
 
     // window.event = event

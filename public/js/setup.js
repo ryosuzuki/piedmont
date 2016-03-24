@@ -17,27 +17,31 @@ $(function () {
 
 function getTextureImage () {
   var loader = new THREE.TextureLoader();
-  loader.load('/public/assets/bunny_1k.png', function (image) {
+  loader.load('/public/assets/arrow.png', function (image) {
     image.minFilter = THREE.LinearFilter;
     image.needsUpdate = true;
     image.wrapS = THREE.RepeatWrapping;
     image.wrapT = THREE.RepeatWrapping;
-    image.repeat.set(4, 4);
+    // image.repeat.set(4, 4);
     window.image = image;
   });
 
   loadSvg('/public/assets/mickey-2.svg', function (err, svg) {
     var d = $('path', svg).attr('d');
     // var d = "M 120, 120 m -70, 0 a 70,70 0 1,0 150,0 a 70,70 0 1,0 -150,0";
-    window.svg = svgMesh3d(d, {
+    svgMesh = svgMesh3d(d, {
       scale: 1,
       simplify: 0.001,
       randomization: false,
       normalize: true
     })
+    // svgMesh.positions = svgMesh.positions.map( function (p) {
+    //   return [ p[0], 1-p[1] ]
+    // })
+    window.svg = svgMesh
 
-    var width = 2560
-    var height = 2560
+    var width = 256
+    var height = 256
     var canvas = document.getElementById('drawing')
     canvas.width = width
     canvas.height = height
@@ -46,9 +50,9 @@ function getTextureImage () {
     // shape.fillColor = 'blue';
     // paper.project.importSVG(svg)
 
-    var scale = 50
-    var left = 300
-    var top = 50
+    window.scale = 5
+    var left = 0
+    var top = 0
     var points = window.svg.positions.map(function(p) {
       return [
         p[0] * scale + width/2 + left,
@@ -65,8 +69,10 @@ function getTextureImage () {
       path.moveTo(new paper.Point(point[0], point[1]))
       path.lineTo(new paper.Point(next[0], next[1]))
     }
+    // path.rotate(180)
     path.closed = true;
     paper.view.draw()
+    window.mickey = path
   })
 }
 

@@ -98,21 +98,46 @@ function replaceObject (svgMesh, geometry) {
 
 
   var positions = svgMesh.positions;
-
-  // Centerize positions around [0, 1]
-  var scale = 50
-  var left = 300
-  var top = 50
-  positions = positions.map( function (p) {
-    return [
-      ( (p[0]) * scale / 2560 + 0.5 + left / 2560 ),
-      ( (p[1]) * scale / 2560 + 0.5 + top / 2560)
-    ];
-  })
-
   positions = positions.map( function (p) {
     return [ p[0], 1-p[1] ]
   })
+  // positions = positions.map( function (p) {
+  //   return [ p[0], p[1]-0.02 ]
+  // })
+
+  var width = height = 256
+  // normalize
+  positions = positions.map( function (p) {
+    return [ p[0]/width, p[1]/height ]
+  })
+  // scale
+  positions = positions.map( function (p) {
+    return [ p[0]*scale, p[1]*scale ]
+  })
+  //
+  positions = positions.map( function (p) {
+    return [ p[0]+currentUv.x, p[1]+currentUv.y ]
+  })
+
+
+
+  // var d = $(mickey.exportSVG()).attr('d')
+  // var hoge = svgMesh3d(d, {
+  //   scale: 1,
+  //   simplify: Math.pow(10, -3),
+  //   customize: true,
+  // })
+  // positions = hoge.positions
+  // var scale = 5
+  // var width = 256
+  // var height = 256
+  // positions = hoge.positions.map(function(p) {
+  //   return [
+  //     p[0] / width,
+  //     p[1] / height
+  //   ]
+  // })
+
 
 
   window.positions = positions;
@@ -151,7 +176,7 @@ function replaceObject (svgMesh, geometry) {
       ng.vertices.push(va)
       ng.vertices.push(vb)
       ng.vertices.push(vc)
-      ng.faces.push(new THREE.Face3(num, num+1, num+2))
+      // ng.faces.push(new THREE.Face3(num, num+1, num+2))
 
       var h = -0.01;
       var v = new THREE.Vector3();
@@ -163,8 +188,8 @@ function replaceObject (svgMesh, geometry) {
       ng.vertices.push(outer_a)
       ng.vertices.push(outer_b)
       ng.vertices.push(outer_c)
-      ng.faces.push(new THREE.Face3(num, num+1, num+2))
-      ng.faces.push(new THREE.Face3(num+2, num+1, num+1))
+      // ng.faces.push(new THREE.Face3(num, num+1, num+2))
+      // ng.faces.push(new THREE.Face3(num+2, num+1, num+1))
 
     } else {
       var diffs = greinerHormann.diff(triangle, positions)

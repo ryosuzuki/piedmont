@@ -24,6 +24,7 @@ $(function () {
 
 function getDgpc (start) {
   if (running) return false
+  if (_.size(origin_uvs) > 0) return false
   // if (origin_uvs[start] && origin_uvs[start].r < 0.1) return false
   running = true
 
@@ -61,6 +62,8 @@ function updateMapping (start) {
       var uv_b = new THREE.Vector2(uvs[b.id].u, uvs[b.id].v)
       var uv_c = new THREE.Vector2(uvs[c.id].u, uvs[c.id].v)
       g.faceVertexUvs[0].push([uv_a, uv_b, uv_c])
+
+      geometry.faceVertexUvs[0][i] = [uv_a, uv_b, uv_c]
     }
   }
   showDrawingCanvas()
