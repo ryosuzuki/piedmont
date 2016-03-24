@@ -35,6 +35,14 @@ function mickeyScale (scale) {
   dm.material.map.needsUpdate = true
 }
 
+function mickeyRotate (rotate) {
+  window.rotate = rotate
+  mickey.rotate(rotate)
+  paper.view.draw()
+  dm.material.map.needsUpdate = true
+}
+
+
 function onDocumentMouseDown( event ) {
   var intersects = getIntersects(event);
   if (intersects.length < 1) return false;
@@ -55,8 +63,8 @@ function onDocumentMouseDown( event ) {
       if (current.uv) {
         window.currentUv = current.uv
         var center = new paper.Point(
-          current.uv.x * width,
-          (1-current.uv.y) * height
+          (current.uv.x-0.5) * width,
+          -(current.uv.y-0.5) * height
         )
         mickey.position = center
         paper.view.draw()

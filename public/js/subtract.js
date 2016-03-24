@@ -114,29 +114,44 @@ function replaceObject (svgMesh, geometry) {
   positions = positions.map( function (p) {
     return [ p[0]*scale, p[1]*scale ]
   })
-  //
+  // rotate
+  positions = positions.map( function (p) {
+    return [
+      p[0]*Math.cos(rotate) - p[1]*Math.sin(rotate),
+      p[0]*Math.sin(rotate) - p[1]*Math.cos(rotate)
+    ]
+  })
+
+  // parallel transition
   positions = positions.map( function (p) {
     return [ p[0]+currentUv.x, p[1]+currentUv.y ]
   })
 
 
 
-  // var d = $(mickey.exportSVG()).attr('d')
-  // var hoge = svgMesh3d(d, {
-  //   scale: 1,
-  //   simplify: Math.pow(10, -3),
-  //   customize: true,
-  // })
-  // positions = hoge.positions
-  // var scale = 5
-  // var width = 256
-  // var height = 256
-  // positions = hoge.positions.map(function(p) {
-  //   return [
-  //     p[0] / width,
-  //     p[1] / height
-  //   ]
-  // })
+  var d = mickey.pathData // $(mickey.exportSVG()).attr('d')
+  var hoge = svgMesh3d(d, {
+    scale: 1,
+    simplify: 0.001,
+    normalize: true
+    // customize: true,
+  })
+  positions = hoge.positions
+  var scale = 1/50
+  var width = 256
+  var height = 256
+  // normalize size: 2 (-1<->1) -> size: 1 (-0.5<->0.5)
+  positions = hoge.positions.map(function(p) {
+    return [ p[0]*0.5, p[1]*0.5 ]
+  })
+  // scale
+  positions = hoge.positions.map(function(p) {
+    return [ p[0]*scale, p[1]*scale ]
+  })
+  // move center [0, 0] -> [0.5, 0.5]
+  positions = positions.map(function(p) {
+    return [ p[0]+currentUv.x, p[1]+currentUv.y ]
+  })
 
 
 

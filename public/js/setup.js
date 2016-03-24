@@ -35,9 +35,11 @@ function getTextureImage () {
       randomization: false,
       normalize: true
     })
+    window.hoge = svg
     // svgMesh.positions = svgMesh.positions.map( function (p) {
     //   return [ p[0], 1-p[1] ]
     // })
+
     window.svg = svgMesh
 
     var width = 256
@@ -51,26 +53,29 @@ function getTextureImage () {
     // paper.project.importSVG(svg)
 
     window.scale = 5
+    window.rotate = 0
     var left = 0
     var top = 0
     var points = window.svg.positions.map(function(p) {
       return [
-        p[0] * scale + width/2 + left,
-        p[1] * scale + height/2 + top
+        p[0] * scale, // + width/2 + left,
+        p[1] * scale // + height/2 + top
       ]
     })
 
-    var path = new paper.Path();
+    var path = new paper.Path(d);
     path.strokeColor = 'black';
     path.fillColor = 'black';
-    for (var i=0; i<points.length; i++) {
-      var point = points[i];
-      var next = points[(i+1)%points.length];
-      path.moveTo(new paper.Point(point[0], point[1]))
-      path.lineTo(new paper.Point(next[0], next[1]))
-    }
+    // for (var i=0; i<points.length; i++) {
+    //   var point = points[i];
+    //   var next = points[(i+1)%points.length];
+    //   path.moveTo(new paper.Point(point[0], point[1]))
+    //   path.lineTo(new paper.Point(next[0], next[1]))
+    // }
     // path.rotate(180)
     path.closed = true;
+    path.scale(1/50)
+    paper.view.center = [0, 0]
     paper.view.draw()
     window.mickey = path
   })
