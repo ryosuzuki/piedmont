@@ -42,6 +42,10 @@ function mickeyRotate (rotate) {
   dm.material.map.needsUpdate = true
 }
 
+function repeatPattern () {
+
+}
+
 
 function onDocumentMouseDown( event ) {
   var intersects = getIntersects(event);

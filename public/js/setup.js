@@ -32,7 +32,7 @@ function getTextureImage () {
     path.strokeColor = 'black'
     path.fillColor = 'black'
     path.closed = true
-    window.scale = 1
+    window.scale = 1/30
     // window.scale = 1/50
     path.scale(scale)
     paper.view.center = [0, 0]

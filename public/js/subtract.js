@@ -31,10 +31,20 @@ function getSvgPositions () {
   positions = positions.map(function(p) {
     return [ p[0]*scale, p[1]*scale ]
   })
-  positions = positions.map(function(p) {
-    return [ p[0]+currentUv.x, p[1]+currentUv.y ]
-  })
-  return positions
+
+  var res = []
+  for (var i=0; i<5; i++) {
+    var pos = positions.map(function(p) {
+      return [ p[0]+0.5 -0.2+0.1*i, p[1]+0.5 ]
+    })
+    // res.push(pos)
+    res = _.union(res, pos)
+  }
+  return res
+  // positions = positions.map(function(p) {
+  //   return [ p[0]+currentUv.x, p[1]+currentUv.y ]
+  // })
+  // return positions
 }
 
 function replaceObject (geometry) {
@@ -69,7 +79,12 @@ function replaceObject (geometry) {
   }
 
   var positions = getSvgPositions()
-  window.positions = positions;
+  // window.positions = positions;
+
+  // var res = getSvgPositions()
+  // res.forEach( function (positions) {
+
+
   var count = 0;
   // for (var i=0; i<selectIndex.length; i++) {
   //   var index = selectIndex[i]
@@ -105,7 +120,7 @@ function replaceObject (geometry) {
       ng.vertices.push(va)
       ng.vertices.push(vb)
       ng.vertices.push(vc)
-      // ng.faces.push(new THREE.Face3(num, num+1, num+2))
+      ng.faces.push(new THREE.Face3(num, num+1, num+2))
 
       var h = -0.01;
       var v = new THREE.Vector3();
@@ -167,8 +182,8 @@ function replaceObject (geometry) {
           ng.vertices.push(outer_a)
           ng.vertices.push(outer_b)
           ng.vertices.push(outer_c)
-          ng.faces.push(new THREE.Face3(num, num+1, num+2))
-          ng.faces.push(new THREE.Face3(num+2, num+1, num+1))
+          // ng.faces.push(new THREE.Face3(num, num+1, num+2))
+          // ng.faces.push(new THREE.Face3(num+2, num+1, num+1))
 
           var face_vertices = [va, vb, vc];
           if (isNotTriangle(inner_a, face_vertices)) {
@@ -212,6 +227,9 @@ function replaceObject (geometry) {
       console.log(count);
     }
   }
+
+  // }) // res
+
   console.log('done')
   scene.remove(mesh)
   scene.remove(dm)
