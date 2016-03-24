@@ -10,7 +10,59 @@ $(function () {
   init();
   drawObjects();
   animate();
+
+  paper.setup('drawing')
+  getTextureImage()
 });
+
+function getTextureImage () {
+  var loader = new THREE.TextureLoader();
+  loader.load('/public/assets/bunny_1k.png', function (image) {
+    image.minFilter = THREE.LinearFilter;
+    image.needsUpdate = true;
+    image.wrapS = THREE.RepeatWrapping;
+    image.wrapT = THREE.RepeatWrapping;
+    image.repeat.set(4, 4);
+    window.image = image;
+  });
+
+  loadSvg('/public/assets/mickey-2.svg', function (err, svg) {
+    var d = $('path', svg).attr('d');
+    // var d = "M 120, 120 m -70, 0 a 70,70 0 1,0 150,0 a 70,70 0 1,0 -150,0";
+    window.svg = svgMesh3d(d, {
+      scale: 1,
+      simplify: 0.001,
+      randomization: false,
+      normalize: true
+    })
+
+    var width = 2560
+    var height = 2560
+    var canvas = document.getElementById('drawing')
+    canvas.width = width
+    canvas.height = height
+    // var center = new Point(width/2, height/2)
+    // var shape = new Path.Star(center, 5, 20, 50)
+    // shape.fillColor = 'blue';
+    // paper.project.importSVG(svg)
+
+    var points = window.svg.positions.map(function(p) {
+      return [ p[0]*100 + width/2, p[1]*100 + height/2 ]
+    })
+    var path = new paper.Path();
+    path.strokeColor = 'black';
+    path.fillColor = 'black';
+    for (var i=0; i<points.length; i++) {
+      var point = points[i];
+      var next = points[(i+1)%points.length];
+      path.moveTo(new paper.Point(point[0], point[1]))
+      path.lineTo(new paper.Point(next[0], next[1]))
+    }
+    path.closed = true;
+    paper.view.draw()
+  })
+}
+
 
 function init() {
   scene = new THREE.Scene();

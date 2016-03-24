@@ -1,4 +1,23 @@
 
+function computeVertexNormals (geometry) {
+  for (var i=0; i<geometry.uniq.length; i++) {
+    var v = geometry.uniq[i];
+    var vertex_normal = new THREE.Vector3();
+    var normals = [];
+    for (var j=0; j<v.faces.length; j++) {
+      var index = v.faces[j];
+      var face = geometry.faces[index];
+      var normal = face.normal;
+      vertex_normal.add(normal);
+      normals.push(normal);
+    }
+    vertex_normal.divideScalar(v.faces.length).normalize();
+    geometry.uniq[i].vertex_normal = vertex_normal;
+  }
+  return geometry
+}
+
+
 function computeAngle (geometry) {
   console.log('Start computeAngle')
   for (var fi=0; fi<geometry.faces.length; fi++) {

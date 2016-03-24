@@ -56,9 +56,9 @@ function onDocumentMouseUp (event) {
 
   var intersects = getIntersects(event);
   if (intersects.length < 1) return false;
-  if (selectIndex.length > 0) {
-    console.log('Select Done')
-  }
+  // if (selectIndex.length > 0) {
+  //   console.log('Select Done')
+  // }
 }
 
 function onDocumentMouseMove (event) {

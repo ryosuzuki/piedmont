@@ -4,65 +4,125 @@ var limit = 1.5;
 var num = 100;
 
 var texture;
-
 var mesh;
-
-function getDgpc (start) {
-  s = new Date().getTime();
-  socket.emit('update', start)
-}
-
-// paper.install(window)
-window.onload = function () {
-  paper.setup('drawing')
-  drawMickey()
-}
+var dm
+var g
+var uvs = {}
 
 $(function () {
-  socket.on('res-update', function (data) {
+  socket.on('res-update', function (result) {
     var e = new Date().getTime();
     var time = e - s;
     // console.log('Execution time: ' + time + 'ms');
-    updateMapping(data.uv)
+    var start = result.start
+    window.uvs[start] = result.uv
+    updateMapping(start)
   })
 })
 
-function drawMickey () {
-  loadSvg('/public/assets/mickey-2.svg', function (err, svg) {
-    var d = $('path', svg).attr('d');
-    // var d = "M 120, 120 m -70, 0 a 70,70 0 1,0 150,0 a 70,70 0 1,0 -150,0";
-    window.svg = svgMesh3d(d, {
-      scale: 1,
-      simplify: 0.001,
-      randomization: false,
-      normalize: true
-    })
+function getDgpc (start) {
+  if (_.has(window.uvs, start)) {
+    updateMapping(start)
+  } else {
+    s = new Date().getTime();
+    socket.emit('update', start)
+  }
+}
 
-    var width = 2560
-    var height = 2560
-    var canvas = document.getElementById('drawing')
-    canvas.width = width
-    canvas.height = height
-    // var center = new Point(width/2, height/2)
-    // var shape = new Path.Star(center, 5, 20, 50)
-    // shape.fillColor = 'blue';
-    // paper.project.importSVG(svg)
+var origin
+var updated_uvs = {}
+function updateMapping (start) {
+  var uvs
+  if (!origin) origin = start
 
-    var points = window.svg.positions.map(function(p) {
-      return [ p[0]*100 + width/2, p[1]*100 + height/2 ]
-    })
-    var path = new paper.Path();
-    path.strokeColor = 'black';
-    path.fillColor = 'black';
-    for (var i=0; i<points.length; i++) {
-      var point = points[i];
-      var next = points[(i+1)%points.length];
-      path.moveTo(new paper.Point(point[0], point[1]))
-      path.lineTo(new paper.Point(next[0], next[1]))
+  if (_.size(window.uvs) > 1) {
+    var origin_uvs = window.uvs[origin]
+    var current_uvs = window.uvs[start]
+
+    var theta_0 = origin_uvs[start].theta
+
+    var r_origin = current_uvs[origin].r
+    var theta_origin = current_uvs[origin].theta
+
+    var v = new THREE.Vector3()
+    var vp = geometry.uniq[origin]
+    var vq = geometry.uniq[start]
+    var np = vp.vertex_normal
+    var nq = vq.vertex_normal
+    var ep = geometry.uniq[vp.edges[0]]
+    var eq = geometry.uniq[vq.edges[0]]
+    var xp = v.clone().subVectors(ep.vertex, vp.vertex)
+    var xq = v.clone().subVectors(eq.vertex, vq.vertex)
+
+    var u_pq = new THREE.Vector2(origin_uvs[start].u, origin_uvs[start].v)
+
+    var u_p = new THREE.Vector2(0, 0)
+    var u_q = new THREE.Vector2(origin_uvs[start].u, origin_uvs[start].v)
+
+    for (var id in current_uvs) {
+      if (updated_uvs[id]) continue
+      var hash = current_uvs[id]
+      if (hash.r > 0.1) continue
+      var u_q
+      var angle = Math.acos(np.dot(nq))
+      var xq_prime = xq.clone().applyAxisAngle(nq, angle)
+      var theta_pq = Math.acos(xp.dot(xq_prime))
+      var u_qr = new THREE.Vector2(current_uvs[id].u, current_uvs[id].v)
+
+      var u_qr_hat = u_qr.clone().rotateAround(u_p, theta_pq)
+      var u_pr = u_p.clone().addVectors(u_pq, u_qr_hat)
+
+      var u_r = u_pr
+      var distance_p = u_r.distanceTo(u_p)
+      var distance_q = u_r.distanceTo(u_q)
+      var alpha = (distance_p*distance_q)/(distance_p+distance_q)
+      updated_uvs[id] = {
+        u: (alpha/distance_p)*hash.u + (alpha/distance_q)*u_pr.x,
+        v: (alpha/distance_p)*hash.v + (alpha/distance_q)*u_pr.y
+      }
     }
-    path.closed = true;
-    paper.view.draw()
-  })
+    window.updated_uvs = updated_uvs
+
+  } else {
+    for (var id in origin_uvs) {
+      var hash = origin_uvs[id]
+      if (hash.r > 0.1) continue
+      updated_uvs[id]
+    }
+  }
+  uvs = updated_uvs
+  scene.remove(dm)
+  g = new THREE.Geometry()
+  for (var i=0; i<geometry.faces.length; i++) {
+    var face = geometry.faces[i]
+    var a = geometry.uniq[map[face.a]]
+    var b = geometry.uniq[map[face.b]]
+    var c = geometry.uniq[map[face.c]]
+    // if (uvs[a.id].r > 0.2 || uvs[b.id].r > 0.2 || uvs[c.id].r > 0.2 ) continue
+    var num = g.vertices.length
+    g.vertices.push(a.vertex)
+    g.vertices.push(b.vertex)
+    g.vertices.push(c.vertex)
+    g.faces.push(new THREE.Face3(num, num+1, num+2))
+    var uv_a = new THREE.Vector2(uvs[a.id].u, uvs[a.id].v)
+    var uv_b = new THREE.Vector2(uvs[b.id].u, uvs[b.id].v)
+    var uv_c = new THREE.Vector2(uvs[c.id].u, uvs[c.id].v)
+    g.faceVertexUvs[0].push([uv_a, uv_b, uv_c])
+  }
+  // showDrawingCanvas()
+  showCheckerMark()
+}
+
+function showCheckerMark () {
+  var m = new THREE.MeshLambertMaterial({
+    color: 0xffffff,
+    map: image,
+    // transparent: true
+  });
+  dm = new THREE.Mesh(g, m);
+  dm.scale.set(6, 6, 6)
+  dm.position.setY(-1)
+  scene.add(dm);
 }
 
 function showDrawingCanvas () {
@@ -83,41 +143,6 @@ function showDrawingCanvas () {
   dm.scale.set(6, 6, 6)
   dm.position.setY(-1)
   scene.add(dm);
-}
-
-var dm
-var g
-function updateMapping (uvs) {
-  scene.remove(dm)
-  g = new THREE.Geometry()
-  for (var i=0; i<geometry.faces.length; i++) {
-    var face = geometry.faces[i]
-    var a = geometry.uniq[map[face.a]]
-    var b = geometry.uniq[map[face.b]]
-    var c = geometry.uniq[map[face.c]]
-    // if (uvs[a.id].r > 0.2 || uvs[b.id].r > 0.2 || uvs[c.id].r > 0.2 ) continue
-    var num = g.vertices.length
-    g.vertices.push(a.vertex)
-    g.vertices.push(b.vertex)
-    g.vertices.push(c.vertex)
-    g.faces.push(new THREE.Face3(num, num+1, num+2))
-    var uv_a = new THREE.Vector2(uvs[a.id].u, uvs[a.id].v)
-    var uv_b = new THREE.Vector2(uvs[b.id].u, uvs[b.id].v)
-    var uv_c = new THREE.Vector2(uvs[c.id].u, uvs[c.id].v)
-    g.faceVertexUvs[0].push([uv_a, uv_b, uv_c])
-  }
-  showDrawingCanvas()
-
-  // var m = new THREE.MeshLambertMaterial({
-  //   color: 0xffffff,
-  //   map: image,
-  //   // transparent: true
-  // });
-  // dm = new THREE.Mesh(g, m);
-  // nm.scale.set(6, 6, 6)
-  // scene.add(nm);
-
-  // initializeViewingTexture()
 }
 
 
@@ -468,3 +493,40 @@ function getDgpc2 (start) {
   })
 }
 */
+
+
+    /*
+    var diff_uvs = {}
+    for (var id in current_uvs) {
+      var hash = current_uvs[id]
+      var id_1 = hash.id
+      var r_1 = hash.r
+      var theta_1 = Math.abs(theta_origin - hash.theta)
+      var r_est = Math.sqrt( r_origin*r_origin + r_1*r_1 - 2*r_origin*r_1*Math.cos(theta_1) )
+      var cos_est = ( r_est*r_est + r_origin*r_origin - r_1*r_1 ) / ( 2*r_est*r_origin )
+      var theta_est = Math.acos(cos_est)
+      theta_est = theta_est + theta_0 // ???
+      // if (r_est < 0.2) {
+        diff_uvs[id] = { r: r_est, theta: theta_est }
+      // }
+    }
+
+    var updated_uvs = {}
+    for (var id in origin_uvs) {
+      var hash = origin_uvs[id]
+      var diff_hash = diff_uvs[id]
+
+      var r
+      var theta
+      if (diff_hash && hash.r > 0.1) {
+        r = 0.5*hash.r + 0.5*diff_hash.r
+        theta = hash.theta //0.5*hash.theta + 0.5*diff_hash.theta
+      } else {
+        r = hash.r
+        theta = hash.theta
+      }
+      var u = r * Math.cos(theta) + 0.5
+      var v = r * Math.sin(theta) + 0.5
+      updated_uvs[id] = { r: r, theta: theta, u: u, v: v }
+    }
+    */

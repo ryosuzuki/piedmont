@@ -58,6 +58,8 @@ function replaceObject (svgMesh, geometry) {
   if (ng) scene.remove(ng);
   geometry.computeFaceNormals()
 
+  /*
+  => angle.js
   for (var i=0; i<geometry.uniq.length; i++) {
     var v = geometry.uniq[i];
     var vertex_normal = new THREE.Vector3();
@@ -69,9 +71,10 @@ function replaceObject (svgMesh, geometry) {
       vertex_normal.add(normal);
       normals.push(normal);
     }
-    vertex_normal.divideScalar(v.faces.length);
+    vertex_normal.divideScalar(v.faces.length).normalize();
     geometry.uniq[i].vertex_normal = vertex_normal;
   }
+  */
 
   ng = new THREE.Geometry();
   for (var i=0; i<geometry.faces.length; i++) {

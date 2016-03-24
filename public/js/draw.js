@@ -23,6 +23,7 @@ function loadObjects () {
   .then(computeEdgeLength(geometry))
   .then(computeAngle(geometry))
   .then(computeCcwEdges(geometry))
+  .then(computeVertexNormals(geometry))
   .then(createObj(geometry))
 
   // .then(computeBoundary(geometry))
@@ -124,15 +125,6 @@ function drawObj () {
     objects.push(mesh)
     loadObjects()
 
-    var loader = new THREE.TextureLoader();
-    loader.load('/public/assets/bunny_1k.png', function (image) {
-      image.minFilter = THREE.LinearFilter;
-      image.needsUpdate = true;
-      image.wrapS = THREE.RepeatWrapping;
-      image.wrapT = THREE.RepeatWrapping;
-      image.repeat.set(4, 4);
-      window.image = image;
-    });
   });
 
 
