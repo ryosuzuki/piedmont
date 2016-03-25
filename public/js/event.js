@@ -50,12 +50,14 @@ function repeatPattern () {
   window.centerPositions = []
   var center = mickey.position
   for (var i=0; i<5; i++) {
-    var path = mickey.clone()
-    path.position = [
-      center.x-40+20*i,
-      center.y // -0.2+0.1*i,
-    ]
-    window.mickeys.push(path)
+    for (var j=0; j<5; j++) {
+      var path = mickey.clone()
+      path.position = [
+        center.x-40+20*i,
+        center.y-40+20*j
+      ]
+      window.mickeys.push(path)
+    }
   }
   paper.view.draw()
   dm.material.map.needsUpdate = true

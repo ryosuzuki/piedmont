@@ -154,12 +154,18 @@ function createHall (faceIndex, positions) {
       }
       return false;
     })
-    var d = drawSVG(diff);
-    var bndMesh = svgMesh3d(d, {
-      scale: 1,
-      // simplify: Math.pow(10, -3),
-      customize: true,
-    })
+    var bndMesh
+    try {
+      var d = drawSVG(diff);
+      bndMesh = svgMesh3d(d, {
+        scale: 1,
+        // simplify: Math.pow(10, -3),
+        customize: true,
+      })
+    } catch (e) {
+      console.log(e)
+      continue
+    }
     var nuv = bndMesh.positions;
     var nf = bndMesh.cells;
     var nxyz = uvTo3D(nuv, ouv, va, vb, vc);
