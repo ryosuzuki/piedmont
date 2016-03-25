@@ -27,6 +27,7 @@ build/Release
 node_modules
 bower_components
 engine/compute/include
+data
 
 # Optional npm cache directory
 .npm

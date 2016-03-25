@@ -1,48 +1,42 @@
-var p;//Math.round(Math.random()*n);
-var q;//n-1
-var Z;
+var p
+var q
+var Z
 
+function computeLaplacian(geometry) {
+  console.log('Start computeLaplacian')
+  var uniq = geometry.uniq;
+  var n = uniq.length;
 
-function getField (geometry, p, q) {
-  console.log('Start getField')
-  if (!p) p = 0;
-  if (!q) q = geometry.uniq.length-1;
-  var json = {
-    uniq: geometry.uniq,
-    faces: geometry.faces,
-    map: geometry.map,
-    p: p,
-    q: q,
-  };
-  $.ajax({
-    url: '/get-laplacian',
-    type: 'POST',
-    datatype: 'JSON',
-    data: {
-      json: JSON.stringify(json)
-    },
-    success: function (data) {
-      console.log('Get result');
-      console.log(data);
-      var phi = data.phi;
-      geometry.phi = phi;
-      geometry.phiFaces = geometry.faces.map( function (face) {
-        var a = phi[map[face.a]];
-        var b = phi[map[face.b]];
-        var c = phi[map[face.c]];
-        return (a+b+c)/3;
-      });
-      var val = 0.52;
-      computeSelect()
-      colorChange(val)
-      p = undefined;
-      q = undefined;
-      console.log(current);
-      current.object.geometry.colorsNeedUpdate = true;
-    }
-  });
+  var cells = geometry.faces.map( function (face) {
+    return [
+      geometry.map[face.a],
+      geometry.map[face.b],
+      geometry.map[face.c]
+    ]
+  })
+  var positions = geometry.uniq.map( function (v) {
+    return [
+      v.vertex.x,
+      v.vertex.y,
+      v.vertex.z
+    ]
+  })
+  var lapList = meshLaplacian(cells, positions);
+  var lapMat = csrMatrix.fromList(lapList);
+  var L = lapMat.toDense();
+
+  geometry.laplacian = L;
+  /*
+  console.log('Start Cholesky decomposition');
+  var ccsL = numeric.ccsSparse(L);
+  var ccsLU = numeric.ccsLUP(ccsL);
+  geometry.ccsLU = ccsLU;
+  var LU = numeric.LU(L);
+  geometry.LU = LU;
+  */
+  console.log('Finish computeLaplacian')
+  return geometry;
 }
-
 
 
 function computeHarmonicField(geometry) {
@@ -120,42 +114,6 @@ function computeHarmonicField(geometry) {
   });
 
   console.log('Finish computeHarmonicField')
-  return geometry;
-}
-
-function computeLaplacian(geometry) {
-  console.log('Start computeLaplacian')
-  var uniq = geometry.uniq;
-  var n = uniq.length;
-
-  var cells = geometry.faces.map( function (face) {
-    return [
-      geometry.map[face.a],
-      geometry.map[face.b],
-      geometry.map[face.c]
-    ]
-  })
-  var positions = geometry.uniq.map( function (v) {
-    return [
-      v.vertex.x,
-      v.vertex.y,
-      v.vertex.z
-    ]
-  })
-  var lapList = meshLaplacian(cells, positions);
-  var lapMat = csrMatrix.fromList(lapList);
-  var L = lapMat.toDense();
-
-  geometry.laplacian = L;
-
-  console.log('Start Cholesky decomposition');
-  // var ccsL = numeric.ccsSparse(L);
-  // var ccsLU = numeric.ccsLUP(ccsL);
-  // geometry.ccsLU = ccsLU;
-  // var LU = numeric.LU(L);
-  // geometry.LU = LU;
-
-  console.log('Finish computeLaplacian')
   return geometry;
 }
 
