@@ -64,12 +64,12 @@ app.io.route('connection', function *(next, json) {
     (map[faces[i].c] + 1) + '\n'
   }
   console.log('create obj file')
-  fs.writeFileSync('data/hoge.obj', str, 'utf8')
+  fs.writeFileSync('data/demo.obj', str, 'utf8')
 })
 
 app.io.route('update', function *(next, start) {
   console.log('update')
-  var filename = __dirname + '/data/hoge.obj'
+  var filename = __dirname + '/data/demo.obj'
   console.log(start)
   var result = dgpc.getMapping(filename, start)
   result.start = start

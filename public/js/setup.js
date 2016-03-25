@@ -9,7 +9,7 @@ var socket = io()
 
 $(function () {
   init();
-  drawObjects();
+  drawGeometry();
   animate();
 
   paper.setup('drawing')
