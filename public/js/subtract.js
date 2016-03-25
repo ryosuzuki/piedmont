@@ -33,17 +33,14 @@ function getSvgPositions () {
   })
 
   var svgPositions = []
-  for (var i=0; i<5; i++) {
+  window.mickeys.forEach( function (mickey) {
+    var uv = convertCenterToUv(mickey.position)
     var pos = positions.map(function(p) {
-      //
-      // add center of repeatitive pattern
-      // [ p[0] + center[0], p[1] + center[1] ]
       // [ p[0] + current.uv.x, p[1] + current.uv.y ]
-      //
-      return [ p[0]+0.5 -0.2+0.1*i, p[1]+0.5 ]
+      return [ p[0]+uv[0], p[1]+uv[1] ]
     })
     svgPositions.push(pos)
-  }
+  })
   return svgPositions
 }
 

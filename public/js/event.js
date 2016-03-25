@@ -52,7 +52,7 @@ function repeatPattern () {
   for (var i=0; i<5; i++) {
     var path = mickey.clone()
     path.position = [
-      center.x-60+30*i,
+      center.x-40+20*i,
       center.y // -0.2+0.1*i,
     ]
     window.mickeys.push(path)
