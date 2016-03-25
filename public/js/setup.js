@@ -38,6 +38,7 @@ function getTextureImage () {
     paper.view.center = [0, 0]
     paper.view.draw()
     window.mickey = path
+    window.mickeys = [window.mickey]
   })
 }
 

@@ -30,22 +30,45 @@ var draft;
 
 function mickeyScale (scale) {
   window.scale *= scale
-  mickey.scale(scale)
+  window.mickeys.forEach( function (mickey) {
+    mickey.scale(scale)
+  })
   paper.view.draw()
   dm.material.map.needsUpdate = true
 }
 
 function mickeyRotate (rotate) {
   window.rotate = rotate
-  mickey.rotate(rotate)
+  window.mickeys.forEach( function (mickey) {
+    mickey.rotate(rotate)
+  })
   paper.view.draw()
   dm.material.map.needsUpdate = true
 }
 
 function repeatPattern () {
-
+  window.centerPositions = []
+  var center = mickey.position
+  for (var i=0; i<5; i++) {
+    var path = mickey.clone()
+    path.position = [
+      center.x-60+30*i,
+      center.y // -0.2+0.1*i,
+    ]
+    window.mickeys.push(path)
+  }
+  paper.view.draw()
+  dm.material.map.needsUpdate = true
 }
 
+var width = height = 256
+function convertUvToCenter (uv) {
+  return [ (uv.x-0.5)*width, -(uv.y-0.5)*height ]
+}
+
+function convertCenterToUv (center) {
+  return [ (center.x/width)+0.5, -(center.y/height)+0.5 ]
+}
 
 function onDocumentMouseDown( event ) {
   var intersects = getIntersects(event);
@@ -63,13 +86,9 @@ function onDocumentMouseDown( event ) {
       var start = map[current.face.a]
       getDgpc(start)
 
-      var width = height = 256
       if (current.uv) {
         window.currentUv = current.uv
-        var center = new paper.Point(
-          (current.uv.x-0.5) * width,
-          -(current.uv.y-0.5) * height
-        )
+        var center = convertUvToCenter(current.uv)
         mickey.position = center
         paper.view.draw()
         dm.material.map.needsUpdate = true
