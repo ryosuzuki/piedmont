@@ -38,12 +38,12 @@ app.use( function *(next) {
 app.use(route.get('/', index))
 app.use(route.get('/favicon.ico', null))
 app.use(route.get('/:id', show))
-app.use(route.post('/get-obj', getObj))
-app.use(route.post('/get-dgpc', getDgpc))
-app.use(route.post('/get-laplacian', getLaplacian))
-app.use(route.post('/get-mapping', getMapping))
-app.use(route.post('/save', save))
-app.use(route.post('/stl', generateSTL))
+// app.use(route.post('/get-dgpc', getDgpc))
+// app.use(route.post('/get-obj', getObj))
+// app.use(route.post('/get-laplacian', getLaplacian))
+// app.use(route.post('/get-mapping', getMapping))
+// app.use(route.post('/save', save))
+// app.use(route.post('/stl', generateSTL))
 
 app.io.route('connection', function *(next, json) {
   console.log('connected')
@@ -67,11 +67,11 @@ app.io.route('connection', function *(next, json) {
   fs.writeFileSync('data/demo.obj', str, 'utf8')
 })
 
-app.io.route('update', function *(next, start) {
+app.io.route('update', function *(next, size, start) {
   console.log('update')
   var filename = __dirname + '/data/demo.obj'
   console.log(start)
-  var result = dgpc.getMapping(filename, start)
+  var result = dgpc.getMapping(filename, size, start)
   result.start = start
   this.emit('res-update', result)
 })
@@ -83,17 +83,18 @@ function *show(id) {
   this.body = yield this.render(id)
 }
 
-function *getObj() {
-  var json = fs.readFileSync('demo.json')
-  // var json = fs.readFileSync('cow.json')
-  this.response.body = json
-}
-
+/*
 function *getDgpc() {
   var json = this.request.body.json
   json = JSON.parse(json)
   var result = dgpc.getMapping(json)
   this.response.body = result
+}
+
+function *getObj() {
+  var json = fs.readFileSync('demo.json')
+  // var json = fs.readFileSync('cow.json')
+  this.response.body = json
 }
 
 function *getLaplacian() {
@@ -116,6 +117,7 @@ function *save() {
   console.log(json)
   fs.writeFileSync('hoge.json', json, 'utf8')
 }
+*/
 
 var Geometry = require('./engine/voxelize/src/geometry')
 var stl = require('ndarray-stl')

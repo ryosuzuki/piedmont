@@ -1,6 +1,13 @@
 var objects = [];
 
 function loadObjects () {
+  geometry.center()
+  geometry.computeBoundingSphere()
+  var radius = geometry.boundingSphere.radius
+  var scale = 0.7 * size / radius
+  geometry.scale(scale, scale, scale)
+  controls.minDistance = geometry.boundingSphere.radius
+
   Q.fcall(computeUniq(geometry))
   .then(computeEdges(geometry))
   .then(computeEdgeLength(geometry))
@@ -13,9 +20,10 @@ function loadObjects () {
 }
 
 function drawGeometry () {
-  // drawBasicGeometry()
-  loadObj('/data/bunny.obj', drawObj)
-  // loadStl('/data/demo.stl', drawStl);
+  drawBasicGeometry('sphere')
+  // loadObj('/data/bunny.obj', drawObj)
+  // loadStl('/data/knight.stl', drawStl);
+  // loadStl('/data/bulbasaur.stl', drawStl);
 }
 
 function drawObj (geometry) {
@@ -25,8 +33,6 @@ function drawObj (geometry) {
     vertexColors: THREE.FaceColors,
   });
   mesh = new THREE.Mesh(geometry, material);
-  mesh.scale.set(6, 6, 6)
-  mesh.position.setY(-1)
   scene.add(mesh);
   objects.push(mesh)
   loadObjects()
@@ -39,8 +45,6 @@ function drawStl (geometry) {
     vertexColors: THREE.FaceColors,
   });
   mesh = new THREE.Mesh(geometry, material);
-  mesh.scale.set(1, 1, 1)
-  mesh.position.setY(-1)
   scene.add(mesh);
   objects.push(mesh)
   loadObjects()
@@ -50,19 +54,20 @@ function drawBasicGeometry (shape) {
   switch (shape) {
     case 'sphere':
       geometry = new THREE.SphereGeometry(size, 30, 30)
+      break
     case 'box':
-      geometry = new THREE.BoxGeometry(size, size, size, 10, 10, 10)
-    case 'cylinder':
-      geometry = new THREE.CylinderGeometry(size, size, size, 2)
+      geometry = new THREE.BoxGeometry(size, size, size, 2, 2, 2)
+      break
     case 'torus':
       geometry = new THREE.TorusKnotGeometry( size, 0.3*size, 100, 8)
+      break
     default:
-      geometry = new THREE.CylinderGeometry(size, size, size, 2)
+      geometry = new THREE.CylinderGeometry(size, size, 2*size, 30, 1)
   }
   var material = new THREE.MeshLambertMaterial({
     color: 0xffffff,
     vertexColors: THREE.FaceColors,
-  });
+  })
   mesh = new THREE.Mesh(geometry, material)
   mesh.geometry.verticesNeedUpdate = true;
   mesh.dynamic = true;
@@ -73,7 +78,6 @@ function drawBasicGeometry (shape) {
   loadObjects();
 }
 
-
 function createObj (geometry) {
   var json = {
     uniq: geometry.uniq,
@@ -81,7 +85,7 @@ function createObj (geometry) {
     map: geometry.map,
     filename: 'demo.obj'
   }
-  // socket.emit('connection', json)
+  socket.emit('connection', json)
 }
 
 

@@ -29,13 +29,13 @@ function loadObjects () {
   // .then(getMapping(geometry))
 }
 
-function drawObjects () {
+function drawGeometry () {
   // drawSphere()
   // drawBox()
   // drawRing();
   // drawTorus()
-  // drawCylinder();
-  drawObj();
+  drawCylinder();
+  // drawObj();
   // drawSTL();
 }
 
@@ -169,7 +169,7 @@ function hoge (geometry) {
   geometry.buffersNeedUpdate = true;
 
   var loader = new THREE.TextureLoader();
-  loader.load('/bunny_1k.png', function (image) {
+  loader.load('/public/assets/bunny_1k.png', function (image) {
     image.minFilter = THREE.LinearFilter;
     image.needsUpdate = true;
     image.wrapS = THREE.RepeatWrapping;
@@ -304,7 +304,7 @@ function drawCylinder () {
   // loadObjects();
 
   var loader = new THREE.TextureLoader();
-  loader.load('/bunny_1k.png', function (image) {
+  loader.load('/public/assets/bunny_1k.png', function (image) {
     image.minFilter = THREE.LinearFilter;
     image.needsUpdate = true;
     // image.wrapS = THREE.RepeatWrapping;

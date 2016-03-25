@@ -24,7 +24,8 @@ $(function () {
 
 function getDgpc (start) {
   if (running) return false
-  if (_.size(origin_uvs) > 0) return false
+  // if (_.size(origin_uvs) > 0) return false
+
   // if (origin_uvs[start] && origin_uvs[start].r < 0.1) return false
   running = true
 
@@ -32,8 +33,9 @@ function getDgpc (start) {
   if (_.has(window.uvs, start)) {
     updateMapping(start)
   } else {
+    var size = geometry.uniq.length
     s = new Date().getTime();
-    socket.emit('update', start)
+    socket.emit('update', size, start)
   }
 }
 
@@ -66,8 +68,9 @@ function updateMapping (start) {
       geometry.faceVertexUvs[0][i] = [uv_a, uv_b, uv_c]
     }
   }
-  showDrawingCanvas()
-  // showCheckerMark()
+
+  // showDrawingCanvas()
+  showCheckerMark()
   running = false
 }
 
@@ -75,20 +78,22 @@ function showCheckerMark () {
   var m = new THREE.MeshLambertMaterial({
     color: 0xffffff,
     map: image,
-    // transparent: true
+    transparent: true
   });
+  m.map.minFilter = THREE.LinearFilter
+  m.map.needsUpdate = true
   dm = new THREE.Mesh(g, m);
-  dm.scale.set(6, 6, 6)
-  dm.position.setY(-1)
+  dm.scale.set(mesh.scale.x, mesh.scale.y, mesh.scale.z)
+  dm.position.set(mesh.position.x, mesh.position.y, mesh.position.z)
   scene.add(dm);
-  for (var id in origin_uvs) {
-    var hash = origin_uvs[id]
-    if (hash.theta == 0 && id !== origin) {
-      ep = geometry.uniq[id]
-    }
-  }
-  console.log(ep.id)
-  getDgpc(ep.id)
+  // for (var id in origin_uvs) {
+  //   var hash = origin_uvs[id]
+  //   if (hash.theta == 0 && id !== origin) {
+  //     ep = geometry.uniq[id]
+  //   }
+  // }
+  // console.log(ep.id)
+  // getDgpc(ep.id)
 }
 
 function showDrawingCanvas () {
@@ -104,10 +109,10 @@ function showDrawingCanvas () {
   // m.map.wrapS = THREE.RepeatWrapping;
   // m.map.wrapT = THREE.RepeatWrapping;
   // m.map.repeat.set(2, 2);
-  m.map.needsUpdate = true;
-  dm = new THREE.Mesh(g, m);
-  dm.scale.set(6, 6, 6)
-  dm.position.setY(-1)
+  m.map.needsUpdate = true
+  dm = new THREE.Mesh(g, m)
+  dm.scale.set(mesh.scale.x, mesh.scale.y, mesh.scale.z)
+  dm.position.set(mesh.position.x, mesh.position.y, mesh.position.z)
   scene.add(dm);
 }
 

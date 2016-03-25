@@ -4,7 +4,7 @@ var scene;
 var renderer;
 var raycaster = new THREE.Raycaster()
 var mouse = new THREE.Vector2();
-var size = 1;
+var size = 1
 var socket = io()
 
 $(function () {
@@ -18,7 +18,7 @@ $(function () {
 
 function getTextureImage () {
   var loader = new THREE.TextureLoader();
-  loader.load('/public/assets/arrow.png', function (image) {
+  loader.load('/public/assets/bunny_1k.png', function (image) {
     image.minFilter = THREE.LinearFilter;
     image.needsUpdate = true;
     image.wrapS = THREE.RepeatWrapping;
@@ -46,19 +46,19 @@ function getTextureImage () {
 
 function init() {
   scene = new THREE.Scene();
-  camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 1, 10000);
+  camera = new THREE.PerspectiveCamera(35, window.innerWidth / window.innerHeight, 0.01*size, 1000);
   camera.position.set(size*2, size*2, size*2)
-  camera.lookAt(new THREE.Vector3(0, 3, 0));
+  camera.lookAt(new THREE.Vector3(0, 0, 0));
   scene.add( camera );
 
   scene.add(new THREE.AmbientLight(0xccc));
   var ambientLight = new THREE.AmbientLight(0x999999);
   scene.add(ambientLight);
   var light = new THREE.DirectionalLight(0xFFFFFF, 0.2);
-  light.position.set(320, 390, 700);
+  light.position.set(4*size, 4*size, 7*size);
   scene.add(light);
   var light2 = new THREE.DirectionalLight(0xFFFFFF, 0.2);
-  light2.position.set(-720, -190, -300);
+  light2.position.set(-7*size, -4*size, -4*size);
   scene.add(light2);
 
   var headLight = new THREE.PointLight(0xFFFFFF, 0.25);
@@ -92,6 +92,13 @@ function init() {
   controls = new THREE.OrbitControls( camera, renderer.domElement );
   controls.damping = 0.2;
   controls.addEventListener( 'change', render );
+  controls.rotateSpeed = 0.3
+  controls.zoomSpeed = 0.3
+  controls.panSpeed = 0.3
+  controls.noZoom = false
+  controls.noPan = false
+  controls.staticMoving = false
+  controls.dynamicDampingFactor = 0.3
 
   stats = new Stats();
   stats.domElement.style.position = 'absolute';
@@ -111,7 +118,6 @@ function animate(){
   requestAnimationFrame(animate);
   render();
   stats.update();
-
 }
 
 function render() {
