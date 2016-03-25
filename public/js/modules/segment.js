@@ -2,9 +2,8 @@ function segmentObjects () {
   Q.fcall(computeBoundary(geometry))
   .then(computeLaplacian(geometry))
   .then(computeHarmonicField(geometry))
-  .then(hoge(geometry))
-
 }
+
 
 function computeBoundary (geometry) {
   var D_M = _.sumBy(geometry.uniq.filter( function (v) {

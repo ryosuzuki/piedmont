@@ -2,112 +2,22 @@
 var selectMode = false;
 var undoMode = false;
 
-$(document).on('click', '#mapping', function (event) {
-  console.log('mapping');
-  Q.call(getBoundary(geometry))
-  .then(getMapping(geometry))
-});
-
-$(document).on('click', '#add', function (event) {
-  console.log('add');
-  addTexture()
-});
-
-$(document).on('click', '#export', function() {
-  var exporter = new THREE.STLExporter();
-  var stlString = exporter.parse( scene );
-  var blob = new Blob([stlString], {type: 'text/plain'});
-  saveAs(blob, 'demo.stl');
-});
-
-var pathStyle = {
-  strokeColor: 'black',
-  strokeWidth: 5,
-  fullySelected: true
-}
-var draft;
-
-
-function mickeyScale (scale) {
-  window.scale *= scale
-  window.mickeys.forEach( function (mickey) {
-    mickey.scale(scale)
-  })
-  paper.view.draw()
-  dm.material.map.needsUpdate = true
-}
-
-function mickeyRotate (rotate) {
-  window.rotate = rotate
-  window.mickeys.forEach( function (mickey) {
-    mickey.rotate(rotate)
-  })
-  paper.view.draw()
-  dm.material.map.needsUpdate = true
-}
-
-function repeatPattern () {
-  window.centerPositions = []
-  var center = mickey.position
-  var num = 3
-  for (var i=0; i<num; i++) {
-    for (var j=0; j<num; j++) {
-      var path = mickey.clone()
-      path.position = [
-        center.x-20+20*i,
-        center.y-20+20*j
-      ]
-      window.mickeys.push(path)
-    }
-  }
-  paper.view.draw()
-  dm.material.map.needsUpdate = true
-}
-
-var width = height = 256
-function convertUvToCenter (uv) {
-  return [ (uv.x-0.5)*width, -(uv.y-0.5)*height ]
-}
-
-function convertCenterToUv (center) {
-  return [ (center.x/width)+0.5, -(center.y/height)+0.5 ]
-}
 
 function onDocumentMouseDown( event ) {
   var intersects = getIntersects(event);
   if (intersects.length < 1) return false;
   // if (!selectMode && !undoMode) return false;
   window.current = intersects[0];
+  window.currentIndex = current.faceIndex
   if (selectMode) {
     // drawLine(pos.x, pos.y)
     if (pos) showDrawingCanvas(pos)
   } else {
-    var ci = current.faceIndex
-    // if (ci !== window.currentIndex && current.face) {
-      window.currentIndex = ci
-      window.pos = new THREE.Vector2(event.pageX, event.pageY)
-      var start = map[current.face.a]
-      getDgpc(start)
-
-      if (current.uv) {
-        window.currentUv = current.uv
-        var center = convertUvToCenter(current.uv)
-        mickey.position = center
-        paper.view.draw()
-        dm.material.map.needsUpdate = true
-      }
-
-
-
-      // console.log(current.uv)
-    // }
-
-    // window.event = event
-    // if (currentIndex) affectedFaces = _.union(affectedFaces, [currentIndex])
-    // paper.view.onFrame = function (event) { }
+    window.pos = new THREE.Vector2(event.pageX, event.pageY)
+    var start = map[current.face.a]
+    getDgpc(start)
+    if (current.uv) moveMickey(current.uv)
   }
-
-
 }
 
 function onDocumentMouseUp (event) {
@@ -141,9 +51,6 @@ function onWindowResize () {
   camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();
   renderer.setSize( window.innerWidth, window.innerHeight );
-
-  // drawingCanvas.width = renderer.domElement.width
-  // drawingCanvas.height = renderer.domElement.height
 }
 
 function onDocumentTouchStart( event ) {
@@ -152,6 +59,31 @@ function onDocumentTouchStart( event ) {
   event.clientY = event.touches[0].clientY;
   onDocumentMouseDown( event );
 }
+
+
+$(document).on('click', '#mapping', function (event) {
+  console.log('mapping');
+});
+
+$(document).on('click', '#add', function (event) {
+  console.log('add');
+  addTexture()
+});
+
+$(document).on('click', '#export', function() {
+  var exporter = new THREE.STLExporter();
+  var stlString = exporter.parse( scene );
+  var blob = new Blob([stlString], {type: 'text/plain'});
+  saveAs(blob, 'demo.stl');
+});
+
+var pathStyle = {
+  strokeColor: 'black',
+  strokeWidth: 5,
+  fullySelected: true
+}
+var draft;
+
 
 Mousetrap.bind('command', function () {
   undoMode = false

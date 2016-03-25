@@ -42,7 +42,6 @@ app.use(route.post('/get-obj', getObj))
 app.use(route.post('/get-dgpc', getDgpc))
 app.use(route.post('/get-laplacian', getLaplacian))
 app.use(route.post('/get-mapping', getMapping))
-app.use(route.post('/get-boundary', getBoundary))
 app.use(route.post('/save', save))
 app.use(route.post('/stl', generateSTL))
 
@@ -101,13 +100,6 @@ function *getLaplacian() {
   var json = this.request.body.json
   json = JSON.parse(json)
   var result = compute.getField(json)
-  this.response.body = result
-}
-
-function *getBoundary() {
-  var json = this.request.body.json
-  json = JSON.parse(json)
-  var result = compute.getBoundary(json)
   this.response.body = result
 }
 

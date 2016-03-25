@@ -5,6 +5,7 @@ var renderer;
 var raycaster = new THREE.Raycaster()
 var mouse = new THREE.Vector2();
 var size = 1;
+var socket = io()
 
 $(function () {
   init();
