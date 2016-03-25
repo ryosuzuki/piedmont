@@ -25,17 +25,6 @@ function loadObjects () {
   .then(computeCcwEdges(geometry))
   .then(computeVertexNormals(geometry))
   .then(createObj(geometry))
-
-  // .then(computeBoundary(geometry))
-  // .then(computeLaplacian(geometry))
-
-
-  // .then(getDgpc(500))
-  // .then(computeHarmonicField(geometry))
-
-  // .then(hoge(geometry))
-
-
   // .then(getBoundary(geometry))
   // .then(getMapping(geometry))
 }
