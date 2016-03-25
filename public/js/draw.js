@@ -1,21 +1,4 @@
 var objects = [];
-var materials = [];
-THREE.ImageUtils.crossOrigin = '';
-
-var a = new THREE.Vector3(1, 0, 0);
-var b = new THREE.Vector3(0, 0, 1);
-var c = new THREE.Vector3(0, 1, 0);
-var ab = new THREE.Vector3();
-var bc = new THREE.Vector3();
-ab.subVectors(b, a);
-bc.subVectors(c, b);
-
-var normal = new THREE.Vector3();
-normal.crossVectors(ab, bc)
-normal.normalize()
-
-var triangle;
-var cylinder;
 
 function loadObjects () {
   Q.fcall(computeUniq(geometry))
@@ -33,16 +16,6 @@ function drawGeometry () {
   // drawBasicGeometry()
   loadObj('/data/bunny.obj', drawObj)
   // loadStl('/data/demo.stl', drawStl);
-}
-
-function createObj (geometry) {
-  var json = {
-    uniq: geometry.uniq,
-    faces: geometry.faces,
-    map: geometry.map,
-    filename: 'demo.obj'
-  }
-  // socket.emit('connection', json)
 }
 
 function drawObj (geometry) {
@@ -99,4 +72,16 @@ function drawBasicGeometry (shape) {
   objects.push(mesh);
   loadObjects();
 }
+
+
+function createObj (geometry) {
+  var json = {
+    uniq: geometry.uniq,
+    faces: geometry.faces,
+    map: geometry.map,
+    filename: 'demo.obj'
+  }
+  // socket.emit('connection', json)
+}
+
 
