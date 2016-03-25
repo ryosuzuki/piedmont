@@ -21,22 +21,16 @@ function getSvgPositions () {
   })
   positions = svgMesh.positions
   /*
-    1. normalize: size 2 -> 1
-    2. scale: [x, y] -> scale * [x, y]
-    3. move center: [0, 0] -> [0.5, 0.5]
+    1. scale: [x, y] -> scale * [x, y]
+    2. set center: [0, 0] -> [0.5, 0.5] + alpha
   */
-  positions = positions.map(function(p) {
-    return [ p[0]*0.5, p[1]*0.5 ]
-  })
   positions = positions.map(function(p) {
     return [ p[0]*scale, p[1]*scale ]
   })
-
   var svgPositions = []
   window.mickeys.forEach( function (mickey) {
     var uv = convertCenterToUv(mickey.position)
     var pos = positions.map(function(p) {
-      // [ p[0] + current.uv.x, p[1] + current.uv.y ]
       return [ p[0]+uv[0], p[1]+uv[1] ]
     })
     svgPositions.push(pos)

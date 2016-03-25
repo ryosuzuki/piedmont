@@ -49,12 +49,13 @@ function mickeyRotate (rotate) {
 function repeatPattern () {
   window.centerPositions = []
   var center = mickey.position
-  for (var i=0; i<5; i++) {
-    for (var j=0; j<5; j++) {
+  var num = 3
+  for (var i=0; i<num; i++) {
+    for (var j=0; j<num; j++) {
       var path = mickey.clone()
       path.position = [
-        center.x-40+20*i,
-        center.y-40+20*j
+        center.x-20+20*i,
+        center.y-20+20*j
       ]
       window.mickeys.push(path)
     }
