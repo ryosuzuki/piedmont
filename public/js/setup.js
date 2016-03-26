@@ -95,10 +95,6 @@ function init() {
   controls.rotateSpeed = 0.3
   controls.zoomSpeed = 0.3
   controls.panSpeed = 0.3
-  controls.noZoom = false
-  controls.noPan = false
-  controls.staticMoving = false
-  controls.dynamicDampingFactor = 0.3
 
   stats = new Stats();
   stats.domElement.style.position = 'absolute';

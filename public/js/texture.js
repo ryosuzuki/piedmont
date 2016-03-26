@@ -46,6 +46,11 @@ function updateMapping (start) {
   origin = start
   window.origin_uvs = window.uvs[origin]
   var uvs = origin_uvs
+
+  for (var id in origin_uvs) {
+    geometry.uniq[id].uv = origin_uvs[id]
+  }
+
   scene.remove(dm)
   g = new THREE.Geometry()
   for (var i=0; i<geometry.faces.length; i++) {
@@ -70,9 +75,15 @@ function updateMapping (start) {
   }
 
   // showDrawingCanvas()
-  showCheckerMark()
+  // showCheckerMark()
+
   running = false
 }
+
+function showDistortion () {
+
+}
+
 
 function showCheckerMark () {
   var m = new THREE.MeshLambertMaterial({

@@ -1,7 +1,7 @@
 function segmentObjects () {
   Q.fcall(computeBoundary(geometry))
   .then(computeLaplacian(geometry))
-  .then(computeHarmonicField(geometry))
+  // .then(computeHarmonicField(geometry))
 }
 
 
@@ -9,7 +9,7 @@ function segmentObjects () {
 function computeHarmonicField(geometry) {
   console.log('Start computeHarmonicField')
   var n = geometry.uniq.length;
-  var c = a_edges.length;
+  var c = window.bnd_edges.length;
   var w = 1000;
   // var b = Array.apply(null, Array(n)).map(Number.prototype.valueOf, 0);
 
@@ -21,11 +21,13 @@ function computeHarmonicField(geometry) {
   }
   var GG = _.clone(Z);
   for (var i=0; i<c; i++) {
-    var p = a_edges[i].id;
+    // var p = a_edges[i].id;
+    var p = window.bnd_edges[i]
     GG[p][p] = w^2;
   }
   for (var i=0; i<c; i++) {
-    var q = b_edges[i].id;
+    // var q = b_edges[i].id
+    var q = window.start
     GG[q][q] = w^2;
   }
   // var LU = _.clone(geometry.LU);
@@ -41,13 +43,14 @@ function computeHarmonicField(geometry) {
   for (var i=0; i<n; i++) A[i] = L[i]
   for (var i=0; i<c; i++) {
     var a = _.clone(z)
-    a[a_edges[i].id] = w
+    a[window.bnd_edges[i]] = w
     A[n+i] = a
   }
   for (var i=0; i<c; i++) {
     var a = _.clone(z)
-    a[b_edges[i].id] = w
-    A[n+c+i] = z
+    // a[b_edges[i].id] = w
+    a[window.start] = w
+    A[n+c+i] = a
   }
   var A_T = numeric.transpose(A);
   var A_A = numeric.dot(A_T, A);
@@ -124,8 +127,8 @@ function showBoundary (geometry) {
   var checked = [];
   // for (var i=0; i<geometry.boundary.length; i++) {
 
-  var hoge = 3;
-  for (var i=hoge; i<hoge+1; i++) {
+  // var hoge = 3;
+  for (var i=0; i<geometry.boundary.length; i++) {
     var id = geometry.boundary[i];
     var t = 0;
     var bnds = [];
@@ -207,7 +210,7 @@ function showBoundary (geometry) {
     var m = new THREE.PointsMaterial( { size: 20, sizeAttenuation: false} );
     m.color.setHex(Math.random() * 0xffffff);
     var a_particles = new THREE.Points(g, m);
-    scene.add(a_particles);
+    // scene.add(a_particles);
 
     var g = new THREE.Geometry();
     g.vertices = b_edges.map(function (b) {
@@ -216,7 +219,7 @@ function showBoundary (geometry) {
     var m = new THREE.PointsMaterial( { size: 20, sizeAttenuation: false} );
     m.color.setHex(Math.random() * 0xffffff);
     var b_particles = new THREE.Points(g, m);
-    scene.add(b_particles);
+    // scene.add(b_particles);
 
   }
 

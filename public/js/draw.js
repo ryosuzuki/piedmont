@@ -14,16 +14,17 @@ function loadObjects () {
   .then(computeAngle(geometry))
   .then(computeCcwEdges(geometry))
   .then(computeVertexNormals(geometry))
+  .then(computeLaplacian(geometry))
   .then(createObj(geometry))
 
   // .then(segmentObjects())
 }
 
 function drawGeometry () {
-  drawBasicGeometry('sphere')
+  // drawBasicGeometry('cylinder')
   // loadObj('/data/bunny.obj', drawObj)
-  // loadStl('/data/knight.stl', drawStl);
-  // loadStl('/data/bulbasaur.stl', drawStl);
+  loadStl('/data/knight.stl', drawStl);
+  // loadStl('/data/noah.stl', drawStl);
 }
 
 function drawObj (geometry) {
