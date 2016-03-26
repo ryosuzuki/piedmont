@@ -2,55 +2,6 @@
 var selectMode = false;
 var undoMode = false;
 
-
-function showNeighbors () {
-  window.bnd_edges = []
-  var distortions = _.map(geometry.uniq, 'distortion')
-  var g = new THREE.Geometry();
-  for (var i=0; i<geometry.uniq.length; i++) {
-    var uv = geometry.uniq[i].uv
-    if (uv.r < 0.4 && distortions[i] > 0.1) {
-      window.bnd_edges.push(i)
-      g.vertices.push(geometry.uniq[i].vertex)
-    }
-  }
-  showPoints(g)
-
-  Q.fcall(computeHarmonicField(geometry))
-  .then(showPhiFaces(1.0))
-}
-
-var pm
-function showPhiFaces (val) {
-  scene.remove(pm)
-  pg = new THREE.Geometry()
-  for (var i=0; i<geometry.faces.length; i++) {
-    var phi = geometry.phiFaces[i]
-    if (phi > val) continue
-    var face = geometry.faces[i]
-    var num = pg.vertices.length
-    pg.vertices.push(geometry.vertices[face.a])
-    pg.vertices.push(geometry.vertices[face.b])
-    pg.vertices.push(geometry.vertices[face.c])
-    pg.faces.push(new THREE.Face3(num, num+1, num+2))
-  }
-  pg.computeFaceNormals()
-  var material = new THREE.MeshLambertMaterial({ color: 0x00ffff });
-  pm = new THREE.Mesh(pg, material)
-  scene.add(pm)
-}
-
-
-
-
-function showPoints (g) {
-  var m = new THREE.PointsMaterial( { size: 20, sizeAttenuation: false} );
-  m.color.setHex(Math.random() * 0xffffff);
-  points = new THREE.Points(g, m);
-  scene.add(points)
-}
-
-
 function onDocumentMouseDown( event ) {
   var intersects = getIntersects(event);
   if (intersects.length < 1) return false;

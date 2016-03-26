@@ -15,8 +15,9 @@ var threeOBJ = require('three-obj')()
 var app = koa()
 var server = http.createServer(app.callback())
 var port = process.env.PORT || 3000
-var compute = require('./engine/compute/index.js')
+// var compute = require('./engine/compute/index.js')
 var dgpc = require('./engine/dgpc/index.js')
+var harmonic = require('./engine/harmonic/index.js')
 
 
 app.use(serve('.'))
@@ -67,21 +68,33 @@ app.io.route('connection', function *(next, json) {
   fs.writeFileSync('data/demo.obj', str, 'utf8')
 })
 
-app.io.route('update', function *(next, size, start) {
-  console.log('update')
+app.io.route('update-dgpc', function *(next, size, start) {
+  console.log('Update DGPC')
   var filename = __dirname + '/data/demo.obj'
-  console.log(start)
   var result = dgpc.getMapping(filename, size, start)
   result.start = start
-  this.emit('res-update', result)
+  this.emit('res-update-dgpc', result)
 })
+
+app.io.route('update-harmonic', function *(next, json) {
+  console.log('Update Harmonic Field')
+  var filename = __dirname + '/data/demo.obj'
+  json.filename = filename
+  console.log(json)
+  var result = harmonic.getHarmonicField(json)
+  this.emit('res-update-harmonic', result)
+})
+
 
 function *index() {
   this.body = yield this.render('index')
 }
+
 function *show(id) {
   this.body = yield this.render(id)
 }
+
+
 
 /*
 function *getDgpc() {

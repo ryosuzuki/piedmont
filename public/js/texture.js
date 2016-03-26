@@ -12,7 +12,7 @@ var origin_uvs = {}
 
 var running = false
 $(function () {
-  socket.on('res-update', function (result) {
+  socket.on('res-update-dgpc', function (result) {
     var e = new Date().getTime();
     var time = e - s;
     // console.log('Execution time: ' + time + 'ms');
@@ -35,7 +35,7 @@ function getDgpc (start) {
   } else {
     var size = geometry.uniq.length
     s = new Date().getTime();
-    socket.emit('update', size, start)
+    socket.emit('update-dgpc', size, start)
   }
 }
 

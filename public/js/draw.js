@@ -22,10 +22,9 @@ function loadObjects () {
 }
 
 function drawGeometry () {
-  // drawBasicGeometry('cylinder')
+  drawBasicGeometry('cylinder')
   // loadObj('/data/bunny.obj', drawObj)
   // loadStl('/data/knight.stl', drawStl);
-  loadStl('/data/batman.stl', drawStl);
   // loadStl('/data/noah.stl', drawStl);
 }
 
