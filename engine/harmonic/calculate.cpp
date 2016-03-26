@@ -51,15 +51,15 @@ extern "C" {
       G.coeffRef(q, q) = w;
     }
 
-    // Lp = Lp + G;
-    // SparseLU< SparseMatrix<double> > slu(Lp);
-    // slu.analyzePattern(Lp);
-    // slu.factorize(Lp);
-    // VectorXd phi = slu.solve(b);
+    Lp = Lp + G;
+    SparseLU< SparseMatrix<double> > slu(Lp);
+    slu.analyzePattern(Lp);
+    slu.factorize(Lp);
+    VectorXd phi = slu.solve(b);
 
-    MatrixXd Ld = Lp;
-    PartialPivLU<MatrixXd> lu(Ld);
-    VectorXd phi = lu.solve(b);
+    // MatrixXd Ld = Lp;
+    // PartialPivLU<MatrixXd> lu(Ld);
+    // VectorXd phi = lu.solve(b);
 
     // cout << phi << endl;
     for (int i=0; i<n; i++) {

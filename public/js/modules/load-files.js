@@ -12,8 +12,13 @@ function loadStl (url, callback) {
   var loader = new THREE.STLLoader()
   loader.load(url, function ( res ) {
     var object = res
-    var positions = object.attributes.position.array
-    var geometry = convertPositionsToGeometry(positions)
+    var geometry
+    if (object.vertices) {
+      geometry = object
+    } else {
+      var positions = object.attributes.position.array
+      geometry = convertPositionsToGeometry(positions)
+    }
     return callback(geometry)
   })
 }

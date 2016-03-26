@@ -15,7 +15,7 @@ function loadObjects () {
   .then(computeCcwEdges(geometry))
   .then(computeVertexNormals(geometry))
   .then(createObj(geometry))
-  .then(computeLaplacian(geometry))
+  // .then(computeLaplacian(geometry))
   // .then(computeLUDecomposition(geometry))
 
   // .then(segmentObjects())
@@ -24,6 +24,7 @@ function loadObjects () {
 function drawGeometry () {
   drawBasicGeometry('cylinder')
   // loadObj('/data/bunny.obj', drawObj)
+  // loadStl('/data/test.stl', drawStl);
   // loadStl('/data/knight.stl', drawStl);
   // loadStl('/data/noah.stl', drawStl);
 }
@@ -64,7 +65,7 @@ function drawBasicGeometry (shape) {
       geometry = new THREE.TorusKnotGeometry( size, 0.3*size, 100, 8)
       break
     default:
-      geometry = new THREE.CylinderGeometry(size, size, 2*size, 30, 1)
+      geometry = new THREE.CylinderGeometry(size, size, 2*size, 30, 2)
   }
   var material = new THREE.MeshLambertMaterial({
     color: 0xffffff,

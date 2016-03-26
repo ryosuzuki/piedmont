@@ -12,6 +12,78 @@ $(function () {
   })
 })
 
+
+
+function getNextFaces (faceIndex) {
+  var face = geometry.faces[faceIndex]
+  var a = geometry.uniq[map[face.a]]
+  var b = geometry.uniq[map[face.b]]
+  var c = geometry.uniq[map[face.c]]
+
+  var face_ab = _.pull(_.intersection(a.faces, b.faces), faceIndex)
+
+  var face_bc = _.pull(_.intersection(b.faces, c.faces), faceIndex)
+  var face_ca = _.pull(_.intersection(c.faces, a.faces), faceIndex)
+  return _.union(face_ab, face_bc, face_ca)
+}
+
+function check () {
+  var face = current.face
+  var a = geometry.uniq[face.a]
+  var b = geometry.uniq[face.b]
+  var c = geometry.uniq[face.c]
+
+  var epsilon = 0.03
+  var selectIndex = [current.faceIndex]
+  var queue = [current.faceIndex]
+  var finished = []
+  while (queue.length > 0) {
+    var faceIndex = queue.shift()
+    var face = geometry.faces[faceIndex]
+    var normal = face.normal
+    var nextFaces = getNextFaces(faceIndex)
+    var cos = nextFaces.map( function (index) {
+      var nextFace = geometry.faces[index]
+      return normal.dot(nextFace.normal)
+    })
+    for (var i=0; i<3; i++) {
+      var cos_a = cos[i]
+      var cos_b = cos[(i+1)%3]
+      var cos_c = cos[(i+2)%3]
+      console.log(Math.abs(cos_a-cos_b))
+      if (Math.abs(cos_a-1) < epsilon
+        || Math.abs(cos_a-cos_b) < epsilon
+        || Math.abs(cos_a-cos_c) < epsilon)
+      {
+        if (!finished.includes(nextFaces[i])) {
+          queue = _.union(queue, [nextFaces[i]])
+        }
+        selectIndex.push(nextFaces[i])
+      }
+    }
+    selectIndex = _.uniq(selectIndex)
+    finished.push(faceIndex)
+  }
+
+  var g = new THREE.Geometry()
+  for (var i=0; i<selectIndex.length; i++) {
+    var selectFace = geometry.faces[selectIndex[i]]
+    var num = g.vertices.length
+    g.vertices.push(geometry.vertices[selectFace.a])
+    g.vertices.push(geometry.vertices[selectFace.b])
+    g.vertices.push(geometry.vertices[selectFace.c])
+    g.faces.push(new THREE.Face3(num, num+1, num+2))
+  }
+  var m = new THREE.MeshBasicMaterial({color: 0x00ffff})
+  var sm = new THREE.Mesh(g, m)
+  scene.add(sm)
+}
+
+
+
+
+
+
 function getMeshSegmentation () {
   // if (!window.start) return false
   var start = window.start

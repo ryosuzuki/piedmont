@@ -4,8 +4,6 @@ function segmentObjects () {
   // .then(computeHarmonicField(geometry))
 }
 
-
-
 function computeHarmonicField(geometry) {
   console.log('Start computeHarmonicField')
   var n = geometry.uniq.length;
