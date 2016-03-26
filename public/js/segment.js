@@ -27,13 +27,17 @@ function getNextFaces (faceIndex) {
   return _.union(face_ab, face_bc, face_ca)
 }
 
-function check () {
+function initialCheck() {
+  check(0.003)
+}
+
+var sm
+function check (epsilon) {
   var face = current.face
   var a = geometry.uniq[face.a]
   var b = geometry.uniq[face.b]
   var c = geometry.uniq[face.c]
 
-  var epsilon = 0.03
   var selectIndex = [current.faceIndex]
   var queue = [current.faceIndex]
   var finished = []
@@ -50,11 +54,10 @@ function check () {
       var cos_a = cos[i]
       var cos_b = cos[(i+1)%3]
       var cos_c = cos[(i+2)%3]
-      console.log(Math.abs(cos_a-cos_b))
       if (Math.abs(cos_a-1) < epsilon
         || Math.abs(cos_a-cos_b) < epsilon
-        || Math.abs(cos_a-cos_c) < epsilon)
-      {
+        || Math.abs(cos_a-cos_c) < epsilon
+      ) {
         if (!finished.includes(nextFaces[i])) {
           queue = _.union(queue, [nextFaces[i]])
         }
@@ -65,6 +68,7 @@ function check () {
     finished.push(faceIndex)
   }
 
+  scene.remove(sm)
   var g = new THREE.Geometry()
   for (var i=0; i<selectIndex.length; i++) {
     var selectFace = geometry.faces[selectIndex[i]]
@@ -75,7 +79,7 @@ function check () {
     g.faces.push(new THREE.Face3(num, num+1, num+2))
   }
   var m = new THREE.MeshBasicMaterial({color: 0x00ffff})
-  var sm = new THREE.Mesh(g, m)
+  sm = new THREE.Mesh(g, m)
   scene.add(sm)
 }
 
