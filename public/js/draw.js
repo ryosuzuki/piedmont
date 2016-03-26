@@ -14,8 +14,9 @@ function loadObjects () {
   .then(computeAngle(geometry))
   .then(computeCcwEdges(geometry))
   .then(computeVertexNormals(geometry))
-  .then(computeLaplacian(geometry))
   .then(createObj(geometry))
+  .then(computeLaplacian(geometry))
+  // .then(computeLUDecomposition(geometry))
 
   // .then(segmentObjects())
 }
@@ -23,7 +24,8 @@ function loadObjects () {
 function drawGeometry () {
   // drawBasicGeometry('cylinder')
   // loadObj('/data/bunny.obj', drawObj)
-  loadStl('/data/knight.stl', drawStl);
+  // loadStl('/data/knight.stl', drawStl);
+  loadStl('/data/batman.stl', drawStl);
   // loadStl('/data/noah.stl', drawStl);
 }
 

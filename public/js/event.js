@@ -15,6 +15,9 @@ function showNeighbors () {
     }
   }
   showPoints(g)
+
+  Q.fcall(computeHarmonicField(geometry))
+  .then(showPhiFaces(1.0))
 }
 
 var pm

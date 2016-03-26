@@ -2,7 +2,7 @@ var p
 var q
 var Z
 
-function computeLaplacian(geometry) {
+function computeLaplacian (geometry) {
   console.log('Start computeLaplacian')
   var uniq = geometry.uniq;
   var n = uniq.length;
@@ -26,16 +26,22 @@ function computeLaplacian(geometry) {
   var L = lapMat.toDense();
 
   geometry.laplacian = L;
-  /*
-  console.log('Start Cholesky decomposition');
-  var ccsL = numeric.ccsSparse(L);
-  var ccsLU = numeric.ccsLUP(ccsL);
-  geometry.ccsLU = ccsLU;
-  var LU = numeric.LU(L);
-  geometry.LU = LU;
-  */
+
   console.log('Finish computeLaplacian')
   return geometry;
+}
+
+function computeLUDecomposition (geometry) {
+  console.log('Start computeLUDecomosition')
+  var L = geometry.laplacian
+  var L_T = numeric.transpose(L)
+  var LL = numeric.dot(L_T, L)
+  var LU = numeric.LU(LL)
+  geometry.LU = LU
+
+  console.log('Finish computeLUDecomposition')
+  return geometry
+
 }
 
 

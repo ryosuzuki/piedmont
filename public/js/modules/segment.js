@@ -10,7 +10,7 @@ function computeHarmonicField(geometry) {
   console.log('Start computeHarmonicField')
   var n = geometry.uniq.length;
   var c = window.bnd_edges.length;
-  var w = 1000;
+  var w = 1000
   // var b = Array.apply(null, Array(n)).map(Number.prototype.valueOf, 0);
 
   var zeros = Array.apply(null, Array(n)).map(Number.prototype.valueOf, 0);
@@ -23,12 +23,12 @@ function computeHarmonicField(geometry) {
   for (var i=0; i<c; i++) {
     // var p = a_edges[i].id;
     var p = window.bnd_edges[i]
-    GG[p][p] = w^2;
+    GG[p][p] = w*w
   }
   for (var i=0; i<c; i++) {
     // var q = b_edges[i].id
     var q = window.start
-    GG[q][q] = w^2;
+    GG[q][q] = w*w
   }
   // var LU = _.clone(geometry.LU);
 
@@ -53,27 +53,36 @@ function computeHarmonicField(geometry) {
     A[n+c+i] = a
   }
   var A_T = numeric.transpose(A);
-  var A_A = numeric.dot(A_T, A);
 
-  var L_T = numeric.transpose(L)
-  var LL = numeric.dot(L_T, L);
-  var M = numeric.add(LL, GG);
+  // var LU = _.clone(geometry.LU)
+  // LU.LU = numeric.add(LU.LU, GG)
 
-  var LU = numeric.LU(A_A);
+
+  // var LU = _.clone(geometry.LU.LU)
+  // LU = numeric.add(LU, GG)
+
+
+  // var update_LU = numeric.LU(LU)
+
   var B = numeric.dot(A_T, b)
-  var phi = numeric.LUsolve(LU, B)
+  // var phi = numeric.LUsolve(update_LU, B)
+  // geometry.phi = phi;
+
+
+  var A_A = numeric.dot(A_T, A);
+  // var L_T = numeric.transpose(L)
+  // var LL = numeric.dot(L_T, L);
+  // var M = numeric.add(LL, GG);
+  var M_LU = numeric.LU(A_A);
+  var phi = numeric.LUsolve(M_LU, B)
+  geometry.phi = phi;
+
+
   // var A_inv = numeric.inv(A_A);
   // var M = numeric.dot(A_inv, A_T);
   // var phi = numeric.dot(M, b);
-  geometry.phi = phi;
 
-  /*
-  var A = numeric.add(L, G);
-  // var phi = numeric.ccsLUPSolve(geometry.ccsLU, b);
-  var LU = numeric.LU(A);
-  var phi = numeric.LUsolve(LU, b);
-  geometry.phi = phi;
-  */
+
 
   geometry.phiFaces = geometry.faces.map( function (face) {
     var phi = geometry.phi;
