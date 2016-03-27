@@ -10,7 +10,6 @@ var parser = require('koa-bodyparser')
 var koa = require('koa.io')
 var co = require('co')
 var Q = require('q')
-var threeOBJ = require('three-obj')()
 
 var app = koa()
 var server = http.createServer(app.callback())
