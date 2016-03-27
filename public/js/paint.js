@@ -1,4 +1,41 @@
 
+
+function initPlaneCanvas () {
+  var geometry = new THREE.PlaneGeometry(0.3*size, 0.3*size, 10)
+  var material = new THREE.MeshLambertMaterial({
+    color: 0x00ffff,
+    vertexColors: THREE.FaceColors,
+    side: THREE.DoubleSide
+  })
+  planeCanvas = new THREE.Mesh(geometry, material)
+  planeCanvas.geometry.verticesNeedUpdate = true;
+  planeCanvas.dynamic = true;
+  planeCanvas.castShadow = true;
+  planeCanvas.receiveShadow = true;
+}
+
+function togglePlaneCanvas (current) {
+  var normal = current.face.normal
+  var point = current.point
+  var pos = point.clone().add(normal.clone().multiplyScalar(0.1))
+  planeCanvas.position.set(pos.x, pos.y, pos.z)
+  planeCanvas.lookAt(point.clone().add(normal))
+
+  var canvas = document.getElementById('drawing')
+  planeCanvas.material.map = new THREE.Texture(canvas)
+  planeCanvas.material.map.minFilter = THREE.LinearFilter
+  planeCanvas.material.map.needsUpdate = true
+
+
+  if (scene.children.includes(planeCanvas)) {
+    // scene.remove(planeCanvas)
+  } else {
+    scene.add(planeCanvas);
+  }
+
+}
+
+
 function scaleMickey (scale) {
   window.scale *= scale
   window.mickeys.forEach( function (mickey) {

@@ -24,7 +24,7 @@ $(function () {
 
 function getDgpc (start) {
   if (running) return false
-  // if (_.size(origin_uvs) > 0) return false
+  if (_.size(origin_uvs) > 0) return false
 
   // if (origin_uvs[start] && origin_uvs[start].r < 0.1) return false
   running = true
@@ -74,16 +74,11 @@ function updateMapping (start) {
     }
   }
 
-  // showDrawingCanvas()
+  showDrawingCanvas()
   // showCheckerMark()
 
   running = false
 }
-
-function showDistortion () {
-
-}
-
 
 function showCheckerMark () {
   var m = new THREE.MeshLambertMaterial({

@@ -1,6 +1,7 @@
 var objects = [];
 
 function loadObjects () {
+  initPlaneCanvas()
   geometry.center()
   geometry.computeBoundingSphere()
   var radius = geometry.boundingSphere.radius
@@ -22,11 +23,13 @@ function loadObjects () {
 }
 
 function drawGeometry () {
-  // drawBasicGeometry('cylinder')
-  // loadObj('/data/bunny.obj', drawObj)
-  loadStl('/data/tower.stl', drawStl);
+  // drawBasicGeometry('plane')
+  loadObj('/data/bunny.obj', drawObj)
+  // loadStl('/data/tower.stl', drawStl);
   // loadStl('/data/knight.stl', drawStl);
   // loadStl('/data/noah.stl', drawStl);
+
+
 }
 
 function drawObj (geometry) {
@@ -60,6 +63,9 @@ function drawBasicGeometry (shape) {
       break
     case 'box':
       geometry = new THREE.BoxGeometry(size, size, size, 2, 2, 2)
+      break
+    case 'plane':
+      geometry = new THREE.PlaneGeometry(size, size, 10)
       break
     case 'torus':
       geometry = new THREE.TorusKnotGeometry( size, 0.3*size, 100, 8)

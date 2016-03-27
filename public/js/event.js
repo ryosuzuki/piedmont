@@ -16,7 +16,8 @@ function onDocumentMouseDown( event ) {
     var start = map[current.face.a]
     window.start = start
     getDgpc(start)
-    // if (current.uv) moveMickey(current.uv)
+
+    if (current.uv) moveMickey(current.uv)
   }
 }
 
@@ -24,6 +25,8 @@ function onDocumentMouseUp (event) {
 
   var intersects = getIntersects(event);
   if (intersects.length < 1) return false;
+  togglePlaneCanvas(current)
+
   // if (selectIndex.length > 0) {
   //   console.log('Select Done')
   // }
@@ -112,7 +115,7 @@ Mousetrap.bind('option', function () {
 Mousetrap.bind('option', function () {
   undoMode = false;
   $('#mode').removeClass('brown').text('View Mode (⌘ + Mouse)');
-  finishSelect();
+  // finishSelect();
 }, 'keyup');
 
 
