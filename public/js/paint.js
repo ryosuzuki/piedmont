@@ -21,7 +21,7 @@ function togglePlaneCanvas (current) {
   planeCanvas.position.set(pos.x, pos.y, pos.z)
   planeCanvas.lookAt(point.clone().add(normal))
 
-  var canvas = document.getElementById('drawing')
+  var canvas = document.getElementById('original')
   planeCanvas.material.map = new THREE.Texture(canvas)
   planeCanvas.material.map.minFilter = THREE.LinearFilter
   planeCanvas.material.map.needsUpdate = true
@@ -46,15 +46,17 @@ function scaleMickey (scale) {
 }
 
 function rotateMickey (rotate) {
+  var paper = originalPaper
   window.rotate = rotate
   window.mickeys.forEach( function (mickey) {
     mickey.rotate(rotate)
   })
-  paper.view.draw()
+  originalPaper.view.draw()
   dm.material.map.needsUpdate = true
 }
 
 function moveMickey (uv) {
+  var paper = drawingPaper
   window.currentUv = uv
   var center = convertUvToCenter(uv)
   mickey.position = center
@@ -63,6 +65,7 @@ function moveMickey (uv) {
 }
 
 function repeatPattern () {
+  var paper = drawingPaper
   window.centerPositions = []
   var center = mickey.position
   var num = 3

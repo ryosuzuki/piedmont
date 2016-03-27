@@ -12,8 +12,12 @@ $(function () {
   drawGeometry();
   animate();
 
-  paper.setup('drawing')
+  originalPaper = new paper.PaperScope()
+  originalPaper.setup($("#original")[0])
+  originalPaper.view.center = [0, 0]
+
   getTextureImage()
+
 });
 
 function getTextureImage () {
@@ -28,18 +32,38 @@ function getTextureImage () {
   });
 
   loadSvg('/public/assets/mickey-2.svg', function (err, svg) {
+    var paper = originalPaper
     var d = $('path', svg).attr('d');
     var path = new paper.Path(d)
     path.strokeColor = 'black'
     path.fillColor = 'black'
     path.closed = true
+    path.position = [0, 0]
     window.scale = 1/50
+
+    // window.scale = 1/50
+    path.scale(1/5)
+    paper.view.draw()
+
+    drawingPaper = new paper.PaperScope()
+    drawingPaper.setup($("#drawing")[0])
+    drawingPaper.view.center = [0, 0]
+
+    var paper = drawingPaper
+    var d = $('path', svg).attr('d');
+    var path = new paper.Path(d)
+    path.strokeColor = 'black'
+    path.fillColor = 'black'
+    path.closed = true
+    path.position = [0, 0]
+    window.scale = 1/50
+
     // window.scale = 1/50
     path.scale(scale)
-    paper.view.center = [0, 0]
     paper.view.draw()
     window.mickey = path
     window.mickeys = [window.mickey]
+
   })
 }
 
