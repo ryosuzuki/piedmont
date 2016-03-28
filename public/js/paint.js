@@ -15,10 +15,10 @@ function initPlaneCanvas () {
   planeCanvas.castShadow = true
   planeCanvas.receiveShadow = true
   planeCanvas.position.set(Infinity, Infinity, Infinity)
-  // scene.add(planeCanvas)
+  scene.add(planeCanvas)
 }
 
-function togglePlaneCanvas (current) {
+function showPlaneCanvas (current) {
   var normal = current.face.normal
   var point = current.point
   var pos = point.clone().add(normal.clone().multiplyScalar(0.01))

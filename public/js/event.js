@@ -4,6 +4,10 @@ var undoMode = false;
 
 var copyMode = false
 var moveMode = false
+var scaleMode = false
+var rotateMode = false
+var controlMode = false
+
 function onDocumentMouseDown( event ) {
   // window.dragging = true
 
@@ -13,11 +17,21 @@ function onDocumentMouseDown( event ) {
   window.current = intersects[0];
   window.currentIndex = current.faceIndex
 
-  if (current.uv) {
+
+  if (controlMode) {
     var pos = convertUvToCanvas(current.uv)
     pos = new paper.Point(pos[0], pos[1])
     if (pos.isInside(mickey.bounds)) {
-      console.log('hoge')
+      scaleMode = true
+    } else {
+      rotateMode = true
+    }
+  }
+
+  if (!controlMode && current.uv) {
+    var pos = convertUvToCanvas(current.uv)
+    pos = new paper.Point(pos[0], pos[1])
+    if (pos.isInside(mickey.bounds)) {
       moveMode = true
       controls.enabled = false
     }
@@ -39,10 +53,14 @@ function onDocumentMouseDown( event ) {
 
 function onDocumentMouseUp (event) {
   // window.dragging = false
-  window.previous = undefined
-  controls.enabled = true
-  planeCanvas.material.map = undefined
-  planeCanvas.material.needsUpdate = true
+  previous = undefined
+  scaleMode = false
+  rotateMode = false
+  if (!controlMode) {
+    controls.enabled = true
+  }
+
+  if (mesh) mesh.material.color = new THREE.Color('white')
 
   var intersects = getIntersects(event);
 
@@ -67,19 +85,60 @@ var dragging
 var previous
 var current
 
-function changeMeshColor (color) {
-  if (!color) color = 'white'
-  if (mesh) mesh.material.color = new THREE.Color(color)
+
+function onDocumentDoubleClick (event) {
+  if (controlMode) {
+    controlMode = false
+    planeCanvas.position.set(Infinity, Infinity, Infinity)
+  } else {
+    if (current.uv) {
+      var pos = convertUvToCanvas(current.uv)
+      pos = new paper.Point(pos[0], pos[1])
+      if (pos.isInside(mickey.bounds)) {
+        console.log('hoge')
+        showPlaneCanvas(current)
+        planeCanvas.material.map = scaleImage
+        planeCanvas.material.needsUpdate = true
+        controlMode = true
+        controls.enabled = false
+      }
+    }
+  }
 }
 
+
 function onDocumentMouseMove (event) {
-  var intersects = getIntersects(event);
+  var intersects = getIntersects(event)
 
   if (window.dragging && intersects.length > 0) {
-    changeMeshColor('gray')
+    if (mesh) mesh.material.color = new THREE.Color('gray')
   } else {
-    changeMeshColor()
+    if (mesh) mesh.material.color = new THREE.Color('white')
   }
+
+  if (controlMode) {
+    var pos = convertUvToCanvas(current.uv)
+    pos = new paper.Point(pos[0], pos[1])
+    if (pos.isInside(mickey.bounds)) {
+      planeCanvas.material.map = scaleImage
+      planeCanvas.material.needsUpdate = true
+    } else {
+      planeCanvas.material.map = rotateImage
+      planeCanvas.material.needsUpdate = true
+    }
+  }
+
+  if (scaleMode) {
+    scaleModeControl()
+  }
+
+  if (rotateMode) {
+    rotateModeControl()
+  }
+
+
+
+
 
   if (current && current.uv) {
     var pos = convertUvToCanvas(current.uv)
@@ -109,39 +168,7 @@ function onDocumentMouseMove (event) {
 
 
   if (false && selectMode) {
-    controls.enabled = false
-    if (!dragging) return false
-    if (!previous) window.previous = current
 
-    var center2d = getScreenPosition(planeCanvas.position)
-    var current2d = getScreenPosition(current.point)
-    var previous2d = getScreenPosition(previous.point)
-
-    var scaleMode = true
-    var rotateMode = true
-    if (scaleMode) {
-      var cd = current2d.distanceTo(center2d)
-      var pd = previous2d.distanceTo(center2d)
-      var scale = cd / pd
-      scaleMickey(scale)
-      planeCanvas.material.map = scaleImage
-    } else if (rotateMode) {
-      var v = new THREE.Vector2()
-      var cv = v.clone().subVectors(current2d, center2d).normalize()
-      var pv = v.clone().subVectors(previous2d, center2d).normalize()
-      var angle = Math.acos(cv.dot(pv))
-      var sign = (current2d.x - center2d.x) * (previous2d.y - center2d.y) - (current2d.y - center2d.y) * (previous2d.x - center2d.x) > 0 ? 1 : -1
-      planeCanvas.rotateZ(sign*angle)
-      rotateMickey(sign*angle*90/Math.PI)
-      planeCanvas.material.map = rotateImage
-    } else {
-      planeCanvas.material.map = undefined
-    }
-    planeCanvas.material.needsUpdate = true
-    window.previous = current
-
-    // drawLine(pos.x, pos.y)
-    if (pos) showDrawingCanvas(pos)
   } else {
     // window.pos = new THREE.Vector2(event.pageX, event.pageY)
     // var start = map[current.face.a]
@@ -158,6 +185,39 @@ function onDocumentMouseMove (event) {
 
 
 }
+
+function scaleModeControl () {
+  if (!previous) window.previous = current
+  var center2d = getScreenPosition(planeCanvas.position)
+  var current2d = getScreenPosition(current.point)
+  var previous2d = getScreenPosition(previous.point)
+
+  var cd = current2d.distanceTo(center2d)
+  var pd = previous2d.distanceTo(center2d)
+  var scale = cd / pd
+  scaleMickey(scale)
+  window.previous = current
+  // drawLine(pos.x, pos.y)
+  // if (pos) showDrawingCanvas(pos)
+}
+
+function rotateModeControl () {
+  if (!previous) window.previous = current
+  var center2d = getScreenPosition(planeCanvas.position)
+  var current2d = getScreenPosition(current.point)
+  var previous2d = getScreenPosition(previous.point)
+  var v = new THREE.Vector2()
+  var cv = v.clone().subVectors(current2d, center2d).normalize()
+  var pv = v.clone().subVectors(previous2d, center2d).normalize()
+  var angle = Math.acos(cv.dot(pv))
+  var sign = (current2d.x - center2d.x) * (previous2d.y - center2d.y) - (current2d.y - center2d.y) * (previous2d.x - center2d.x) > 0 ? 1 : -1
+  planeCanvas.rotateZ(sign*angle)
+  rotateMickey(sign*angle*90/Math.PI)
+  planeCanvas.material.map = rotateImage
+  window.previous = current
+}
+
+
 
 
 function getScreenPosition (pos) {
