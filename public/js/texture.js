@@ -18,20 +18,31 @@ $(function () {
     // console.log('Execution time: ' + time + 'ms');
     var start = result.start
     window.uvs[start] = result.uv
-    updateMapping(start)
+
+    if (origin) {
+      getNewUv(start)
+    } else {
+      updateMapping(start)
+    }
+
   })
 })
 
 function getDgpc (start) {
   if (running) return false
-  if (_.size(origin_uvs) > 0) return false
+  // if (_.size(origin_uvs) > 0) return false
 
   // if (origin_uvs[start] && origin_uvs[start].r < 0.1) return false
   running = true
 
   console.log('start: ' + start)
   if (_.has(window.uvs, start)) {
-    updateMapping(start)
+    if (origin) {
+      getNewUv(start)
+    } else {
+      updateMapping(start)
+    }
+    // updateMapping(start)
   } else {
     var size = geometry.uniq.length
     s = new Date().getTime();
@@ -74,8 +85,8 @@ function updateMapping (start) {
     }
   }
 
-  showDrawingCanvas()
-  // showCheckerMark()
+  // showDrawingCanvas()
+  showCheckerMark()
 
   running = false
 }
