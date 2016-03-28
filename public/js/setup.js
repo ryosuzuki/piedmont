@@ -7,21 +7,101 @@ var mouse = new THREE.Vector2();
 var size = 1
 var socket = io()
 
+
 $(function () {
   init();
   drawGeometry();
   animate();
 
+  var original = document.getElementById('original')
+  original.width = 256
+  original.height = 256
+
   originalPaper = new paper.PaperScope()
   originalPaper.setup($("#original")[0])
   originalPaper.view.center = [0, 0]
+  originalPaper.view.viewSize = new paper.Size(256, 256)
+
 
   drawingPaper = new paper.PaperScope()
   drawingPaper.setup($("#drawing")[0])
   drawingPaper.view.center = [0, 0]
 
 
+  $('#original').draggable({
+    accept: '#viewport',
+    // revert: 'invalid',
+    opacity: 0.7,
+    cursor: 'move',
+    helper: function (e, ui) {
+      // var canvas = $(this).clone();
+      var source = document.getElementById('original')
+      var copy = document.createElement('canvas')
+      copy.width = 256 //source.width
+      copy.height = 256 // source.height
+      var context = copy.getContext('2d')
+      context.drawImage(source, 0, 0, 256, 256)
+      // $(copy).css('background', 'red')
+      return copy
+    }
+  })
+
   getTextureImage()
+
+
+
+  var dragMode = true
+  var paintMode = false
+  if (dragMode) {
+
+    // var $draggable = $('#original').draggabilly({
+    //   // options...
+    // })
+  }
+
+
+  if (paintMode) {
+    originalPaper.activate()
+    var tool = new paper.Tool();
+
+    draft = new paper.Path(pathStyle);
+    window.paint = function (current) {
+      // var x = 700 * (current.uv.x + 0.5)
+      // var y = 700 * (current.uv.y + 0.5)
+      var x = current.uv.x
+      var y = current.uv.y
+      var point = new paper.Point(x, y);
+      draft.add(point);
+    }
+
+    tool.onMouseDown = function (event) {
+      if (draft) {
+        draft.selected = false;
+      }
+      draft = new paper.Path(pathStyle);
+      draft.segments = [event.point];
+      start = event.point;
+    }
+
+    tool.onMouseDrag = function (event) {
+      draft.add(event.point);
+    }
+
+    tool.onMouseUp = function(event) {
+      var segmentCount = draft.segments.length;
+      draft.simplify(10);
+      var newSegmentCount = draft.segments.length;
+      var difference = segmentCount - newSegmentCount;
+      var percentage = 100 - Math.round(newSegmentCount / segmentCount * 100);
+      end = event.point;
+
+      draft.strokeColor = 'black'
+      draft.fillColor = 'black'
+      draft.closed = true
+
+      updateOriginal(draft)
+    }
+  }
 
 });
 
@@ -36,9 +116,9 @@ function updateOriginal (path) {
     // drawingPaper.view.draw()
     // i++
 
-  drawingPaper.activate()
-  var path = new paper.Path(path.pathData)
-  path.scale(1/5)
+    drawingPaper.activate()
+    var path = new paper.Path(path.pathData)
+    path.scale(1/5)
     path.strokeColor = 'black'
     path.fillColor = 'black'
     path.closed = true
@@ -49,47 +129,47 @@ function updateOriginal (path) {
     window.mickeys = [window.mickey]
 
 
-  drawingPaper.view.draw()
-}
+    drawingPaper.view.draw()
+  }
 
-function getTextureImage () {
-  var loader = new THREE.TextureLoader();
-  loader.load('/public/assets/bunny_1k.png', function (image) {
-    image.minFilter = THREE.LinearFilter;
-    image.needsUpdate = true;
-    image.wrapS = THREE.RepeatWrapping;
-    image.wrapT = THREE.RepeatWrapping;
+  function getTextureImage () {
+    var loader = new THREE.TextureLoader();
+    loader.load('/public/assets/bunny_1k.png', function (image) {
+      image.minFilter = THREE.LinearFilter;
+      image.needsUpdate = true;
+      image.wrapS = THREE.RepeatWrapping;
+      image.wrapT = THREE.RepeatWrapping;
     // image.repeat.set(4, 4);
     window.image = image;
   });
 
-  loader.load('/public/assets/rotate.svg', function (image) {
-    image.minFilter = THREE.LinearFilter;
-    image.needsUpdate = true;
-    image.wrapS = THREE.RepeatWrapping;
-    image.wrapT = THREE.RepeatWrapping;
-    window.rotateImage = image;
-  })
+    loader.load('/public/assets/rotate.svg', function (image) {
+      image.minFilter = THREE.LinearFilter;
+      image.needsUpdate = true;
+      image.wrapS = THREE.RepeatWrapping;
+      image.wrapT = THREE.RepeatWrapping;
+      window.rotateImage = image;
+    })
 
-  loader.load('/public/assets/scale.svg', function (image) {
-    image.minFilter = THREE.LinearFilter;
-    image.needsUpdate = true;
-    image.wrapS = THREE.RepeatWrapping;
-    image.wrapT = THREE.RepeatWrapping;
-    window.scaleImage = image;
-  })
+    loader.load('/public/assets/scale.svg', function (image) {
+      image.minFilter = THREE.LinearFilter;
+      image.needsUpdate = true;
+      image.wrapS = THREE.RepeatWrapping;
+      image.wrapT = THREE.RepeatWrapping;
+      window.scaleImage = image;
+    })
 
 
-  loadSvg('/public/assets/mickey-2.svg', function (err, svg) {
-    originalPaper.activate()
-    var paper = originalPaper
-    var d = $('path', svg).attr('d');
-    var path = new paper.Path(d)
-    path.strokeColor = 'black'
-    path.fillColor = 'black'
-    path.closed = true
-    path.position = [0, 0]
-    window.scale = 1/50
+    loadSvg('/public/assets/mickey-2.svg', function (err, svg) {
+      originalPaper.activate()
+      var paper = originalPaper
+      var d = $('path', svg).attr('d');
+      var path = new paper.Path(d)
+      path.strokeColor = 'black'
+      path.fillColor = 'black'
+      path.closed = true
+      path.position = [0, 0]
+      window.scale = 1/50
 
     // window.scale = 1/50
     path.scale(1/5)
@@ -98,72 +178,34 @@ function getTextureImage () {
     updateOriginal(path)
 
 
-  originalPaper.activate()
-  var tool = new paper.Tool();
+    /*
 
-  draft = new paper.Path(pathStyle);
-  window.paint = function (current) {
-    // var x = 700 * (current.uv.x + 0.5)
-    // var y = 700 * (current.uv.y + 0.5)
-    var x = current.uv.x
-    var y = current.uv.y
-    var point = new paper.Point(x, y);
-    draft.add(point);
-  }
-
-  tool.onMouseDown = function (event) {
-    if (draft) {
-      draft.selected = false;
-    }
-    draft = new paper.Path(pathStyle);
-    draft.segments = [event.point];
-    start = event.point;
-  }
-
-  tool.onMouseDrag = function (event) {
-    draft.add(event.point);
-  }
-
-  tool.onMouseUp = function(event) {
-    var segmentCount = draft.segments.length;
-    draft.simplify(10);
-    var newSegmentCount = draft.segments.length;
-    var difference = segmentCount - newSegmentCount;
-    var percentage = 100 - Math.round(newSegmentCount / segmentCount * 100);
-    end = event.point;
-
-    draft.strokeColor = 'black'
-    draft.fillColor = 'black'
-    draft.closed = true
-
-    updateOriginal(draft)
-  }
-
+    */
 
 
   })
-}
+  }
 
 
-function init() {
-  scene = new THREE.Scene();
-  camera = new THREE.PerspectiveCamera(35, window.innerWidth / window.innerHeight, 0.01*size, 1000);
-  camera.position.set(size*2, size*2, size*2)
-  camera.lookAt(new THREE.Vector3(0, 0, 0));
-  scene.add( camera );
+  function init() {
+    scene = new THREE.Scene();
+    camera = new THREE.PerspectiveCamera(35, window.innerWidth / window.innerHeight, 0.01*size, 1000);
+    camera.position.set(size*2, size*2, size*2)
+    camera.lookAt(new THREE.Vector3(0, 0, 0));
+    scene.add( camera );
 
-  scene.add(new THREE.AmbientLight(0xccc));
-  var ambientLight = new THREE.AmbientLight(0x999999);
-  scene.add(ambientLight);
-  var light = new THREE.DirectionalLight(0xFFFFFF, 0.2);
-  light.position.set(4*size, 4*size, 7*size);
-  scene.add(light);
-  var light2 = new THREE.DirectionalLight(0xFFFFFF, 0.2);
-  light2.position.set(-7*size, -4*size, -4*size);
-  scene.add(light2);
+    scene.add(new THREE.AmbientLight(0xccc));
+    var ambientLight = new THREE.AmbientLight(0x999999);
+    scene.add(ambientLight);
+    var light = new THREE.DirectionalLight(0xFFFFFF, 0.2);
+    light.position.set(4*size, 4*size, 7*size);
+    scene.add(light);
+    var light2 = new THREE.DirectionalLight(0xFFFFFF, 0.2);
+    light2.position.set(-7*size, -4*size, -4*size);
+    scene.add(light2);
 
-  var headLight = new THREE.PointLight(0xFFFFFF, 0.25);
-  scene.add(headLight);
+    var headLight = new THREE.PointLight(0xFFFFFF, 0.25);
+    scene.add(headLight);
 
   // var light = new THREE.SpotLight(0xffffff, 1.5);
   // light.position.set(size*7, size*7, -size*7);
