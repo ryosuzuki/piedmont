@@ -266,7 +266,8 @@ function onDocumentTouchStart( event ) {
 
 
 $(document).on('click', '#mapping', function (event) {
-  console.log('mapping');
+  console.log('mapping')
+  toggleMapping()
 });
 
 $(document).on('click', '#add', function (event) {

@@ -80,6 +80,16 @@ function updateMapping (start) {
   running = false
 }
 
+var checkerMark
+function toggleMapping () {
+  if (checkerMark) {
+    showDrawingCanvas()
+  } else {
+    showCheckerMark()
+  }
+  checkerMark = !checkerMark
+}
+
 function showCheckerMark () {
   var m = new THREE.MeshLambertMaterial({
     color: 0xffffff,
