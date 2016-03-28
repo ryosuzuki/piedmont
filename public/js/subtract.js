@@ -29,7 +29,7 @@ function getSvgPositions () {
   })
   var svgPositions = []
   window.mickeys.forEach( function (mickey) {
-    var uv = convertCenterToUv(mickey.position)
+    var uv = convertCanvasToUv(mickey.position)
     var pos = positions.map(function(p) {
       return [ p[0]+uv[0], p[1]+uv[1] ]
     })

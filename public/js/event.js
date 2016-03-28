@@ -3,13 +3,26 @@ var selectMode = false;
 var undoMode = false;
 
 var copyMode = false
+var moveMode = false
 function onDocumentMouseDown( event ) {
   // window.dragging = true
+
   var intersects = getIntersects(event);
   if (intersects.length < 1) return false
   // if (!selectMode && !undoMode) return false;
   window.current = intersects[0];
   window.currentIndex = current.faceIndex
+
+  if (current.uv) {
+    var pos = convertUvToCanvas(current.uv)
+    pos = new paper.Point(pos[0], pos[1])
+    if (pos.isInside(mickey.bounds)) {
+      console.log('hoge')
+      moveMode = true
+      controls.enabled = false
+    }
+  }
+
 
   if (selectMode) {
     if (copyMode) {
@@ -27,6 +40,7 @@ function onDocumentMouseDown( event ) {
 function onDocumentMouseUp (event) {
   // window.dragging = false
   window.previous = undefined
+  controls.enabled = true
   planeCanvas.material.map = undefined
   planeCanvas.material.needsUpdate = true
 
@@ -40,7 +54,7 @@ function onDocumentMouseUp (event) {
     if (current.uv) moveMickey(current.uv)
   }
 
-
+  window.moveMode = false
   window.dragging = false
   if (intersects.length < 1) return false;
 
@@ -51,6 +65,7 @@ function onDocumentMouseUp (event) {
 
 var dragging
 var previous
+var current
 
 function changeMeshColor (color) {
   if (!color) color = 'white'
@@ -66,10 +81,24 @@ function onDocumentMouseMove (event) {
     changeMeshColor()
   }
 
+  if (current && current.uv) {
+    var pos = convertUvToCanvas(current.uv)
+    pos = new paper.Point(pos[0], pos[1])
+    if (pos.isInside(mickey.bounds)) {
+      colorMickey(new paper.Color(1, .5, .5))
+    } else {
+      colorMickey()
+    }
+    if (moveMode) {
+      console.log('fuga')
+      moveMickey(current.uv)
+    }
+
+  }
 
 
   if (intersects.length < 1) {
-    controls.enabled = true
+    // controls.enabled = true
     return false
   }
 

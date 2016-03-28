@@ -42,8 +42,16 @@ function copyMickey (uv) {
   drawingPaper.activate()
   window.currentUv = uv
   window.nextMickey = mickey.clone()
-  var center = convertUvToCenter(uv)
+  var center = convertUvToCanvas(uv)
   nextMickey.position = center
+  drawingPaper.view.draw()
+  dm.material.map.needsUpdate = true
+}
+
+function colorMickey (color) {
+  if (!color) color = 'black'
+  drawingPaper.activate()
+  mickey.fillColor = color
   drawingPaper.view.draw()
   dm.material.map.needsUpdate = true
 }
@@ -124,12 +132,12 @@ function rotateMickey (rotate) {
 }
 
 function moveMickey (uv) {
-  if (!window.nextMickey) return false
+  // if (!window.nextMickey) return false
   drawingPaper.activate()
   window.currentUv = uv
-  var center = convertUvToCenter(uv)
-  nextMickey.position = center
-  // mickey.position = center
+  var center = convertUvToCanvas(uv)
+  // nextMickey.position = center
+  mickey.position = center
   drawingPaper.view.draw()
   dm.material.map.needsUpdate = true
 }
@@ -154,10 +162,10 @@ function repeatPattern () {
 }
 
 var width = height = 256
-function convertUvToCenter (uv) {
+function convertUvToCanvas (uv) {
   return [ (uv.x-0.5)*width, -(uv.y-0.5)*height ]
 }
 
-function convertCenterToUv (center) {
+function convertCanvasToUv (center) {
   return [ (center.x/width)+0.5, -(center.y/height)+0.5 ]
 }
