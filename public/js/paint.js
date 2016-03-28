@@ -54,6 +54,7 @@ function scaleMickey (scale) {
 }
 
 function rotateMickey (rotate) {
+  rotate *= -1
   drawingPaper.activate()
   window.rotate = rotate
   window.mickeys.forEach( function (mickey) {

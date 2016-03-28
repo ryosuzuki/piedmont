@@ -3,6 +3,7 @@ var selectMode = false;
 var undoMode = false;
 
 function onDocumentMouseDown( event ) {
+  window.dragging = true
   var intersects = getIntersects(event);
   if (intersects.length < 1) return false
   // if (!selectMode && !undoMode) return false;
@@ -12,6 +13,8 @@ function onDocumentMouseDown( event ) {
 }
 
 function onDocumentMouseUp (event) {
+  window.dragging = false
+  window.previous = undefined
   var intersects = getIntersects(event);
   if (intersects.length < 1) return false;
 
@@ -20,6 +23,8 @@ function onDocumentMouseUp (event) {
   // }
 }
 
+var dragging
+var previous
 function onDocumentMouseMove (event) {
   var intersects = getIntersects(event);
   if (intersects.length < 1) {
@@ -31,7 +36,31 @@ function onDocumentMouseMove (event) {
   window.currentIndex = current.faceIndex
   if (selectMode) {
     controls.enabled = false
-    // planeCanvas.rotateX += 1
+    if (!dragging) return false
+    if (!previous) window.previous = current
+
+    var center2d = getScreenPosition(planeCanvas.position)
+    var current2d = getScreenPosition(current.point)
+    var previous2d = getScreenPosition(previous.point)
+
+    var scaleMode = true
+    var rotateMode = true
+    if (scaleMode) {
+      var cd = current2d.distanceTo(center2d)
+      var pd = previous2d.distanceTo(center2d)
+      var scale = cd / pd
+      scaleMickey(scale)
+    }
+    if (rotateMode) {
+      var v = new THREE.Vector2()
+      var cv = v.clone().subVectors(current2d, center2d).normalize()
+      var pv = v.clone().subVectors(previous2d, center2d).normalize()
+      var angle = Math.acos(cv.dot(pv))
+      var sign = (current2d.x - center2d.x) * (previous2d.y - center2d.y) - (current2d.y - center2d.y) * (previous2d.x - center2d.x) > 0 ? 1 : -1
+      planeCanvas.rotateZ(sign*angle)
+      rotateMickey(sign*angle*90/Math.PI)
+    }
+    window.previous = current
 
     // drawLine(pos.x, pos.y)
     if (pos) showDrawingCanvas(pos)
@@ -46,6 +75,24 @@ function onDocumentMouseMove (event) {
   }
 
 }
+
+
+function getScreenPosition (pos) {
+  var vector = new THREE.Vector3();
+  var canvas = renderer.domElement;
+  vector.set(pos.x, pos.y, pos.z);
+  mesh.updateMatrixWorld()
+  vector.applyMatrix4( mesh.matrixWorld )
+  vector.project( camera );
+  vector.x = Math.round( (   vector.x + 1 ) * canvas.width  / 2 ),
+  vector.y = Math.round( ( - vector.y + 1 ) * canvas.height / 2 );
+  vector.z = 0;
+  // console.log(vector)
+  var screenPos = new THREE.Vector2(vector.x, vector.y)
+  return screenPos
+}
+
+
 
 function getIntersects (event) {
   event.preventDefault();
