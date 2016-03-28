@@ -15,26 +15,21 @@ function initPlaneCanvas () {
   planeCanvas.castShadow = true
   planeCanvas.receiveShadow = true
   planeCanvas.position.set(Infinity, Infinity, Infinity)
-  scene.add(planeCanvas)
+  // scene.add(planeCanvas)
 }
 
 function togglePlaneCanvas (current) {
   var normal = current.face.normal
   var point = current.point
   var pos = point.clone().add(normal.clone().multiplyScalar(0.01))
-
   var axis = point.clone().add(normal)
   planeCanvas.position.set(pos.x, pos.y, pos.z)
   planeCanvas.lookAt(axis)
-  planeCanvas.axis = axis
-
   /*
   var canvas = document.getElementById('original')
   planeCanvas.material.map = new THREE.Texture(canvas)
   planeCanvas.material.map.minFilter = THREE.LinearFilter
   planeCanvas.material.map.needsUpdate = true
-
-
   if (scene.children.includes(planeCanvas)) {
     // scene.remove(planeCanvas)
   } else {
@@ -43,6 +38,59 @@ function togglePlaneCanvas (current) {
   */
 }
 
+function copyMickey (uv) {
+  drawingPaper.activate()
+  window.currentUv = uv
+  window.nextMickey = mickey.clone()
+  var center = convertUvToCenter(uv)
+  nextMickey.position = center
+  drawingPaper.view.draw()
+  dm.material.map.needsUpdate = true
+}
+
+function repeatMickey () {
+  drawingPaper.activate()
+
+  var center = new THREE.Vector2(mickey.position.x, mickey.position.y)
+  var next = new THREE.Vector2(nextMickey.position.x, nextMickey.position.y)
+
+  var unit = new THREE.Vector2()
+  unit.subVectors(next, center).normalize()
+  var dist = next.distanceTo(center)
+
+  window.centers = []
+  var i = 0
+  while (i<10) {
+    var new_center = new THREE.Vector2()
+    var v = unit.clone().multiplyScalar(i*dist)
+    new_center.addVectors(center, v)
+    centers.push(new_center)
+    i++
+  }
+
+  var i = 0
+  while (i<10) {
+    var new_center = new THREE.Vector2()
+    var v = unit.clone().multiplyScalar(-i*dist)
+    new_center.addVectors(center, v)
+    centers.push(new_center)
+    i++
+  }
+
+
+  window.mickeys = []
+  for (var i=0; i<centers.length; i++) {
+    var center = centers[i]
+    var path = mickey.clone()
+    path.position = [center.x, center.y]
+    window.mickeys.push(path)
+  }
+
+
+  drawingPaper.view.draw()
+  dm.material.map.needsUpdate = true
+
+}
 
 function scaleMickey (scale) {
   window.scale *= scale
@@ -65,10 +113,12 @@ function rotateMickey (rotate) {
 }
 
 function moveMickey (uv) {
+  if (!window.nextMickey) return false
   drawingPaper.activate()
   window.currentUv = uv
   var center = convertUvToCenter(uv)
-  mickey.position = center
+  nextMickey.position = center
+  // mickey.position = center
   drawingPaper.view.draw()
   dm.material.map.needsUpdate = true
 }

@@ -2,6 +2,7 @@
 var selectMode = false;
 var undoMode = false;
 
+var copyMode = false
 function onDocumentMouseDown( event ) {
   window.dragging = true
   var intersects = getIntersects(event);
@@ -9,6 +10,17 @@ function onDocumentMouseDown( event ) {
   // if (!selectMode && !undoMode) return false;
   window.current = intersects[0];
   window.currentIndex = current.faceIndex
+
+  if (selectMode) {
+    if (copyMode) {
+      repeatMickey()
+      copyMode = false
+    } else {
+      copyMickey(current.uv)
+      copyMode = true
+    }
+
+  }
 
 }
 
@@ -37,7 +49,7 @@ function onDocumentMouseMove (event) {
 
   window.current = intersects[0];
   window.currentIndex = current.faceIndex
-  if (selectMode) {
+  if (false && selectMode) {
     controls.enabled = false
     if (!dragging) return false
     if (!previous) window.previous = current
@@ -76,10 +88,15 @@ function onDocumentMouseMove (event) {
     var start = map[current.face.a]
     window.start = start
     getDgpc(start)
-
     if (current.uv) moveMickey(current.uv)
+
     togglePlaneCanvas(current)
   }
+
+  if (copyMode) {
+    if (current.uv) moveMickey(current.uv)
+  }
+
 
 }
 
