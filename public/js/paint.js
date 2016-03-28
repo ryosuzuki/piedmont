@@ -58,37 +58,48 @@ function repeatMickey () {
   unit.subVectors(next, center).normalize()
   var dist = next.distanceTo(center)
 
-  window.centers = []
+  var add_centers = []
+  var sub_centers = []
   var i = 0
   while (i<10) {
     var new_center = new THREE.Vector2()
     var v = unit.clone().multiplyScalar(i*dist)
     new_center.addVectors(center, v)
-    centers.push(new_center)
+    add_centers.push(new_center)
     i++
   }
+  _.pullAll(add_centers, [center, next])
 
   var i = 0
   while (i<10) {
     var new_center = new THREE.Vector2()
     var v = unit.clone().multiplyScalar(-i*dist)
     new_center.addVectors(center, v)
-    centers.push(new_center)
+    sub_centers.push(new_center)
     i++
   }
-
+  _.pullAll(sub_centers, [center, next])
 
   window.mickeys = []
-  for (var i=0; i<centers.length; i++) {
-    var center = centers[i]
+  var i = 0
+  var interval = setInterval( function () {
+    var center = add_centers[i]
     var path = mickey.clone()
     path.position = [center.x, center.y]
     window.mickeys.push(path)
-  }
 
+    var center = sub_centers[i]
+    var path = mickey.clone()
+    path.position = [center.x, center.y]
+    window.mickeys.push(path)
 
-  drawingPaper.view.draw()
-  dm.material.map.needsUpdate = true
+    drawingPaper.view.draw()
+    dm.material.map.needsUpdate = true
+    i++
+    if (i >= centers.length) clearInterval(interval)
+  }, 100)
+
+  window.centers = _.union(add_centers, sub_centers)
 
 }
 
