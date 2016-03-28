@@ -25,6 +25,7 @@ function showPlaneCanvas (current) {
   var axis = point.clone().add(normal)
   planeCanvas.position.set(pos.x, pos.y, pos.z)
   planeCanvas.lookAt(axis)
+
   /*
   var canvas = document.getElementById('original')
   planeCanvas.material.map = new THREE.Texture(canvas)
@@ -46,6 +47,12 @@ function copyMickey (uv) {
   nextMickey.position = center
   drawingPaper.view.draw()
   dm.material.map.needsUpdate = true
+
+  window.mickey = nextMickey
+}
+
+function pasteMickey (uv) {
+
 }
 
 function colorMickey (color) {

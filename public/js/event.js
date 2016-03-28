@@ -7,16 +7,20 @@ var moveMode = false
 var scaleMode = false
 var rotateMode = false
 var controlMode = false
+var insideMode = false
+
+var dragging
+var previous
+var current
+
 
 function onDocumentMouseDown( event ) {
-  // window.dragging = true
 
   var intersects = getIntersects(event);
   if (intersects.length < 1) return false
   // if (!selectMode && !undoMode) return false;
   window.current = intersects[0];
   window.currentIndex = current.faceIndex
-
 
   if (controlMode) {
     var pos = convertUvToCanvas(current.uv)
@@ -37,17 +41,16 @@ function onDocumentMouseDown( event ) {
     }
   }
 
+  // if (selectMode) {
+  //   if (copyMode) {
+  //     repeatMickey()
+  //     copyMode = false
+  //   } else {
+  //     copyMickey(current.uv)
+  //     copyMode = true
+  //   }
 
-  if (selectMode) {
-    if (copyMode) {
-      repeatMickey()
-      copyMode = false
-    } else {
-      copyMickey(current.uv)
-      copyMode = true
-    }
-
-  }
+  // }
 
 }
 
@@ -81,10 +84,6 @@ function onDocumentMouseUp (event) {
   // }
 }
 
-var dragging
-var previous
-var current
-
 
 function onDocumentDoubleClick (event) {
   if (controlMode) {
@@ -108,7 +107,10 @@ function onDocumentDoubleClick (event) {
 
 
 function onDocumentMouseMove (event) {
+
   var intersects = getIntersects(event)
+  if (intersects.length < 1) return false
+  window.current = intersects[0]
 
   if (window.dragging && intersects.length > 0) {
     if (mesh) mesh.material.color = new THREE.Color('gray')
@@ -116,7 +118,7 @@ function onDocumentMouseMove (event) {
     if (mesh) mesh.material.color = new THREE.Color('white')
   }
 
-  if (controlMode) {
+  if (controlMode && current.uv) {
     var pos = convertUvToCanvas(current.uv)
     pos = new paper.Point(pos[0], pos[1])
     if (pos.isInside(mickey.bounds)) {
@@ -126,35 +128,34 @@ function onDocumentMouseMove (event) {
       planeCanvas.material.map = rotateImage
       planeCanvas.material.needsUpdate = true
     }
+
+    if (scaleMode) {
+      scaleModeControl()
+    }
+    if (rotateMode) {
+      rotateModeControl()
+    }
   }
-
-  if (scaleMode) {
-    scaleModeControl()
-  }
-
-  if (rotateMode) {
-    rotateModeControl()
-  }
-
-
-
-
 
   if (current && current.uv) {
     var pos = convertUvToCanvas(current.uv)
     pos = new paper.Point(pos[0], pos[1])
     if (pos.isInside(mickey.bounds)) {
       colorMickey(new paper.Color(1, .5, .5))
+      insideMode = true
     } else {
       colorMickey()
+      insideMode = false
     }
-    if (moveMode) {
-      console.log('fuga')
+    if (moveMode || copyMode) {
       moveMickey(current.uv)
     }
-
+    // if (copyMode) {
+    //   moveMickey(current.uv, 'copy')
+    // }
+  } else {
+    insideMode = false
   }
-
 
   if (intersects.length < 1) {
     // controls.enabled = true
@@ -287,31 +288,45 @@ var pathStyle = {
 }
 var draft;
 
-
-Mousetrap.bind('command', function () {
-  undoMode = false
-  selectMode = !selectMode
-  if (selectMode) {
-    $('#mode').addClass('pink').text('Select Mode (Press ⌘)')
-  } else {
-    // finishPainting()
-    $('#mode').removeClass('pink').text('View Mode (Press ⌘)')
+Mousetrap.bind('command+c', function (event) {
+  if (insideMode && current && current.uv) {
+    copyMode = true
+    copyMickey(current.uv)
+    $('#mode').addClass('pink').text('Copy Mode (Press ⌘)')
   }
-}, 'keyup')
+}, 'keydown')
+
+Mousetrap.bind('command+v', function (event) {
+  if (copyMode && current && current.uv) pasteMickey(current.uv)
+  copyMode = false
+  $('#mode').removeClass('pink').text('View Mode (Press ⌘)')
+}, 'keydown')
+
+
 // Mousetrap.bind('command', function () {
+//   undoMode = false
+//   selectMode = !selectMode
+//   if (selectMode) {
+//     $('#mode').addClass('pink').text('Select Mode (Press ⌘)')
+//   } else {
+//     // finishPainting()
+//     $('#mode').removeClass('pink').text('View Mode (Press ⌘)')
+//   }
+// }, 'keyup')
+// // Mousetrap.bind('command', function () {
+// //   selectMode = false;
+// //   $('#mode').removeClass('pink').text('View Mode (⌘ + Mouse)')
+// //   finishSelect();
+// // }, 'keyup');
+// Mousetrap.bind('option', function () {
+//   undoMode = true;
 //   selectMode = false;
-//   $('#mode').removeClass('pink').text('View Mode (⌘ + Mouse)')
-//   finishSelect();
+//   $('#mode').addClass('brown').text('Undo Mode');
+// }, 'keydown');
+// Mousetrap.bind('option', function () {
+//   undoMode = false;
+//   $('#mode').removeClass('brown').text('View Mode (⌘ + Mouse)');
+//   // finishSelect();
 // }, 'keyup');
-Mousetrap.bind('option', function () {
-  undoMode = true;
-  selectMode = false;
-  $('#mode').addClass('brown').text('Undo Mode');
-}, 'keydown');
-Mousetrap.bind('option', function () {
-  undoMode = false;
-  $('#mode').removeClass('brown').text('View Mode (⌘ + Mouse)');
-  // finishSelect();
-}, 'keyup');
 
 
