@@ -4,7 +4,7 @@ var undoMode = false;
 
 var copyMode = false
 function onDocumentMouseDown( event ) {
-  window.dragging = true
+  // window.dragging = true
   var intersects = getIntersects(event);
   if (intersects.length < 1) return false
   // if (!selectMode && !undoMode) return false;
@@ -25,12 +25,23 @@ function onDocumentMouseDown( event ) {
 }
 
 function onDocumentMouseUp (event) {
-  window.dragging = false
+  // window.dragging = false
   window.previous = undefined
   planeCanvas.material.map = undefined
   planeCanvas.material.needsUpdate = true
 
   var intersects = getIntersects(event);
+
+  if (window.dragging && intersects.length > 0) {
+    window.pos = new THREE.Vector2(event.pageX, event.pageY)
+    var start = map[current.face.a]
+    window.start = start
+    getDgpc(start)
+    if (current.uv) moveMickey(current.uv)
+  }
+
+
+  window.dragging = false
   if (intersects.length < 1) return false;
 
   // if (selectIndex.length > 0) {
@@ -40,8 +51,23 @@ function onDocumentMouseUp (event) {
 
 var dragging
 var previous
+
+function changeMeshColor (color) {
+  if (!color) color = 'white'
+  if (mesh) mesh.material.color = new THREE.Color(color)
+}
+
 function onDocumentMouseMove (event) {
   var intersects = getIntersects(event);
+
+  if (window.dragging && intersects.length > 0) {
+    changeMeshColor('gray')
+  } else {
+    changeMeshColor()
+  }
+
+
+
   if (intersects.length < 1) {
     controls.enabled = true
     return false
@@ -49,6 +75,10 @@ function onDocumentMouseMove (event) {
 
   window.current = intersects[0];
   window.currentIndex = current.faceIndex
+
+
+
+
   if (false && selectMode) {
     controls.enabled = false
     if (!dragging) return false
@@ -84,18 +114,18 @@ function onDocumentMouseMove (event) {
     // drawLine(pos.x, pos.y)
     if (pos) showDrawingCanvas(pos)
   } else {
-    window.pos = new THREE.Vector2(event.pageX, event.pageY)
-    var start = map[current.face.a]
-    window.start = start
-    getDgpc(start)
-    if (current.uv) moveMickey(current.uv)
+    // window.pos = new THREE.Vector2(event.pageX, event.pageY)
+    // var start = map[current.face.a]
+    // window.start = start
+    // getDgpc(start)
+    // if (current.uv) moveMickey(current.uv)
 
-    togglePlaneCanvas(current)
+    // togglePlaneCanvas(current)
   }
 
-  if (copyMode) {
-    if (current.uv) moveMickey(current.uv)
-  }
+  // if (copyMode) {
+  //   if (current.uv) moveMickey(current.uv)
+  // }
 
 
 }

@@ -8,6 +8,7 @@ var size = 1
 var socket = io()
 
 
+
 $(function () {
   init();
   drawGeometry();
@@ -43,6 +44,14 @@ $(function () {
       context.drawImage(source, 0, 0, 256, 256)
       // $(copy).css('background', 'red')
       return copy
+    },
+    start: function (e, ui) {
+      window.dragging = true
+      console.log('dragging start')
+    },
+    stop: function (e, ui) {
+      changeMeshColor()
+      console.log('dragging stop')
     }
   })
 
