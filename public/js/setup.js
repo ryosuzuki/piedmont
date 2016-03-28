@@ -63,9 +63,25 @@ function getTextureImage () {
     window.image = image;
   });
 
-  loadSvg('/public/assets/mickey-2.svg', function (err, svg) {
-  originalPaper.activate()
+  loader.load('/public/assets/rotate.svg', function (image) {
+    image.minFilter = THREE.LinearFilter;
+    image.needsUpdate = true;
+    image.wrapS = THREE.RepeatWrapping;
+    image.wrapT = THREE.RepeatWrapping;
+    window.rotateImage = image;
+  })
 
+  loader.load('/public/assets/scale.svg', function (image) {
+    image.minFilter = THREE.LinearFilter;
+    image.needsUpdate = true;
+    image.wrapS = THREE.RepeatWrapping;
+    image.wrapT = THREE.RepeatWrapping;
+    window.scaleImage = image;
+  })
+
+
+  loadSvg('/public/assets/mickey-2.svg', function (err, svg) {
+    originalPaper.activate()
     var paper = originalPaper
     var d = $('path', svg).attr('d');
     var path = new paper.Path(d)

@@ -15,6 +15,9 @@ function onDocumentMouseDown( event ) {
 function onDocumentMouseUp (event) {
   window.dragging = false
   window.previous = undefined
+  planeCanvas.material.map = undefined
+  planeCanvas.material.needsUpdate = true
+
   var intersects = getIntersects(event);
   if (intersects.length < 1) return false;
 
@@ -50,8 +53,8 @@ function onDocumentMouseMove (event) {
       var pd = previous2d.distanceTo(center2d)
       var scale = cd / pd
       scaleMickey(scale)
-    }
-    if (rotateMode) {
+      planeCanvas.material.map = scaleImage
+    } else if (rotateMode) {
       var v = new THREE.Vector2()
       var cv = v.clone().subVectors(current2d, center2d).normalize()
       var pv = v.clone().subVectors(previous2d, center2d).normalize()
@@ -59,7 +62,11 @@ function onDocumentMouseMove (event) {
       var sign = (current2d.x - center2d.x) * (previous2d.y - center2d.y) - (current2d.y - center2d.y) * (previous2d.x - center2d.x) > 0 ? 1 : -1
       planeCanvas.rotateZ(sign*angle)
       rotateMickey(sign*angle*90/Math.PI)
+      planeCanvas.material.map = rotateImage
+    } else {
+      planeCanvas.material.map = undefined
     }
+    planeCanvas.material.needsUpdate = true
     window.previous = current
 
     // drawLine(pos.x, pos.y)
