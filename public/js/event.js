@@ -14,13 +14,20 @@ var previous
 var current
 
 
+var debugging = true
 function onDocumentMouseDown( event ) {
-
   var intersects = getIntersects(event);
   if (intersects.length < 1) return false
   // if (!selectMode && !undoMode) return false;
   window.current = intersects[0];
   window.currentIndex = current.faceIndex
+
+  if (window.debugging && current) {
+    window.pos = new THREE.Vector2(event.pageX, event.pageY)
+    var start = map[current.face.a]
+    window.start = start
+    getDgpc(start)
+  }
 
   if (controlMode) {
     var pos = convertUvToCanvas(current.uv)
@@ -54,8 +61,6 @@ function onDocumentMouseDown( event ) {
 
 }
 
-var debugging = true
-
 function onDocumentMouseUp (event) {
   // window.dragging = false
   previous = undefined
@@ -68,14 +73,6 @@ function onDocumentMouseUp (event) {
   if (mesh) mesh.material.color = new THREE.Color('white')
 
   var intersects = getIntersects(event);
-
-
-  if (window.debugging && current) {
-    window.pos = new THREE.Vector2(event.pageX, event.pageY)
-    var start = map[current.face.a]
-    window.start = start
-    getDgpc(start)
-  }
 
   if (window.dragging && intersects.length > 0) {
     window.pos = new THREE.Vector2(event.pageX, event.pageY)
@@ -233,46 +230,6 @@ function rotateModeControl () {
   rotateMickey(sign*angle*90/Math.PI)
   planeCanvas.material.map = rotateImage
   window.previous = current
-}
-
-
-function getNewUv (start) {
-
-  window.accepted_ids = []
-  for (var id in origin_uvs) {
-    var u = origin_uvs[id].u
-    var v = origin_uvs[id].v
-    if (Math.abs(u-0.5) < 0.3 && Math.abs(v-0.5) < 0.3) {
-      accepted_ids.push(parseInt(id))
-    }
-  }
-
-  var cid = start
-  var eid = geometry.uniq[cid].edges[0]
-  var old_center = new THREE.Vector2(origin_uvs[cid].u, origin_uvs[cid].v)
-  var old_edge = new THREE.Vector2(origin_uvs[eid].u, origin_uvs[eid].v)
-  var old_axis = new THREE.Vector2(old_center.x + 1, old_center.y)
-
-  var result = getSingedAngle(old_center, old_edge, old_axis)
-  var sign = result.sign
-  var old_angle = (sign > 0) ? result.angle : 2*Math.PI - result.angle
-
-  var uv = uvs[cid]
-  for (var id in uv) {
-    var r = uv[id].r
-    var theta = uv[id].theta - old_angle
-    var u = r*Math.cos(theta) + old_center.x
-    var v = r*Math.sin(theta) + old_center.y
-
-    if (isNaN(u) || isNaN(u)) debugger
-
-
-
-    uv[id].updated_u = u
-    uv[id].updated_v = v
-  }
-  uvs[cid] = uv
-
 }
 
 
