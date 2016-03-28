@@ -4,11 +4,35 @@ var undoMode = false;
 
 function onDocumentMouseDown( event ) {
   var intersects = getIntersects(event);
-  if (intersects.length < 1) return false;
+  if (intersects.length < 1) return false
   // if (!selectMode && !undoMode) return false;
   window.current = intersects[0];
   window.currentIndex = current.faceIndex
+
+}
+
+function onDocumentMouseUp (event) {
+  var intersects = getIntersects(event);
+  if (intersects.length < 1) return false;
+
+  // if (selectIndex.length > 0) {
+  //   console.log('Select Done')
+  // }
+}
+
+function onDocumentMouseMove (event) {
+  var intersects = getIntersects(event);
+  if (intersects.length < 1) {
+    controls.enabled = true
+    return false
+  }
+
+  window.current = intersects[0];
+  window.currentIndex = current.faceIndex
   if (selectMode) {
+    controls.enabled = false
+    // planeCanvas.rotateX += 1
+
     // drawLine(pos.x, pos.y)
     if (pos) showDrawingCanvas(pos)
   } else {
@@ -18,27 +42,9 @@ function onDocumentMouseDown( event ) {
     getDgpc(start)
 
     if (current.uv) moveMickey(current.uv)
+    togglePlaneCanvas(current)
   }
-}
 
-function onDocumentMouseUp (event) {
-
-  var intersects = getIntersects(event);
-  if (intersects.length < 1) return false;
-  togglePlaneCanvas(current)
-
-  // if (selectIndex.length > 0) {
-  //   console.log('Select Done')
-  // }
-}
-
-function onDocumentMouseMove (event) {
-  console.log('move')
-  var intersects = getIntersects(event);
-  if (intersects.length > 0) {
-    var basicMaterial = new THREE.MeshBasicMaterial({ color: 0xffff00 });
-    changeMaterial(intersects, basicMaterial);
-  }
 }
 
 function getIntersects (event) {

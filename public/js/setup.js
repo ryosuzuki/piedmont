@@ -188,7 +188,7 @@ function init() {
   stats.domElement.style.zIndex = 100;
   document.getElementById('viewport').appendChild(stats.domElement);
   document.addEventListener('mousedown', onDocumentMouseDown, false);
-  document.addEventListener('mousemove', onDocumentMouseDown, false);
+  document.addEventListener('mousemove', onDocumentMouseMove, false);
   document.addEventListener('mouseup', onDocumentMouseUp, false);
   document.addEventListener('touchstart', onDocumentTouchStart, false);
 

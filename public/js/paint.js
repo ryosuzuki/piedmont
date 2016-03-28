@@ -5,22 +5,30 @@ function initPlaneCanvas () {
   var material = new THREE.MeshLambertMaterial({
     color: 0x00ffff,
     vertexColors: THREE.FaceColors,
-    side: THREE.DoubleSide
+    side: THREE.DoubleSide,
+    transparent: true,
+    opacity: 0.3
   })
   planeCanvas = new THREE.Mesh(geometry, material)
-  planeCanvas.geometry.verticesNeedUpdate = true;
-  planeCanvas.dynamic = true;
-  planeCanvas.castShadow = true;
-  planeCanvas.receiveShadow = true;
+  planeCanvas.geometry.verticesNeedUpdate = true
+  planeCanvas.dynamic = true
+  planeCanvas.castShadow = true
+  planeCanvas.receiveShadow = true
+  planeCanvas.position.set(Infinity, Infinity, Infinity)
+  scene.add(planeCanvas)
 }
 
 function togglePlaneCanvas (current) {
   var normal = current.face.normal
   var point = current.point
-  var pos = point.clone().add(normal.clone().multiplyScalar(0.1))
-  planeCanvas.position.set(pos.x, pos.y, pos.z)
-  planeCanvas.lookAt(point.clone().add(normal))
+  var pos = point.clone().add(normal.clone().multiplyScalar(0.01))
 
+  var axis = point.clone().add(normal)
+  planeCanvas.position.set(pos.x, pos.y, pos.z)
+  planeCanvas.lookAt(axis)
+  planeCanvas.axis = axis
+
+  /*
   var canvas = document.getElementById('original')
   planeCanvas.material.map = new THREE.Texture(canvas)
   planeCanvas.material.map.minFilter = THREE.LinearFilter
@@ -32,7 +40,7 @@ function togglePlaneCanvas (current) {
   } else {
     scene.add(planeCanvas);
   }
-
+  */
 }
 
 
