@@ -16,9 +16,41 @@ $(function () {
   originalPaper.setup($("#original")[0])
   originalPaper.view.center = [0, 0]
 
+  drawingPaper = new paper.PaperScope()
+  drawingPaper.setup($("#drawing")[0])
+  drawingPaper.view.center = [0, 0]
+
+
   getTextureImage()
 
 });
+
+var i = 0;
+function updateOriginal (path) {
+  console.log('updateOriginal')
+
+
+    // drawingPaper.activate()
+    // var myCircle = new paper.Path.Circle(new paper.Point(0, 0), i);
+    // myCircle.fillColor = 'black';
+    // drawingPaper.view.draw()
+    // i++
+
+  drawingPaper.activate()
+  var path = new paper.Path(path.pathData)
+  path.scale(1/5)
+    path.strokeColor = 'black'
+    path.fillColor = 'black'
+    path.closed = true
+    // path.scale()
+    path.position = [0, 0]
+
+    window.mickey = path
+    window.mickeys = [window.mickey]
+
+
+  drawingPaper.view.draw()
+}
 
 function getTextureImage () {
   var loader = new THREE.TextureLoader();
@@ -32,6 +64,8 @@ function getTextureImage () {
   });
 
   loadSvg('/public/assets/mickey-2.svg', function (err, svg) {
+  originalPaper.activate()
+
     var paper = originalPaper
     var d = $('path', svg).attr('d');
     var path = new paper.Path(d)
@@ -45,24 +79,51 @@ function getTextureImage () {
     path.scale(1/5)
     paper.view.draw()
 
-    drawingPaper = new paper.PaperScope()
-    drawingPaper.setup($("#drawing")[0])
-    drawingPaper.view.center = [0, 0]
+    updateOriginal(path)
 
-    var paper = drawingPaper
-    var d = $('path', svg).attr('d');
-    var path = new paper.Path(d)
-    path.strokeColor = 'black'
-    path.fillColor = 'black'
-    path.closed = true
-    path.position = [0, 0]
-    window.scale = 1/50
 
-    // window.scale = 1/50
-    path.scale(scale)
-    paper.view.draw()
-    window.mickey = path
-    window.mickeys = [window.mickey]
+  originalPaper.activate()
+  var tool = new paper.Tool();
+
+  draft = new paper.Path(pathStyle);
+  window.paint = function (current) {
+    // var x = 700 * (current.uv.x + 0.5)
+    // var y = 700 * (current.uv.y + 0.5)
+    var x = current.uv.x
+    var y = current.uv.y
+    var point = new paper.Point(x, y);
+    draft.add(point);
+  }
+
+  tool.onMouseDown = function (event) {
+    if (draft) {
+      draft.selected = false;
+    }
+    draft = new paper.Path(pathStyle);
+    draft.segments = [event.point];
+    start = event.point;
+  }
+
+  tool.onMouseDrag = function (event) {
+    draft.add(event.point);
+  }
+
+  tool.onMouseUp = function(event) {
+    var segmentCount = draft.segments.length;
+    draft.simplify(10);
+    var newSegmentCount = draft.segments.length;
+    var difference = segmentCount - newSegmentCount;
+    var percentage = 100 - Math.round(newSegmentCount / segmentCount * 100);
+    end = event.point;
+
+    draft.strokeColor = 'black'
+    draft.fillColor = 'black'
+    draft.closed = true
+
+    updateOriginal(draft)
+  }
+
+
 
   })
 }

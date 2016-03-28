@@ -46,26 +46,26 @@ function scaleMickey (scale) {
 }
 
 function rotateMickey (rotate) {
-  var paper = originalPaper
+  drawingPaper.activate()
   window.rotate = rotate
   window.mickeys.forEach( function (mickey) {
     mickey.rotate(rotate)
   })
-  originalPaper.view.draw()
+  drawingPaper.view.draw()
   dm.material.map.needsUpdate = true
 }
 
 function moveMickey (uv) {
-  var paper = drawingPaper
+  drawingPaper.activate()
   window.currentUv = uv
   var center = convertUvToCenter(uv)
   mickey.position = center
-  paper.view.draw()
+  drawingPaper.view.draw()
   dm.material.map.needsUpdate = true
 }
 
 function repeatPattern () {
-  var paper = drawingPaper
+  drawingPaper.activate()
   window.centerPositions = []
   var center = mickey.position
   var num = 3
@@ -79,7 +79,7 @@ function repeatPattern () {
       window.mickeys.push(path)
     }
   }
-  paper.view.draw()
+  drawingPaper.view.draw()
   dm.material.map.needsUpdate = true
 }
 
