@@ -175,13 +175,13 @@ function createHall (faceIndex, positions) {
         customize: true,
       })
     } catch (e) {
+      console.log(e)
       bndMesh = svgMesh3d(d, {
         scale: 1,
         simplify: Math.pow(10, -12),
         customize: true,
       })
       // debugger
-      console.log(e)
       // continue
     }
     var nuv = bndMesh.positions;
