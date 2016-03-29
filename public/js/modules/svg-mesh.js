@@ -56,7 +56,7 @@ function svgMesh3d (svgPath, opt) {
     // rescale to [-1 ... 1]
     normalize(positions, bounds)
     // convert to 3D representation and flip on Y axis for convenience w/ OpenGL
-    to3D(positions)
+    // to3D(positions)
   } else {
     var shape = triangulateContours(contours);
     positions = shape.positions;

@@ -149,6 +149,8 @@ function updateUv (start) {
   // updateMapping(updated_uvs)
 }
 
+var entireSelect = true
+
 // window.updated_uvs = {}
 function updateMapping (uvs) {
   for (var id in uvs) {
@@ -172,7 +174,7 @@ function updateMapping (uvs) {
       var uv_c = new THREE.Vector2(uvs[c.id].u, uvs[c.id].v)
       geometry.faceVertexUvs[0][faceIndex] = [uv_a, uv_b, uv_c]
 
-      if (selectIndex.includes(faceIndex)) {
+      if (entireSelect || selectIndex.includes(faceIndex)) {
         var num = g.vertices.length
         g.vertices.push(a.vertex)
         g.vertices.push(b.vertex)

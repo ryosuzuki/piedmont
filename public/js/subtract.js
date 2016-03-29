@@ -8,8 +8,8 @@ material.color.set(new THREE.Color('blue'))
 
 var ng;
 function go () {
-  Q.fcall(computeUniq(g))
-  .then(replaceObject(g))
+  Q.fcall(computeUniq(geometry))
+  .then(replaceObject(geometry))
 }
 
 function getSvgPositions () {
@@ -43,16 +43,22 @@ function replaceObject (geometry) {
   geometry.computeFaceNormals()
   ng = new THREE.Geometry();
 
-  window.selectIndex = []
+  window.overlapIndex = []
   var svgPositions = getSvgPositions()
   svgPositions.forEach( function (positions) {
     for (var faceIndex=0; faceIndex<geometry.faces.length; faceIndex++) {
+    // for (var i=0; i<selectIndex.length; i++) {
+    //   var faceIndex = selectIndex[i]
       var face = geometry.faces[faceIndex];
       var ouv = geometry.faceVertexUvs[0][faceIndex];
       var va  = geometry.vertices[face.a];
       var vb  = geometry.vertices[face.b];
       var vc  = geometry.vertices[face.c];
       var normal = face.normal;
+      if (!ouv) {
+        var z = new THREE.Vector2(0, 0)
+        ouv = [z, z, z] // continue
+      }
       var triangle = ouv.map( function (v) {
         return [v.x, v.y];
       })
@@ -68,20 +74,21 @@ function replaceObject (geometry) {
           var area = areaPolygon(points[0])
           var triArea = areaPolygon(triangle)
           if (area/triArea > 0.5) {
-            selectIndex = _.union(selectIndex, [faceIndex])
+            overlapIndex = _.union(overlapIndex, [faceIndex])
             continue;
           }
           console.log(area/triArea)
+          // overlapIndex = _.union(overlapIndex, [faceIndex])
         }
       } else {
         createHall(faceIndex, positions)
-        selectIndex = _.union(selectIndex, [faceIndex])
+        overlapIndex = _.union(overlapIndex, [faceIndex])
       }
     }
   })
 
   for (var faceIndex=0; faceIndex<geometry.faces.length; faceIndex++) {
-    if (selectIndex.includes(faceIndex)) continue;
+    if (overlapIndex.includes(faceIndex)) continue;
     var face = geometry.faces[faceIndex];
     var normal = face.normal;
     var va  = geometry.vertices[face.a];
@@ -112,6 +119,8 @@ function replaceObject (geometry) {
   console.log('done')
   scene.remove(mesh)
   scene.remove(dm)
+  scene.remove(cm)
+  scene.remove(sm)
   scene.remove(texture)
   nm = new THREE.Mesh(ng, material);
   nm.geometry.verticesNeedUpdate = true;
@@ -124,8 +133,11 @@ function replaceObject (geometry) {
   nm.rotation.x = mesh.rotation.x;
   nm.rotation.y = mesh.rotation.y;
   nm.rotation.z = mesh.rotation.z;
-  nm.scale.set(6, 6, 6)
-  scene.add(nm);
+  nm.scale.x = mesh.scale.x
+  nm.scale.y = mesh.scale.y
+  nm.scale.z = mesh.scale.z
+  scene.add(nm)
+
 }
 
 function createHall (faceIndex, positions) {
@@ -135,10 +147,12 @@ function createHall (faceIndex, positions) {
   var vb = geometry.vertices[face.b];
   var vc = geometry.vertices[face.c];
   var normal = face.normal;
+  // if (!ouv) return false
   var triangle = ouv.map( function (v) {
     return [v.x, v.y];
   })
   var diffs = greinerHormann.diff(triangle, positions)
+  // if (!diffs) return false
   for (var i=0; i<diffs.length; i++) {
     var diff = diffs[i]
     var outer_triangle = triangle.filter(function (t) {
