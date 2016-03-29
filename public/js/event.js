@@ -297,9 +297,10 @@ $(document).on('click', '#mapping', function (event) {
   toggleMapping()
 });
 
-$(document).on('click', '#add', function (event) {
-  console.log('add');
-  addTexture()
+$(document).on('click', '#repeat', function (event) {
+  console.log('repeat');
+  toggleRepeat()
+  // addTexture()
 });
 
 $(document).on('click', '#export', function() {

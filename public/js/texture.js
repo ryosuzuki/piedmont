@@ -66,7 +66,7 @@ function updateUv (start) {
         var v = origin_uvs[id].v
         if (Math.abs(u-0.5) < val && Math.abs(v-0.5) < val) {
           updated_uvs[id] = { u: u, v: v }
-          // updated_uvs[id] = { u: 0.1*(u-0.5)+0.5, v: 0.1*(v-0.5)+0.5 }
+          // updated_uvs[id] = { u: (u-0.5)+0.5, v: (v-0.5)+0.5 }
         }
       }
     } else {
@@ -94,34 +94,40 @@ function updateUv (start) {
         var updated_v = r*Math.sin(theta) + old_center.y
         if (!updated_uvs[id] && Math.abs(u-0.5) < val && Math.abs(v-0.5) < val) {
             updated_uvs[id] = { u: updated_u, v: updated_v }
-            origin_uvs[id] = { u: updated_u, v: updated_v }
+            // origin_uvs[id] = { u: updated_u, v: updated_v }
             // updated_uvs[id] = { u: 0.1*(updated_u-0.5)+0.5, v: 0.1*(updated_v-0.5)+0.5 }
             // origin_uvs[id] = { u: 0.1*(updated_u-0.5)+0.5, v: 0.1*(updated_v-0.5)+0.5 }
         }
-
       }
     }
 
     var max_u = _.max(_.map(updated_uvs, 'u'))
-    var max_v = _.max(_.map(updated_uvs, 'v'))
     var min_u = _.min(_.map(updated_uvs, 'u'))
+    var length_u = max_u - min_u
+    var max_v = _.max(_.map(updated_uvs, 'v'))
     var min_v = _.min(_.map(updated_uvs, 'v'))
-    var max = _.max([max_u, max_v])
-    var min = _.min([min_u, min_v])
+    var length_v = max_v - min_v
 
-    var length = max - min
+    var length = _.max([length_u, length_v])
+
     window.scaled_uvs = {}
+
+    cuv = current.uv ? current.uv : new THREE.Vector2(0.5, 0.5)
     for (var id in updated_uvs) {
       scaled_uvs[id] = {
         u: (updated_uvs[id].u-0.5)/length + 0.5,
         v: (updated_uvs[id].v-0.5)/length + 0.5
       }
     }
-    drawingPaper.view.viewSize = [256*max, 256*max]
 
+    if (length > 1) {
+      // drawingPaper.view.scrollBy(256*(length-1), 256*(length_v-1))
+    }
+
+    drawingPaper.view.viewSize = [256*length, 256*length]
+    // drawingPaper.view.viewSize = [256*length_u, 256*length_v]
 
     updateMapping(scaled_uvs)
-
     /*
     var finished = _.keys(uvs).map(function (a) { return parseInt(a) })
     var edges = _.pullAll(_.clone(geometry.uniq[start].edges), finished)
@@ -133,8 +139,8 @@ function updateUv (start) {
     console.log('Fail: ' + err)
     running = false
   }
+  // updateMapping(updated_uvs)
 }
-
 
 // window.updated_uvs = {}
 function updateMapping (uvs) {
@@ -164,20 +170,38 @@ function updateMapping (uvs) {
     }
   }
 
-  showDrawingCanvas()
-  // showCheckerMark()
+  if (checkerMark) {
+    showCheckerMark()
+  } else {
+    showDrawingCanvas()
+  }
+  // showDrawingCanvas()
+
 
   running = false
 }
 
+var repeatMapping
+function toggleRepeat () {
+  if (!checkerMark) checkerMark = true
+  repeatMapping = !repeatMapping
+  if (repeatMapping) {
+    updateMapping(updated_uvs)
+  } else {
+    updateMapping(origin_uvs)
+  }
+}
+
+
 var checkerMark
 function toggleMapping () {
-  if (checkerMark) {
-    showDrawingCanvas()
-  } else {
-    showCheckerMark()
-  }
+  repeatMapping = false
   checkerMark = !checkerMark
+  if (checkerMark) {
+    showCheckerMark()
+  } else {
+    showDrawingCanvas()
+  }
 }
 
 function showCheckerMark () {
@@ -186,6 +210,10 @@ function showCheckerMark () {
     map: image,
     transparent: true
   });
+  if (repeatMapping) {
+    image.wrapS = THREE.RepeatWrapping;
+    image.wrapT = THREE.RepeatWrapping;
+  }
   m.map.minFilter = THREE.LinearFilter
   m.map.needsUpdate = true
   dm = new THREE.Mesh(g, m);

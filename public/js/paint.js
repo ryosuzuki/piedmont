@@ -177,7 +177,8 @@ function repeatPattern () {
 function convertUvToCanvas (uv) {
   var width = drawingPaper.view.viewSize.width
   var height = drawingPaper.view.viewSize.height
-  return [ (uv.x-0.5)*width, (uv.y-0.5)*height ]
+  return [ (uv.x-0.5)*width, (uv.y-0.5)*height]
+  // return [ (uv.x)*width, (uv.y)*height]
 }
 
 function convertCanvasToUv (center) {
