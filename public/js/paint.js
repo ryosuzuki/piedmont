@@ -132,7 +132,7 @@ function scaleMickey (scale) {
 
 function rotateMickey (rotate) {
   if (!dm) return false
-  rotate *= -1
+  // rotate *= -1
   drawingPaper.activate()
   window.rotate = rotate
   window.mickeys.forEach( function (mickey) {
@@ -177,11 +177,11 @@ function repeatPattern () {
 function convertUvToCanvas (uv) {
   var width = drawingPaper.view.viewSize.width
   var height = drawingPaper.view.viewSize.height
-  return [ (uv.x-0.5)*width, -(uv.y-0.5)*height ]
+  return [ (uv.x-0.5)*width, (uv.y-0.5)*height ]
 }
 
 function convertCanvasToUv (center) {
   var width = drawingPaper.view.viewSize.width
   var height = drawingPaper.view.viewSize.height
-  return [ (center.x/width)+0.5, -(center.y/height)+0.5 ]
+  return [ (center.x/width)+0.5, (center.y/height)+0.5 ]
 }

@@ -164,8 +164,8 @@ function updateMapping (uvs) {
     }
   }
 
-  // showDrawingCanvas()
-  showCheckerMark()
+  showDrawingCanvas()
+  // showCheckerMark()
 
   running = false
 }
@@ -210,6 +210,7 @@ function showDrawingCanvas () {
     map: new THREE.Texture(canvas),
     transparent: true
   });
+  m.map.flipY = false
   // m.map.magFilter = THREE.NearestFilter
   m.map.minFilter = THREE.LinearFilter
   // m.map.wrapS = THREE.RepeatWrapping;
