@@ -28,11 +28,14 @@ function getNextFaces (faceIndex) {
 }
 
 function initialCheck() {
+  console.log('Start initialCheck')
   check(0.003)
 }
 
 var sm
+var selectIndex = []
 function check (epsilon) {
+  if (selectIndex.includes(current.faceIndex)) return false
   var face = current.face
   var a = geometry.uniq[face.a]
   var b = geometry.uniq[face.b]
@@ -78,7 +81,14 @@ function check (epsilon) {
     g.vertices.push(geometry.vertices[selectFace.c])
     g.faces.push(new THREE.Face3(num, num+1, num+2))
   }
-  var m = new THREE.MeshBasicMaterial({color: 0x00ffff})
+  // var m = new THREE.MeshBasicMaterial({color: 0xeeeeee})
+  var m = new THREE.MeshLambertMaterial({
+    color: 0x00ffff,
+    // map: image,
+    transparent: true,
+    opacity: 0.3
+  });
+
   sm = new THREE.Mesh(g, m)
   scene.add(sm)
 }

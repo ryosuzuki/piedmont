@@ -35,8 +35,14 @@ function getDgpc (start) {
     updateUv(start)
   } else {
     var size = geometry.uniq.length
+    var scale = 0.5
+    var json = {
+      size: size,
+      start: start,
+      scale: scale
+    }
     s = new Date().getTime();
-    socket.emit('update-dgpc', size, start)
+    socket.emit('update-dgpc', json)
   }
 }
 
@@ -124,10 +130,10 @@ function updateUv (start) {
       // drawingPaper.view.scrollBy(256*(length-1), 256*(length_v-1))
     }
 
-    drawingPaper.view.viewSize = [256*length, 256*length]
+    // drawingPaper.view.viewSize = [256*length, 256*length]
     // drawingPaper.view.viewSize = [256*length_u, 256*length_v]
 
-    updateMapping(scaled_uvs)
+    // updateMapping(scaled_uvs)
     /*
     var finished = _.keys(uvs).map(function (a) { return parseInt(a) })
     var edges = _.pullAll(_.clone(geometry.uniq[start].edges), finished)
@@ -139,6 +145,8 @@ function updateUv (start) {
     console.log('Fail: ' + err)
     running = false
   }
+  updateMapping(updated_uvs)
+
   // updateMapping(updated_uvs)
 }
 
@@ -151,30 +159,36 @@ function updateMapping (uvs) {
   scene.remove(dm)
   g = new THREE.Geometry()
   for (var i=0; i<geometry.faces.length; i++) {
-    var face = geometry.faces[i]
+    faceIndex = i
+  // for (var i=0; i<selectIndex.length; i++) {
+  //   var faceIndex = selectIndex[i]
+    var face = geometry.faces[faceIndex]
     var a = geometry.uniq[map[face.a]]
     var b = geometry.uniq[map[face.b]]
     var c = geometry.uniq[map[face.c]]
     // if (uvs[a.id].r > 0.2 || uvs[b.id].r > 0.2 || uvs[c.id].r > 0.2 ) continue
     if (uvs[a.id] && uvs[b.id] && uvs[c.id]) {
-      var num = g.vertices.length
-      g.vertices.push(a.vertex)
-      g.vertices.push(b.vertex)
-      g.vertices.push(c.vertex)
-      g.faces.push(new THREE.Face3(num, num+1, num+2))
       var uv_a = new THREE.Vector2(uvs[a.id].u, uvs[a.id].v)
       var uv_b = new THREE.Vector2(uvs[b.id].u, uvs[b.id].v)
       var uv_c = new THREE.Vector2(uvs[c.id].u, uvs[c.id].v)
-      g.faceVertexUvs[0].push([uv_a, uv_b, uv_c])
-      geometry.faceVertexUvs[0][i] = [uv_a, uv_b, uv_c]
+      geometry.faceVertexUvs[0][faceIndex] = [uv_a, uv_b, uv_c]
+
+      if (selectIndex.includes(faceIndex)) {
+        var num = g.vertices.length
+        g.vertices.push(a.vertex)
+        g.vertices.push(b.vertex)
+        g.vertices.push(c.vertex)
+        g.faces.push(new THREE.Face3(num, num+1, num+2))
+        g.faceVertexUvs[0].push([uv_a, uv_b, uv_c])
+      }
     }
   }
 
-  if (checkerMark) {
+  // if (checkerMark) {
     showCheckerMark()
-  } else {
+  // } else {
     showDrawingCanvas()
-  }
+  // }
   // showDrawingCanvas()
 
 
@@ -193,22 +207,27 @@ function toggleRepeat () {
 }
 
 
-var checkerMark
+var checkerMark = true
 function toggleMapping () {
   repeatMapping = false
   checkerMark = !checkerMark
   if (checkerMark) {
-    showCheckerMark()
+    if (!scene.children.includes(cm)) scene.add(cm)
+    // showCheckerMark()
   } else {
-    showDrawingCanvas()
+    scene.remove(cm)
+    // showDrawingCanvas()
   }
 }
 
+var cm
 function showCheckerMark () {
+  scene.remove(cm)
   var m = new THREE.MeshLambertMaterial({
     color: 0xffffff,
     map: image,
-    transparent: true
+    transparent: true,
+    opacity: 0.5
   });
   if (repeatMapping) {
     image.wrapS = THREE.RepeatWrapping;
@@ -216,10 +235,10 @@ function showCheckerMark () {
   }
   m.map.minFilter = THREE.LinearFilter
   m.map.needsUpdate = true
-  dm = new THREE.Mesh(g, m);
-  dm.scale.set(mesh.scale.x, mesh.scale.y, mesh.scale.z)
-  dm.position.set(mesh.position.x, mesh.position.y, mesh.position.z)
-  scene.add(dm);
+  cm = new THREE.Mesh(g, m);
+  cm.scale.set(mesh.scale.x, mesh.scale.y, mesh.scale.z)
+  cm.position.set(mesh.position.x, mesh.position.y, mesh.position.z)
+  scene.add(cm);
   // for (var id in origin_uvs) {
   //   var hash = origin_uvs[id]
   //   if (hash.theta == 0 && id !== origin) {
@@ -230,6 +249,7 @@ function showCheckerMark () {
   // getDgpc(ep.id)
 }
 
+var dm
 function showDrawingCanvas () {
   if (ng) return false
   scene.remove(dm)

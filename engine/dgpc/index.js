@@ -26,7 +26,12 @@ Result.mapping = StructType({
 
 var fs = require('fs');
 
-function getMapping (filename, size, start) {
+function getMapping (json) {
+
+  var filename = json.filename
+  var size = json.size
+  var start = json.start
+  var scale = json.scale ? json.scale : 1
   console.log('Start getMapping');
   var result = new Result.mapping({
     n: int,
@@ -41,7 +46,7 @@ function getMapping (filename, size, start) {
   var uv = {};
   for (var i=0; i<result.n; i++) {
     var id = result.id[i]
-    var r = result.r[i]
+    var r = scale * result.r[i]
     var theta = result.theta[i]
     var u = r * Math.cos(theta) + 0.5;
     var v = r * Math.sin(theta) + 0.5;

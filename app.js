@@ -67,11 +67,12 @@ app.io.route('connection', function *(next, json) {
   fs.writeFileSync('data/demo.obj', str, 'utf8')
 })
 
-app.io.route('update-dgpc', function *(next, size, start) {
+app.io.route('update-dgpc', function *(next, json) {
   console.log('Update DGPC')
   var filename = __dirname + '/data/demo.obj'
-  var result = dgpc.getMapping(filename, size, start)
-  result.start = start
+  json.filename = filename
+  var result = dgpc.getMapping(json)
+  result.start = json.start
   this.emit('res-update-dgpc', result)
 })
 

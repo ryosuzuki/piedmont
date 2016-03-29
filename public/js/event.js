@@ -26,7 +26,10 @@ function onDocumentMouseDown( event ) {
     window.pos = new THREE.Vector2(event.pageX, event.pageY)
     var start = map[current.face.a]
     window.start = start
-    getDgpc(start)
+
+    // initialCheck()
+    // Q.fcall(initialCheck())
+    // .then(getDgpc(start))
   }
 
   if (controlMode) {
@@ -78,6 +81,9 @@ function onDocumentMouseUp (event) {
     window.pos = new THREE.Vector2(event.pageX, event.pageY)
     var start = map[current.face.a]
     window.start = start
+
+    initialCheck()
+
     getDgpc(start)
     if (current.uv) moveMickey(current.uv)
   }
@@ -157,8 +163,8 @@ function onDocumentMouseMove (event) {
     if (moveMode || copyMode) {
       moveMickey(current.uv)
       var start = map[current.face.a]
+      initialCheck()
       getDgpc(start)
-
     }
     // if (copyMode) {
     //   moveMickey(current.uv, 'copy')

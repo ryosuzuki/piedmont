@@ -127,7 +127,7 @@ function updateOriginal (path) {
 
     drawingPaper.activate()
     var path = new paper.Path(path.pathData)
-    path.scale(1/2)
+    path.scale(1/5)
     path.strokeColor = 'black'
     path.fillColor = 'black'
     path.closed = true
@@ -148,9 +148,8 @@ function updateOriginal (path) {
       image.needsUpdate = true;
       // image.wrapS = THREE.RepeatWrapping;
       // image.wrapT = THREE.RepeatWrapping;
-    // image.repeat.set(4, 4);
-    window.image = image;
-  });
+      window.image = image;
+    });
 
     loader.load('/public/assets/rotate.svg', function (image) {
       image.minFilter = THREE.LinearFilter;
