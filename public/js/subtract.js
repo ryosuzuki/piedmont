@@ -8,6 +8,7 @@ material.color.set(new THREE.Color('blue'))
 
 var ng;
 function go () {
+  window.scale = 1/50
   Q.fcall(computeUniq(geometry))
   .then(replaceObject(geometry))
 }
