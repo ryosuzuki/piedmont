@@ -19,10 +19,10 @@
 <!-- <canvas id="canvas"></canvas> -->
 
 <div class="bottom-buttons">
-  <button class="ui grey button" id="mapping">Toggle Mapping</button>
-  <button class="ui teal button" id="repeat">View Repeat</button>
+  <button class="ui grey button" onclick="toggleMapping()">Toggle Mapping</button>
+  <button class="ui teal button" onclick="toggleOriginal()">Toggle Original</button>
   <button class="ui green button" onclick="createSvg()">Create SVG</button>
-  <button class="ui green button" id="export" draggable="true">STL Export</button>
+  <button class="ui green button" onclick="exportStl()">STL Export</button>
 </div>
 
 <canvas id="original"></canvas>

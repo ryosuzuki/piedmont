@@ -297,24 +297,12 @@ function onDocumentTouchStart( event ) {
   onDocumentMouseDown( event );
 }
 
-
-$(document).on('click', '#mapping', function (event) {
-  console.log('mapping')
-  toggleMapping()
-});
-
-$(document).on('click', '#repeat', function (event) {
-  console.log('repeat');
-  toggleRepeat()
-  // addTexture()
-});
-
-$(document).on('click', '#export', function() {
+function exportStl () {
   var exporter = new THREE.STLExporter();
   var stlString = exporter.parse( scene );
   var blob = new Blob([stlString], {type: 'text/plain'});
   saveAs(blob, 'demo.stl');
-});
+}
 
 var pathStyle = {
   strokeColor: 'black',

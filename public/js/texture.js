@@ -126,10 +126,9 @@ function updateUv (start) {
       }
     }
 
-    if (length > 1) {
-      // drawingPaper.view.scrollBy(256*(length-1), 256*(length_v-1))
-    }
-
+    // if (length > 1) {
+    //   drawingPaper.view.scrollBy(256*(length-1), 256*(length_v-1))
+    // }
     // drawingPaper.view.viewSize = [256*length, 256*length]
     // drawingPaper.view.viewSize = [256*length_u, 256*length_v]
 
@@ -184,39 +183,32 @@ function updateMapping (uvs) {
     }
   }
 
-  // if (checkerMark) {
-    showCheckerMark()
-  // } else {
-    showDrawingCanvas()
-  // }
-  // showDrawingCanvas()
-
+  if (checkerMark) showCheckerMark()
+  showDrawingCanvas()
 
   running = false
 }
 
-var repeatMapping
-function toggleRepeat () {
+var originalMapping = false
+function toggleOriginal () {
   if (!checkerMark) checkerMark = true
-  repeatMapping = !repeatMapping
-  if (repeatMapping) {
-    updateMapping(updated_uvs)
-  } else {
+  originalMapping = !originalMapping
+  if (originalMapping) {
     updateMapping(origin_uvs)
+  } else {
+    updateMapping(updated_uvs)
   }
 }
 
-
 var checkerMark = true
+var repeatMapping = false
 function toggleMapping () {
-  repeatMapping = false
+  originalMapping = false
   checkerMark = !checkerMark
   if (checkerMark) {
     if (!scene.children.includes(cm)) scene.add(cm)
-    // showCheckerMark()
   } else {
     scene.remove(cm)
-    // showDrawingCanvas()
   }
 }
 
@@ -229,7 +221,7 @@ function showCheckerMark () {
     transparent: true,
     opacity: 0.5
   });
-  if (repeatMapping) {
+  if (originalMapping) {
     image.wrapS = THREE.RepeatWrapping;
     image.wrapT = THREE.RepeatWrapping;
   }

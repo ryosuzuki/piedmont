@@ -135,6 +135,7 @@ function updateOriginal (path) {
     path.position = [0, 0]
 
     window.mickey = path
+    window.currentMickey = mickey
     window.mickeys = [window.mickey]
 
 

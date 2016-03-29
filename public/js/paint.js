@@ -49,7 +49,7 @@ function copyMickey (uv) {
   drawingPaper.view.draw()
   dm.material.map.needsUpdate = true
 
-  window.mickey = nextMickey
+  window.currentMickey = nextMickey
 }
 
 function pasteMickey (uv) {
@@ -101,14 +101,18 @@ function repeatMickey () {
   var i = 0
   var interval = setInterval( function () {
     var center = add_centers[i]
-    var path = mickey.clone()
-    path.position = [center.x, center.y]
-    window.mickeys.push(path)
+    if (center) {
+      var path = mickey.clone()
+      path.position = [center.x, center.y]
+      window.mickeys.push(path)
+    }
 
     var center = sub_centers[i]
-    var path = mickey.clone()
-    path.position = [center.x, center.y]
-    window.mickeys.push(path)
+    if (center) {
+      var path = mickey.clone()
+      path.position = [center.x, center.y]
+      window.mickeys.push(path)
+    }
 
     drawingPaper.view.draw()
     dm.material.map.needsUpdate = true
@@ -149,7 +153,7 @@ function moveMickey (uv) {
   window.currentUv = uv
   var center = convertUvToCanvas(uv)
   // nextMickey.position = center
-  mickey.position = center
+  window.currentMickey.position = center
   drawingPaper.view.draw()
   dm.material.map.needsUpdate = true
 }
