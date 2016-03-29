@@ -21,12 +21,16 @@ $(function () {
   originalPaper = new paper.PaperScope()
   originalPaper.setup($("#original")[0])
   originalPaper.view.center = [0, 0]
-  originalPaper.view.viewSize = new paper.Size(256, 256)
+  originalPaper.view.viewSize = [256, 256] // new paper.Size(256, 256)
 
+  var drawing = document.getElementById('drawing')
+  drawing.width = 256
+  drawing.height = 256
 
   drawingPaper = new paper.PaperScope()
   drawingPaper.setup($("#drawing")[0])
   drawingPaper.view.center = [0, 0]
+  drawingPaper.view.viewSize = [256, 256] // new paper.Size(256, 256)
 
 
   $('#original').draggable({
@@ -123,7 +127,7 @@ function updateOriginal (path) {
 
     drawingPaper.activate()
     var path = new paper.Path(path.pathData)
-    path.scale(1/5)
+    path.scale(1/2)
     path.strokeColor = 'black'
     path.fillColor = 'black'
     path.closed = true
@@ -142,8 +146,8 @@ function updateOriginal (path) {
     loader.load('/public/assets/bunny_1k.png', function (image) {
       image.minFilter = THREE.LinearFilter;
       image.needsUpdate = true;
-      image.wrapS = THREE.RepeatWrapping;
-      image.wrapT = THREE.RepeatWrapping;
+      // image.wrapS = THREE.RepeatWrapping;
+      // image.wrapT = THREE.RepeatWrapping;
     // image.repeat.set(4, 4);
     window.image = image;
   });
@@ -174,21 +178,11 @@ function updateOriginal (path) {
       path.fillColor = 'black'
       path.closed = true
       path.position = [0, 0]
-      window.scale = 1/50
+      path.scale(1/5)
+      paper.view.draw()
 
-    // window.scale = 1/50
-    path.scale(1/5)
-    paper.view.draw()
-
-    updateOriginal(path)
-
-
-    /*
-
-    */
-
-
-  })
+      updateOriginal(path)
+    })
   }
 
 

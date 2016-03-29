@@ -45,6 +45,15 @@ function getDgpc (start) {
 
 window.updated_uvs = {}
 
+function checkUv () {
+  for (var i=0; i<selectIndex.length; i++) {
+    var face = geometry.faces[selectIndex[i]]
+    var start = map[face.a]
+    getDgpc(start)
+  }
+}
+
+
 var origin
 function updateUv (start) {
   var val = 0.5
@@ -57,6 +66,7 @@ function updateUv (start) {
         var v = origin_uvs[id].v
         if (Math.abs(u-0.5) < val && Math.abs(v-0.5) < val) {
           updated_uvs[id] = { u: u, v: v }
+          // updated_uvs[id] = { u: 0.1*(u-0.5)+0.5, v: 0.1*(v-0.5)+0.5 }
         }
       }
     } else {
@@ -85,11 +95,32 @@ function updateUv (start) {
         if (!updated_uvs[id] && Math.abs(u-0.5) < val && Math.abs(v-0.5) < val) {
             updated_uvs[id] = { u: updated_u, v: updated_v }
             origin_uvs[id] = { u: updated_u, v: updated_v }
+            // updated_uvs[id] = { u: 0.1*(updated_u-0.5)+0.5, v: 0.1*(updated_v-0.5)+0.5 }
+            // origin_uvs[id] = { u: 0.1*(updated_u-0.5)+0.5, v: 0.1*(updated_v-0.5)+0.5 }
         }
+
       }
     }
 
-    updateMapping(updated_uvs)
+    var max_u = _.max(_.map(updated_uvs, 'u'))
+    var max_v = _.max(_.map(updated_uvs, 'v'))
+    var min_u = _.min(_.map(updated_uvs, 'u'))
+    var min_v = _.min(_.map(updated_uvs, 'v'))
+    var max = _.max([max_u, max_v])
+    var min = _.min([min_u, min_v])
+
+    var length = max - min
+    window.scaled_uvs = {}
+    for (var id in updated_uvs) {
+      scaled_uvs[id] = {
+        u: (updated_uvs[id].u-0.5)/length + 0.5,
+        v: (updated_uvs[id].v-0.5)/length + 0.5
+      }
+    }
+    drawingPaper.view.viewSize = [256*max, 256*max]
+
+
+    updateMapping(scaled_uvs)
 
     /*
     var finished = _.keys(uvs).map(function (a) { return parseInt(a) })
@@ -132,6 +163,7 @@ function updateMapping (uvs) {
       geometry.faceVertexUvs[0][i] = [uv_a, uv_b, uv_c]
     }
   }
+
   // showDrawingCanvas()
   showCheckerMark()
 

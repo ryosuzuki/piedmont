@@ -38,7 +38,7 @@ function check (epsilon) {
   var b = geometry.uniq[face.b]
   var c = geometry.uniq[face.c]
 
-  var selectIndex = [current.faceIndex]
+  window.selectIndex = [current.faceIndex]
   var queue = [current.faceIndex]
   var finished = []
   while (queue.length > 0) {

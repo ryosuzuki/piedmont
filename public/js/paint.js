@@ -40,6 +40,7 @@ function showPlaneCanvas (current) {
 }
 
 function copyMickey (uv) {
+  if (!dm) return false
   drawingPaper.activate()
   window.currentUv = uv
   window.nextMickey = mickey.clone()
@@ -120,6 +121,7 @@ function repeatMickey () {
 }
 
 function scaleMickey (scale) {
+  if (!dm) return false
   window.scale *= scale
   window.mickeys.forEach( function (mickey) {
     mickey.scale(scale)
@@ -129,6 +131,7 @@ function scaleMickey (scale) {
 }
 
 function rotateMickey (rotate) {
+  if (!dm) return false
   rotate *= -1
   drawingPaper.activate()
   window.rotate = rotate
@@ -140,6 +143,7 @@ function rotateMickey (rotate) {
 }
 
 function moveMickey (uv) {
+  if (!dm) return false
   // if (!window.nextMickey) return false
   drawingPaper.activate()
   window.currentUv = uv
@@ -151,6 +155,7 @@ function moveMickey (uv) {
 }
 
 function repeatPattern () {
+  if (!dm) return false
   drawingPaper.activate()
   window.centerPositions = []
   var center = mickey.position
@@ -169,11 +174,14 @@ function repeatPattern () {
   dm.material.map.needsUpdate = true
 }
 
-var width = height = 256
 function convertUvToCanvas (uv) {
+  var width = drawingPaper.view.viewSize.width
+  var height = drawingPaper.view.viewSize.height
   return [ (uv.x-0.5)*width, -(uv.y-0.5)*height ]
 }
 
 function convertCanvasToUv (center) {
+  var width = drawingPaper.view.viewSize.width
+  var height = drawingPaper.view.viewSize.height
   return [ (center.x/width)+0.5, -(center.y/height)+0.5 ]
 }

@@ -156,6 +156,9 @@ function onDocumentMouseMove (event) {
     }
     if (moveMode || copyMode) {
       moveMickey(current.uv)
+      var start = map[current.face.a]
+      getDgpc(start)
+
     }
     // if (copyMode) {
     //   moveMickey(current.uv, 'copy')
