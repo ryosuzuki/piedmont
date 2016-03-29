@@ -18,7 +18,7 @@ $(function () {
     // console.log('Execution time: ' + time + 'ms');
     var start = result.start
     window.uvs[start] = result.uv
-    getNewUv(start)
+    updateUv(start)
 
   })
 })
@@ -32,12 +32,7 @@ function getDgpc (start) {
 
   // console.log('start: ' + start)
   if (_.has(window.uvs, start)) {
-    if (origin) {
-      getNewUv(start)
-    } else {
-      updateMapping()
-    }
-    // updateMapping(start)
+    updateUv(start)
   } else {
     var size = geometry.uniq.length
     s = new Date().getTime();
@@ -46,64 +41,67 @@ function getDgpc (start) {
 }
 
 
+// window.adjusted_uvs = {}
+
+window.updated_uvs = {}
+
 var origin
-function getNewUv (start) {
-  window.new_uvs = {}
-  window.updated_uvs = {}
-
-  if (!origin) {
-    origin = start
-    window.origin_uvs = window.uvs[origin]
-  } else {
-    console.log('Start getNewUv ' + start)
-    var current_uvs = uvs[start]
-    var cid = start
-    var eid
-    for (var id in current_uvs) {
-      if (current_uvs[id].theta == 0 && id != cid) eid = parseInt(id)
-    }
-    if (!origin_uvs[cid].u || !origin_uvs[cid].v || !origin_uvs[eid].u || !origin_uvs[cid].v) {
-      console.log('fail')
-      running = false
-      return false
-    } else {
-      console.log(origin_uvs[cid])
-      console.log(origin_uvs[eid])
-    }
-
-
-
-    var old_center = new THREE.Vector2(origin_uvs[cid].u, origin_uvs[cid].v)
-    var old_edge = new THREE.Vector2(origin_uvs[eid].u, origin_uvs[eid].v)
-    var old_axis = new THREE.Vector2(old_center.x + 0.01, old_center.y)
-
-
-    var result = getSingedAngle(old_center, old_edge, old_axis)
-    var sign = result.sign
-    var old_angle = (sign > 0) ? result.angle : 2*Math.PI - result.angle
-
-    for (var id in current_uvs) {
-      var r = current_uvs[id].r
-      var theta = current_uvs[id].theta - old_angle
-      var u = r*Math.cos(theta) + old_center.x
-      var v = r*Math.sin(theta) + old_center.y
-      // if (isNaN(u) || isNaN(u)) continue
-      new_uvs[id] = { u: u, v: v }
-    }
-    // uvs[cid] = new_uvs
-  }
+function updateUv (start) {
   var val = 0.5
-  for (var id in origin_uvs) {
-    var u = origin_uvs[id].u
-    var v = origin_uvs[id].v
-    if (Math.abs(u-0.5) < val && Math.abs(v-0.5) < val) {
-      updated_uvs[id] = { u: u, v: v }
+  try {
+    if (!origin) {
+      origin = start
+      window.origin_uvs = window.uvs[origin]
+      for (var id in origin_uvs) {
+        var u = origin_uvs[id].u
+        var v = origin_uvs[id].v
+        if (Math.abs(u-0.5) < val && Math.abs(v-0.5) < val) {
+          updated_uvs[id] = { u: u, v: v }
+        }
+      }
+    } else {
+      console.log('Start getNewUv ' + start)
+      var current_uvs = uvs[start]
+      var cid = start
+      var eid
+      for (var id in current_uvs) {
+        if (current_uvs[id].theta == 0 && id != cid) eid = parseInt(id)
+      }
+      var old_center = new THREE.Vector2(updated_uvs[cid].u, updated_uvs[cid].v)
+      var old_edge = new THREE.Vector2(updated_uvs[eid].u, updated_uvs[eid].v)
+      var old_axis = new THREE.Vector2(old_center.x + 0.01, old_center.y)
+
+      var result = getSingedAngle(old_center, old_edge, old_axis)
+      var sign = result.sign
+      var old_angle = (sign > 0) ? result.angle : 2*Math.PI - result.angle
+
+      for (var id in current_uvs) {
+        var r = current_uvs[id].r
+        var theta = current_uvs[id].theta - old_angle
+        var u = current_uvs[id].u
+        var v = current_uvs[id].v
+        var updated_u = r*Math.cos(theta) + old_center.x
+        var updated_v = r*Math.sin(theta) + old_center.y
+        if (!updated_uvs[id] && Math.abs(u-0.5) < val && Math.abs(v-0.5) < val) {
+            updated_uvs[id] = { u: updated_u, v: updated_v }
+            origin_uvs[id] = { u: updated_u, v: updated_v }
+        }
+      }
     }
+
+    updateMapping(updated_uvs)
+
+    /*
+    var finished = _.keys(uvs).map(function (a) { return parseInt(a) })
+    var edges = _.pullAll(_.clone(geometry.uniq[start].edges), finished)
+    edges.forEach( function (edge) {
+      getDgpc(edge)
+    })
+    */
+  } catch (err) {
+    console.log('Fail: ' + err)
+    running = false
   }
-  for (var id in new_uvs) {
-    if (!updated_uvs[id]) updated_uvs[id] = new_uvs[id]
-  }
-  updateMapping(updated_uvs)
 }
 
 
@@ -130,7 +128,7 @@ function updateMapping (uvs) {
       var uv_a = new THREE.Vector2(uvs[a.id].u, uvs[a.id].v)
       var uv_b = new THREE.Vector2(uvs[b.id].u, uvs[b.id].v)
       var uv_c = new THREE.Vector2(uvs[c.id].u, uvs[c.id].v)
-      g.faceVertexUvs[0][i] = [uv_a, uv_b, uv_c]
+      g.faceVertexUvs[0].push([uv_a, uv_b, uv_c])
       geometry.faceVertexUvs[0][i] = [uv_a, uv_b, uv_c]
     }
   }
