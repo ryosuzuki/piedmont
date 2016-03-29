@@ -38,6 +38,10 @@ function getSvgPositions () {
   return svgPositions
 }
 
+var z = new THREE.Vector2(0, 0)
+var emptyUv = [z, z, z]
+
+
 function replaceObject (geometry) {
   if (ng) scene.remove(ng);
   geometry.computeFaceNormals()
@@ -55,10 +59,7 @@ function replaceObject (geometry) {
       var vb  = geometry.vertices[face.b];
       var vc  = geometry.vertices[face.c];
       var normal = face.normal;
-      if (!ouv) {
-        var z = new THREE.Vector2(0, 0)
-        ouv = [z, z, z] // continue
-      }
+      if (!ouv) ouv = emptyUv
       var triangle = ouv.map( function (v) {
         return [v.x, v.y];
       })
@@ -73,11 +74,13 @@ function replaceObject (geometry) {
         if (points && points.length < 3) { // && va.y > 0) {
           var area = areaPolygon(points[0])
           var triArea = areaPolygon(triangle)
-          if (area/triArea > 0.5) {
+          if (area/triArea > 0) {
             overlapIndex = _.union(overlapIndex, [faceIndex])
+            // console.log(polygonBoolean(triangle, positions, 'not'))
+            createHall(faceIndex, positions)
+            console.log(area/triArea)
             continue;
           }
-          console.log(area/triArea)
           // overlapIndex = _.union(overlapIndex, [faceIndex])
         }
       } else {
@@ -137,8 +140,9 @@ function replaceObject (geometry) {
   nm.scale.y = mesh.scale.y
   nm.scale.z = mesh.scale.z
   scene.add(nm)
-
+  window.finishSubtract = true
 }
+var finishSubtract
 
 function createHall (faceIndex, positions) {
   var face = geometry.faces[faceIndex];
@@ -147,7 +151,7 @@ function createHall (faceIndex, positions) {
   var vb = geometry.vertices[face.b];
   var vc = geometry.vertices[face.c];
   var normal = face.normal;
-  // if (!ouv) return false
+  if (!ouv) ouv = emptyUv
   var triangle = ouv.map( function (v) {
     return [v.x, v.y];
   })
@@ -163,16 +167,22 @@ function createHall (faceIndex, positions) {
       return false;
     })
     var bndMesh
+    var d = drawSVG(diff);
     try {
-      var d = drawSVG(diff);
       bndMesh = svgMesh3d(d, {
         scale: 1,
         // simplify: Math.pow(10, -3),
         customize: true,
       })
     } catch (e) {
+      bndMesh = svgMesh3d(d, {
+        scale: 1,
+        simplify: Math.pow(10, -12),
+        customize: true,
+      })
+      // debugger
       console.log(e)
-      continue
+      // continue
     }
     var nuv = bndMesh.positions;
     var nf = bndMesh.cells;
@@ -283,7 +293,7 @@ function uvTo3D (nuv, ouv, va, vb, vc) {
     var B = [uv[0] - uv_c.x, uv[1] - uv_c.y];
     var x = numeric.solve(A, B)
     var a = x[0], b = x[1]
-    console.log({ a: a, b: b })
+    // console.log({ a: a, b: b })
     // convert uv to xyz with a, b, 1-a-b
 
     var v = new THREE.Vector3();

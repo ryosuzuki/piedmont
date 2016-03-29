@@ -22,6 +22,8 @@ function onDocumentMouseDown( event ) {
   window.current = intersects[0];
   window.currentIndex = current.faceIndex
 
+  if (finishSubtract) return false
+
   if (window.debugging && current) {
     window.pos = new THREE.Vector2(event.pageX, event.pageY)
     var start = map[current.face.a]
@@ -73,6 +75,8 @@ function onDocumentMouseUp (event) {
     controls.enabled = true
   }
 
+  if (finishSubtract) return false
+
   if (mesh) mesh.material.color = new THREE.Color('white')
 
   var intersects = getIntersects(event);
@@ -99,6 +103,8 @@ function onDocumentMouseUp (event) {
 
 
 function onDocumentDoubleClick (event) {
+  if (finishSubtract) return false
+
   if (controlMode) {
     controlMode = false
     planeCanvas.position.set(Infinity, Infinity, Infinity)
@@ -120,10 +126,12 @@ function onDocumentDoubleClick (event) {
 
 
 function onDocumentMouseMove (event) {
-
   var intersects = getIntersects(event)
   if (intersects.length < 1) return false
   window.current = intersects[0]
+
+
+  if (finishSubtract) return false
 
   if (window.dragging && intersects.length > 0) {
     if (mesh) mesh.material.color = new THREE.Color('gray')

@@ -49,6 +49,7 @@ function copyMickey (uv) {
   drawingPaper.view.draw()
   dm.material.map.needsUpdate = true
 
+  window.mickeys.push(nextMickey)
   window.currentMickey = nextMickey
 }
 
