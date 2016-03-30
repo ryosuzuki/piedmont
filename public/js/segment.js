@@ -86,7 +86,7 @@ function check (epsilon) {
     color: 0x00ffff,
     // map: image,
     transparent: true,
-    opacity: 0.3
+    opacity: 0.7
   });
 
   sm = new THREE.Mesh(g, m)
