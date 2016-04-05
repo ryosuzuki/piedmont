@@ -170,7 +170,7 @@ function onDocumentMouseMove (event) {
     }
     if (moveMode || copyMode) {
       moveMickey(current.uv)
-      var start = map[current.face.a]
+      window.start = map[current.face.a]
       initialCheck()
       getDgpc(start)
     }
