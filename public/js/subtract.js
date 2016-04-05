@@ -197,6 +197,12 @@ function createHall (faceIndex, positions) {
     var inner_points = [];
     var outer_points = [];
 
+    var roundTriangle = triangle.map(function (p) {
+      return
+
+    })
+
+
     for (var j=0; j<nf.length; j++) {
       var num = ng.vertices.length;
       var a = nxyz[nf[j][0]]
@@ -211,8 +217,26 @@ function createHall (faceIndex, positions) {
       var buv = nuv[nf[j][1]]
       var cuv = nuv[nf[j][2]]
 
+      var a_bnd = true
+      var b_bnd = true
+      var c_bnd = true
+      var epsilon = Math.pow(10, -2)
+      triangle.map( function (p) {
+        if (Math.abs(p[0] - auv[0]) < epsilon && Math.abs(p[1] - auv[1]) < epsilon) a_bnd = false
+        if (Math.abs(p[0] - buv[0]) < epsilon && Math.abs(p[1] - buv[1]) < epsilon) b_bnd = false
+        if (Math.abs(p[0] - cuv[0]) < epsilon && Math.abs(p[1] - cuv[1]) < epsilon) c_bnd = false
+      })
 
+      var round = function (uv) {
+        var u = parseFloat(uv[0].toFixed(2))
+        var v = parseFloat(uv[1].toFixed(2))
+        var res = new THREE.Vector2(u, v)
+        return res
+      }
 
+      if (a_bnd) bnd_points.push(round(auv))
+      if (b_bnd) bnd_points.push(round(buv))
+      if (c_bnd) bnd_points.push(round(cuv))
 
       // ng.faceVertexUvs[0].push([
       //   new THREE.Vector2(auv[0], auv[1]),
@@ -253,7 +277,6 @@ function createHall (faceIndex, positions) {
       }
     }
 
-    bnd_points = _.union(bnd_points, inner_points)
 
     var n = inner_points.length;
     for (var j=0; j<n-1; j++) {
