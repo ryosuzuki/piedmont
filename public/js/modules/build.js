@@ -10982,6 +10982,1032 @@ module.exports = almostEqual
 },{}],88:[function(require,module,exports){
 arguments[4][69][0].apply(exports,arguments)
 },{"dup":69}],89:[function(require,module,exports){
+"use strict"
+
+//High level idea:
+// 1. Use Clarkson's incremental construction to find convex hull
+// 2. Point location in triangulation by jump and walk
+
+module.exports = incrementalConvexHull
+
+var orient = require("robust-orientation")
+var compareCell = require("simplicial-complex").compareCells
+
+function compareInt(a, b) {
+  return a - b
+}
+
+function Simplex(vertices, adjacent, boundary) {
+  this.vertices = vertices
+  this.adjacent = adjacent
+  this.boundary = boundary
+  this.lastVisited = -1
+}
+
+Simplex.prototype.flip = function() {
+  var t = this.vertices[0]
+  this.vertices[0] = this.vertices[1]
+  this.vertices[1] = t
+  var u = this.adjacent[0]
+  this.adjacent[0] = this.adjacent[1]
+  this.adjacent[1] = u
+}
+
+function GlueFacet(vertices, cell, index) {
+  this.vertices = vertices
+  this.cell = cell
+  this.index = index
+}
+
+function compareGlue(a, b) {
+  return compareCell(a.vertices, b.vertices)
+}
+
+function bakeOrient(d) {
+  var code = ["function orient(){var tuple=this.tuple;return test("]
+  for(var i=0; i<=d; ++i) {
+    if(i > 0) {
+      code.push(",")
+    }
+    code.push("tuple[", i, "]")
+  }
+  code.push(")}return orient")
+  var proc = new Function("test", code.join(""))
+  var test = orient[d+1]
+  if(!test) {
+    test = orient
+  }
+  return proc(test)
+}
+
+var BAKED = []
+
+function Triangulation(dimension, vertices, simplices) {
+  this.dimension = dimension
+  this.vertices = vertices
+  this.simplices = simplices
+  this.interior = simplices.filter(function(c) {
+    return !c.boundary
+  })
+
+  this.tuple = new Array(dimension+1)
+  for(var i=0; i<=dimension; ++i) {
+    this.tuple[i] = this.vertices[i]
+  }
+
+  var o = BAKED[dimension]
+  if(!o) {
+    o = BAKED[dimension] = bakeOrient(dimension)
+  }
+  this.orient = o
+}
+
+var proto = Triangulation.prototype
+
+//Degenerate situation where we are on boundary, but coplanar to face
+proto.handleBoundaryDegeneracy = function(cell, point) {
+  var d = this.dimension
+  var n = this.vertices.length - 1
+  var tuple = this.tuple
+  var verts = this.vertices
+
+  //Dumb solution: Just do dfs from boundary cell until we find any peak, or terminate
+  var toVisit = [ cell ]
+  cell.lastVisited = -n
+  while(toVisit.length > 0) {
+    cell = toVisit.pop()
+    var cellVerts = cell.vertices
+    var cellAdj = cell.adjacent
+    for(var i=0; i<=d; ++i) {
+      var neighbor = cellAdj[i]
+      if(!neighbor.boundary || neighbor.lastVisited <= -n) {
+        continue
+      }
+      var nv = neighbor.vertices
+      for(var j=0; j<=d; ++j) {
+        var vv = nv[j]
+        if(vv < 0) {
+          tuple[j] = point
+        } else {
+          tuple[j] = verts[vv]
+        }
+      }
+      var o = this.orient()
+      if(o > 0) {
+        return neighbor
+      }
+      neighbor.lastVisited = -n
+      if(o === 0) {
+        toVisit.push(neighbor)
+      }
+    }
+  }
+  return null
+}
+
+proto.walk = function(point, random) {
+  //Alias local properties
+  var n = this.vertices.length - 1
+  var d = this.dimension
+  var verts = this.vertices
+  var tuple = this.tuple
+
+  //Compute initial jump cell
+  var initIndex = random ? (this.interior.length * Math.random())|0 : (this.interior.length-1)
+  var cell = this.interior[ initIndex ]
+
+  //Start walking
+outerLoop:
+  while(!cell.boundary) {
+    var cellVerts = cell.vertices
+    var cellAdj = cell.adjacent
+
+    for(var i=0; i<=d; ++i) {
+      tuple[i] = verts[cellVerts[i]]
+    }
+    cell.lastVisited = n
+
+    //Find farthest adjacent cell
+    for(var i=0; i<=d; ++i) {
+      var neighbor = cellAdj[i]
+      if(neighbor.lastVisited >= n) {
+        continue
+      }
+      var prev = tuple[i]
+      tuple[i] = point
+      var o = this.orient()
+      tuple[i] = prev
+      if(o < 0) {
+        cell = neighbor
+        continue outerLoop
+      } else {
+        if(!neighbor.boundary) {
+          neighbor.lastVisited = n
+        } else {
+          neighbor.lastVisited = -n
+        }
+      }
+    }
+    return
+  }
+
+  return cell
+}
+
+proto.addPeaks = function(point, cell) {
+  var n = this.vertices.length - 1
+  var d = this.dimension
+  var verts = this.vertices
+  var tuple = this.tuple
+  var interior = this.interior
+  var simplices = this.simplices
+
+  //Walking finished at boundary, time to add peaks
+  var tovisit = [ cell ]
+
+  //Stretch initial boundary cell into a peak
+  cell.lastVisited = n
+  cell.vertices[cell.vertices.indexOf(-1)] = n
+  cell.boundary = false
+  interior.push(cell)
+
+  //Record a list of all new boundaries created by added peaks so we can glue them together when we are all done
+  var glueFacets = []
+
+  //Do a traversal of the boundary walking outward from starting peak
+  while(tovisit.length > 0) {
+    //Pop off peak and walk over adjacent cells
+    var cell = tovisit.pop()
+    var cellVerts = cell.vertices
+    var cellAdj = cell.adjacent
+    var indexOfN = cellVerts.indexOf(n)
+    if(indexOfN < 0) {
+      continue
+    }
+
+    for(var i=0; i<=d; ++i) {
+      if(i === indexOfN) {
+        continue
+      }
+
+      //For each boundary neighbor of the cell
+      var neighbor = cellAdj[i]
+      if(!neighbor.boundary || neighbor.lastVisited >= n) {
+        continue
+      }
+
+      var nv = neighbor.vertices
+
+      //Test if neighbor is a peak
+      if(neighbor.lastVisited !== -n) {      
+        //Compute orientation of p relative to each boundary peak
+        var indexOfNeg1 = 0
+        for(var j=0; j<=d; ++j) {
+          if(nv[j] < 0) {
+            indexOfNeg1 = j
+            tuple[j] = point
+          } else {
+            tuple[j] = verts[nv[j]]
+          }
+        }
+        var o = this.orient()
+
+        //Test if neighbor cell is also a peak
+        if(o > 0) {
+          nv[indexOfNeg1] = n
+          neighbor.boundary = false
+          interior.push(neighbor)
+          tovisit.push(neighbor)
+          neighbor.lastVisited = n
+          continue
+        } else {
+          neighbor.lastVisited = -n
+        }
+      }
+
+      var na = neighbor.adjacent
+
+      //Otherwise, replace neighbor with new face
+      var vverts = cellVerts.slice()
+      var vadj = cellAdj.slice()
+      var ncell = new Simplex(vverts, vadj, true)
+      simplices.push(ncell)
+
+      //Connect to neighbor
+      var opposite = na.indexOf(cell)
+      if(opposite < 0) {
+        continue
+      }
+      na[opposite] = ncell
+      vadj[indexOfN] = neighbor
+
+      //Connect to cell
+      vverts[i] = -1
+      vadj[i] = cell
+      cellAdj[i] = ncell
+
+      //Flip facet
+      ncell.flip()
+
+      //Add to glue list
+      for(var j=0; j<=d; ++j) {
+        var uu = vverts[j]
+        if(uu < 0 || uu === n) {
+          continue
+        }
+        var nface = new Array(d-1)
+        var nptr = 0
+        for(var k=0; k<=d; ++k) {
+          var vv = vverts[k]
+          if(vv < 0 || k === j) {
+            continue
+          }
+          nface[nptr++] = vv
+        }
+        glueFacets.push(new GlueFacet(nface, ncell, j))
+      }
+    }
+  }
+
+  //Glue boundary facets together
+  glueFacets.sort(compareGlue)
+
+  for(var i=0; i+1<glueFacets.length; i+=2) {
+    var a = glueFacets[i]
+    var b = glueFacets[i+1]
+    var ai = a.index
+    var bi = b.index
+    if(ai < 0 || bi < 0) {
+      continue
+    }
+    a.cell.adjacent[a.index] = b.cell
+    b.cell.adjacent[b.index] = a.cell
+  }
+}
+
+proto.insert = function(point, random) {
+  //Add point
+  var verts = this.vertices
+  verts.push(point)
+
+  var cell = this.walk(point, random)
+  if(!cell) {
+    return
+  }
+
+  //Alias local properties
+  var d = this.dimension
+  var tuple = this.tuple
+
+  //Degenerate case: If point is coplanar to cell, then walk until we find a non-degenerate boundary
+  for(var i=0; i<=d; ++i) {
+    var vv = cell.vertices[i]
+    if(vv < 0) {
+      tuple[i] = point
+    } else {
+      tuple[i] = verts[vv]
+    }
+  }
+  var o = this.orient(tuple)
+  if(o < 0) {
+    return
+  } else if(o === 0) {
+    cell = this.handleBoundaryDegeneracy(cell, point)
+    if(!cell) {
+      return
+    }
+  }
+
+  //Add peaks
+  this.addPeaks(point, cell)
+}
+
+//Extract all boundary cells
+proto.boundary = function() {
+  var d = this.dimension
+  var boundary = []
+  var cells = this.simplices
+  var nc = cells.length
+  for(var i=0; i<nc; ++i) {
+    var c = cells[i]
+    if(c.boundary) {
+      var bcell = new Array(d)
+      var cv = c.vertices
+      var ptr = 0
+      var parity = 0
+      for(var j=0; j<=d; ++j) {
+        if(cv[j] >= 0) {
+          bcell[ptr++] = cv[j]
+        } else {
+          parity = j&1
+        }
+      }
+      if(parity === (d&1)) {
+        var t = bcell[0]
+        bcell[0] = bcell[1]
+        bcell[1] = t
+      }
+      boundary.push(bcell)
+    }
+  }
+  return boundary
+}
+
+function incrementalConvexHull(points, randomSearch) {
+  var n = points.length
+  if(n === 0) {
+    throw new Error("Must have at least d+1 points")
+  }
+  var d = points[0].length
+  if(n <= d) {
+    throw new Error("Must input at least d+1 points")
+  }
+
+  //FIXME: This could be degenerate, but need to select d+1 non-coplanar points to bootstrap process
+  var initialSimplex = points.slice(0, d+1)
+
+  //Make sure initial simplex is positively oriented
+  var o = orient.apply(void 0, initialSimplex)
+  if(o === 0) {
+    throw new Error("Input not in general position")
+  }
+  var initialCoords = new Array(d+1)
+  for(var i=0; i<=d; ++i) {
+    initialCoords[i] = i
+  }
+  if(o < 0) {
+    initialCoords[0] = 1
+    initialCoords[1] = 0
+  }
+
+  //Create initial topological index, glue pointers together (kind of messy)
+  var initialCell = new Simplex(initialCoords, new Array(d+1), false)
+  var boundary = initialCell.adjacent
+  var list = new Array(d+2)
+  for(var i=0; i<=d; ++i) {
+    var verts = initialCoords.slice()
+    for(var j=0; j<=d; ++j) {
+      if(j === i) {
+        verts[j] = -1
+      }
+    }
+    var t = verts[0]
+    verts[0] = verts[1]
+    verts[1] = t
+    var cell = new Simplex(verts, new Array(d+1), true)
+    boundary[i] = cell
+    list[i] = cell
+  }
+  list[d+1] = initialCell
+  for(var i=0; i<=d; ++i) {
+    var verts = boundary[i].vertices
+    var adj = boundary[i].adjacent
+    for(var j=0; j<=d; ++j) {
+      var v = verts[j]
+      if(v < 0) {
+        adj[j] = initialCell
+        continue
+      }
+      for(var k=0; k<=d; ++k) {
+        if(boundary[k].vertices.indexOf(v) < 0) {
+          adj[j] = boundary[k]
+        }
+      }
+    }
+  }
+
+  //Initialize triangles
+  var triangles = new Triangulation(d, initialSimplex, list)
+
+  //Insert remaining points
+  var useRandom = !!randomSearch
+  for(var i=d+1; i<n; ++i) {
+    triangles.insert(points[i], useRandom)
+  }
+  
+  //Extract boundary cells
+  return triangles.boundary()
+}
+},{"robust-orientation":95,"simplicial-complex":98}],90:[function(require,module,exports){
+arguments[4][7][0].apply(exports,arguments)
+},{"dup":7}],91:[function(require,module,exports){
+arguments[4][8][0].apply(exports,arguments)
+},{"dup":8,"two-product":94,"two-sum":90}],92:[function(require,module,exports){
+arguments[4][9][0].apply(exports,arguments)
+},{"dup":9}],93:[function(require,module,exports){
+arguments[4][10][0].apply(exports,arguments)
+},{"dup":10}],94:[function(require,module,exports){
+arguments[4][11][0].apply(exports,arguments)
+},{"dup":11}],95:[function(require,module,exports){
+arguments[4][12][0].apply(exports,arguments)
+},{"dup":12,"robust-scale":91,"robust-subtract":92,"robust-sum":93,"two-product":94}],96:[function(require,module,exports){
+arguments[4][55][0].apply(exports,arguments)
+},{"dup":55}],97:[function(require,module,exports){
+arguments[4][85][0].apply(exports,arguments)
+},{"dup":85}],98:[function(require,module,exports){
+"use strict"; "use restrict";
+
+var bits      = require("bit-twiddle")
+  , UnionFind = require("union-find")
+
+//Returns the dimension of a cell complex
+function dimension(cells) {
+  var d = 0
+    , max = Math.max
+  for(var i=0, il=cells.length; i<il; ++i) {
+    d = max(d, cells[i].length)
+  }
+  return d-1
+}
+exports.dimension = dimension
+
+//Counts the number of vertices in faces
+function countVertices(cells) {
+  var vc = -1
+    , max = Math.max
+  for(var i=0, il=cells.length; i<il; ++i) {
+    var c = cells[i]
+    for(var j=0, jl=c.length; j<jl; ++j) {
+      vc = max(vc, c[j])
+    }
+  }
+  return vc+1
+}
+exports.countVertices = countVertices
+
+//Returns a deep copy of cells
+function cloneCells(cells) {
+  var ncells = new Array(cells.length)
+  for(var i=0, il=cells.length; i<il; ++i) {
+    ncells[i] = cells[i].slice(0)
+  }
+  return ncells
+}
+exports.cloneCells = cloneCells
+
+//Ranks a pair of cells up to permutation
+function compareCells(a, b) {
+  var n = a.length
+    , t = a.length - b.length
+    , min = Math.min
+  if(t) {
+    return t
+  }
+  switch(n) {
+    case 0:
+      return 0;
+    case 1:
+      return a[0] - b[0];
+    case 2:
+      var d = a[0]+a[1]-b[0]-b[1]
+      if(d) {
+        return d
+      }
+      return min(a[0],a[1]) - min(b[0],b[1])
+    case 3:
+      var l1 = a[0]+a[1]
+        , m1 = b[0]+b[1]
+      d = l1+a[2] - (m1+b[2])
+      if(d) {
+        return d
+      }
+      var l0 = min(a[0], a[1])
+        , m0 = min(b[0], b[1])
+        , d  = min(l0, a[2]) - min(m0, b[2])
+      if(d) {
+        return d
+      }
+      return min(l0+a[2], l1) - min(m0+b[2], m1)
+    
+    //TODO: Maybe optimize n=4 as well?
+    
+    default:
+      var as = a.slice(0)
+      as.sort()
+      var bs = b.slice(0)
+      bs.sort()
+      for(var i=0; i<n; ++i) {
+        t = as[i] - bs[i]
+        if(t) {
+          return t
+        }
+      }
+      return 0
+  }
+}
+exports.compareCells = compareCells
+
+function compareZipped(a, b) {
+  return compareCells(a[0], b[0])
+}
+
+//Puts a cell complex into normal order for the purposes of findCell queries
+function normalize(cells, attr) {
+  if(attr) {
+    var len = cells.length
+    var zipped = new Array(len)
+    for(var i=0; i<len; ++i) {
+      zipped[i] = [cells[i], attr[i]]
+    }
+    zipped.sort(compareZipped)
+    for(var i=0; i<len; ++i) {
+      cells[i] = zipped[i][0]
+      attr[i] = zipped[i][1]
+    }
+    return cells
+  } else {
+    cells.sort(compareCells)
+    return cells
+  }
+}
+exports.normalize = normalize
+
+//Removes all duplicate cells in the complex
+function unique(cells) {
+  if(cells.length === 0) {
+    return []
+  }
+  var ptr = 1
+    , len = cells.length
+  for(var i=1; i<len; ++i) {
+    var a = cells[i]
+    if(compareCells(a, cells[i-1])) {
+      if(i === ptr) {
+        ptr++
+        continue
+      }
+      cells[ptr++] = a
+    }
+  }
+  cells.length = ptr
+  return cells
+}
+exports.unique = unique;
+
+//Finds a cell in a normalized cell complex
+function findCell(cells, c) {
+  var lo = 0
+    , hi = cells.length-1
+    , r  = -1
+  while (lo <= hi) {
+    var mid = (lo + hi) >> 1
+      , s   = compareCells(cells[mid], c)
+    if(s <= 0) {
+      if(s === 0) {
+        r = mid
+      }
+      lo = mid + 1
+    } else if(s > 0) {
+      hi = mid - 1
+    }
+  }
+  return r
+}
+exports.findCell = findCell;
+
+//Builds an index for an n-cell.  This is more general than dual, but less efficient
+function incidence(from_cells, to_cells) {
+  var index = new Array(from_cells.length)
+  for(var i=0, il=index.length; i<il; ++i) {
+    index[i] = []
+  }
+  var b = []
+  for(var i=0, n=to_cells.length; i<n; ++i) {
+    var c = to_cells[i]
+    var cl = c.length
+    for(var k=1, kn=(1<<cl); k<kn; ++k) {
+      b.length = bits.popCount(k)
+      var l = 0
+      for(var j=0; j<cl; ++j) {
+        if(k & (1<<j)) {
+          b[l++] = c[j]
+        }
+      }
+      var idx=findCell(from_cells, b)
+      if(idx < 0) {
+        continue
+      }
+      while(true) {
+        index[idx++].push(i)
+        if(idx >= from_cells.length || compareCells(from_cells[idx], b) !== 0) {
+          break
+        }
+      }
+    }
+  }
+  return index
+}
+exports.incidence = incidence
+
+//Computes the dual of the mesh.  This is basically an optimized version of buildIndex for the situation where from_cells is just the list of vertices
+function dual(cells, vertex_count) {
+  if(!vertex_count) {
+    return incidence(unique(skeleton(cells, 0)), cells, 0)
+  }
+  var res = new Array(vertex_count)
+  for(var i=0; i<vertex_count; ++i) {
+    res[i] = []
+  }
+  for(var i=0, len=cells.length; i<len; ++i) {
+    var c = cells[i]
+    for(var j=0, cl=c.length; j<cl; ++j) {
+      res[c[j]].push(i)
+    }
+  }
+  return res
+}
+exports.dual = dual
+
+//Enumerates all cells in the complex
+function explode(cells) {
+  var result = []
+  for(var i=0, il=cells.length; i<il; ++i) {
+    var c = cells[i]
+      , cl = c.length|0
+    for(var j=1, jl=(1<<cl); j<jl; ++j) {
+      var b = []
+      for(var k=0; k<cl; ++k) {
+        if((j >>> k) & 1) {
+          b.push(c[k])
+        }
+      }
+      result.push(b)
+    }
+  }
+  return normalize(result)
+}
+exports.explode = explode
+
+//Enumerates all of the n-cells of a cell complex
+function skeleton(cells, n) {
+  if(n < 0) {
+    return []
+  }
+  var result = []
+    , k0     = (1<<(n+1))-1
+  for(var i=0; i<cells.length; ++i) {
+    var c = cells[i]
+    for(var k=k0; k<(1<<c.length); k=bits.nextCombination(k)) {
+      var b = new Array(n+1)
+        , l = 0
+      for(var j=0; j<c.length; ++j) {
+        if(k & (1<<j)) {
+          b[l++] = c[j]
+        }
+      }
+      result.push(b)
+    }
+  }
+  return normalize(result)
+}
+exports.skeleton = skeleton;
+
+//Computes the boundary of all cells, does not remove duplicates
+function boundary(cells) {
+  var res = []
+  for(var i=0,il=cells.length; i<il; ++i) {
+    var c = cells[i]
+    for(var j=0,cl=c.length; j<cl; ++j) {
+      var b = new Array(c.length-1)
+      for(var k=0, l=0; k<cl; ++k) {
+        if(k !== j) {
+          b[l++] = c[k]
+        }
+      }
+      res.push(b)
+    }
+  }
+  return normalize(res)
+}
+exports.boundary = boundary;
+
+//Computes connected components for a dense cell complex
+function connectedComponents_dense(cells, vertex_count) {
+  var labels = new UnionFind(vertex_count)
+  for(var i=0; i<cells.length; ++i) {
+    var c = cells[i]
+    for(var j=0; j<c.length; ++j) {
+      for(var k=j+1; k<c.length; ++k) {
+        labels.link(c[j], c[k])
+      }
+    }
+  }
+  var components = []
+    , component_labels = labels.ranks
+  for(var i=0; i<component_labels.length; ++i) {
+    component_labels[i] = -1
+  }
+  for(var i=0; i<cells.length; ++i) {
+    var l = labels.find(cells[i][0])
+    if(component_labels[l] < 0) {
+      component_labels[l] = components.length
+      components.push([cells[i].slice(0)])
+    } else {
+      components[component_labels[l]].push(cells[i].slice(0))
+    }
+  }
+  return components
+}
+
+//Computes connected components for a sparse graph
+function connectedComponents_sparse(cells) {
+  var vertices  = unique(normalize(skeleton(cells, 0)))
+    , labels    = new UnionFind(vertices.length)
+  for(var i=0; i<cells.length; ++i) {
+    var c = cells[i]
+    for(var j=0; j<c.length; ++j) {
+      var vj = findCell(vertices, [c[j]])
+      for(var k=j+1; k<c.length; ++k) {
+        labels.link(vj, findCell(vertices, [c[k]]))
+      }
+    }
+  }
+  var components        = []
+    , component_labels  = labels.ranks
+  for(var i=0; i<component_labels.length; ++i) {
+    component_labels[i] = -1
+  }
+  for(var i=0; i<cells.length; ++i) {
+    var l = labels.find(findCell(vertices, [cells[i][0]]));
+    if(component_labels[l] < 0) {
+      component_labels[l] = components.length
+      components.push([cells[i].slice(0)])
+    } else {
+      components[component_labels[l]].push(cells[i].slice(0))
+    }
+  }
+  return components
+}
+
+//Computes connected components for a cell complex
+function connectedComponents(cells, vertex_count) {
+  if(vertex_count) {
+    return connectedComponents_dense(cells, vertex_count)
+  }
+  return connectedComponents_sparse(cells)
+}
+exports.connectedComponents = connectedComponents
+
+},{"bit-twiddle":96,"union-find":97}],99:[function(require,module,exports){
+"use strict"
+
+function unique_pred(list, compare) {
+  var ptr = 1
+    , len = list.length
+    , a=list[0], b=list[0]
+  for(var i=1; i<len; ++i) {
+    b = a
+    a = list[i]
+    if(compare(a, b)) {
+      if(i === ptr) {
+        ptr++
+        continue
+      }
+      list[ptr++] = a
+    }
+  }
+  list.length = ptr
+  return list
+}
+
+function unique_eq(list) {
+  var ptr = 1
+    , len = list.length
+    , a=list[0], b = list[0]
+  for(var i=1; i<len; ++i, b=a) {
+    b = a
+    a = list[i]
+    if(a !== b) {
+      if(i === ptr) {
+        ptr++
+        continue
+      }
+      list[ptr++] = a
+    }
+  }
+  list.length = ptr
+  return list
+}
+
+function unique(list, compare, sorted) {
+  if(list.length === 0) {
+    return list
+  }
+  if(compare) {
+    if(!sorted) {
+      list.sort(compare)
+    }
+    return unique_pred(list, compare)
+  }
+  if(!sorted) {
+    list.sort()
+  }
+  return unique_eq(list)
+}
+
+module.exports = unique
+
+},{}],100:[function(require,module,exports){
+"use strict"
+
+var ch = require("incremental-convex-hull")
+var uniq = require("uniq")
+
+module.exports = triangulate
+
+function LiftedPoint(p, i) {
+  this.point = p
+  this.index = i
+}
+
+function compareLifted(a, b) {
+  var ap = a.point
+  var bp = b.point
+  var d = ap.length
+  for(var i=0; i<d; ++i) {
+    var s = bp[i] - ap[i]
+    if(s) {
+      return s
+    }
+  }
+  return 0
+}
+
+function triangulate1D(n, points, includePointAtInfinity) {
+  if(n === 1) {
+    if(includePointAtInfinity) {
+      return [ [-1, 0] ]
+    } else {
+      return []
+    }
+  }
+  var lifted = points.map(function(p, i) {
+    return [ p[0], i ]
+  })
+  lifted.sort(function(a,b) {
+    return a[0] - b[0]
+  })
+  var cells = new Array(n - 1)
+  for(var i=1; i<n; ++i) {
+    var a = lifted[i-1]
+    var b = lifted[i]
+    cells[i-1] = [ a[1], b[1] ]
+  }
+  if(includePointAtInfinity) {
+    cells.push(
+      [ -1, cells[0][1], ],
+      [ cells[n-1][1], -1 ])
+  }
+  return cells
+}
+
+function triangulate(points, includePointAtInfinity) {
+  var n = points.length
+  if(n === 0) {
+    return []
+  }
+  
+  var d = points[0].length
+  if(d < 1) {
+    return []
+  }
+
+  //Special case:  For 1D we can just sort the points
+  if(d === 1) {
+    return triangulate1D(n, points, includePointAtInfinity)
+  }
+  
+  //Lift points, sort
+  var lifted = new Array(n)
+  var upper = 1.0
+  for(var i=0; i<n; ++i) {
+    var p = points[i]
+    var x = new Array(d+1)
+    var l = 0.0
+    for(var j=0; j<d; ++j) {
+      var v = p[j]
+      x[j] = v
+      l += v * v
+    }
+    x[d] = l
+    lifted[i] = new LiftedPoint(x, i)
+    upper = Math.max(l, upper)
+  }
+  uniq(lifted, compareLifted)
+  
+  //Double points
+  n = lifted.length
+
+  //Create new list of points
+  var dpoints = new Array(n + d + 1)
+  var dindex = new Array(n + d + 1)
+
+  //Add steiner points at top
+  var u = (d+1) * (d+1) * upper
+  var y = new Array(d+1)
+  for(var i=0; i<=d; ++i) {
+    y[i] = 0.0
+  }
+  y[d] = u
+
+  dpoints[0] = y.slice()
+  dindex[0] = -1
+
+  for(var i=0; i<=d; ++i) {
+    var x = y.slice()
+    x[i] = 1
+    dpoints[i+1] = x
+    dindex[i+1] = -1
+  }
+
+  //Copy rest of the points over
+  for(var i=0; i<n; ++i) {
+    var h = lifted[i]
+    dpoints[i + d + 1] = h.point
+    dindex[i + d + 1] =  h.index
+  }
+
+  //Construct convex hull
+  var hull = ch(dpoints, false)
+  if(includePointAtInfinity) {
+    hull = hull.filter(function(cell) {
+      var count = 0
+      for(var j=0; j<=d; ++j) {
+        var v = dindex[cell[j]]
+        if(v < 0) {
+          if(++count >= 2) {
+            return false
+          }
+        }
+        cell[j] = v
+      }
+      return true
+    })
+  } else {
+    hull = hull.filter(function(cell) {
+      for(var i=0; i<=d; ++i) {
+        var v = dindex[cell[i]]
+        if(v < 0) {
+          return false
+        }
+        cell[i] = v
+      }
+      return true
+    })
+  }
+
+  if(d & 1) {
+    for(var i=0; i<hull.length; ++i) {
+      var h = hull[i]
+      var x = h[0]
+      h[0] = h[1]
+      h[1] = x
+    }
+  }
+
+  return hull
+}
+},{"incremental-convex-hull":89,"uniq":99}],101:[function(require,module,exports){
 module.exports = function drawTriangles(ctx, positions, cells, start, end) {
     var v = positions
     start = (start|0)
@@ -10998,7 +12024,7 @@ module.exports = function drawTriangles(ctx, positions, cells, start, end) {
         ctx.lineTo(v0[0], v0[1])
     }
 }
-},{}],90:[function(require,module,exports){
+},{}],102:[function(require,module,exports){
 var parseXml = require('xml-parse-from-string')
 
 function extractSvgPath (svgDoc) {
@@ -11026,7 +12052,7 @@ module.exports.parse = extractSvgPath
 //deprecated
 module.exports.fromString = extractSvgPath
 
-},{"xml-parse-from-string":91}],91:[function(require,module,exports){
+},{"xml-parse-from-string":103}],103:[function(require,module,exports){
 module.exports = (function xmlparser() {
   //common browsers
   if (typeof window.DOMParser !== 'undefined') {
@@ -11054,7 +12080,7 @@ module.exports = (function xmlparser() {
     return div
   }
 })()
-},{}],92:[function(require,module,exports){
+},{}],104:[function(require,module,exports){
 module.exports = {
   union: require('./lib/union'),
   intersect: require('./lib/intersect'),
@@ -11064,7 +12090,7 @@ module.exports = {
   utils: require('./lib/util')
 };
 
-},{"./lib/intersect":94,"./lib/subtract":96,"./lib/union":97,"./lib/util":98}],93:[function(require,module,exports){
+},{"./lib/intersect":106,"./lib/subtract":108,"./lib/union":109,"./lib/util":110}],105:[function(require,module,exports){
 var Ring = require('./ring');
 var Vertex = require('./vertex');
 var pip = require('point-in-polygon');
@@ -11636,7 +12662,7 @@ function lineIntersects(start1, end1, start2, end2) {
   }
 }
 
-},{"./ring":95,"./util":98,"./vertex":99,"point-in-polygon":100}],94:[function(require,module,exports){
+},{"./ring":107,"./util":110,"./vertex":111,"point-in-polygon":112}],106:[function(require,module,exports){
 var ghClipping = require('./greiner-hormann');
 var union = require('./union');
 var utils = require('./util');
@@ -11668,7 +12694,7 @@ module.exports = function (subject, clipper) {
   return result;
 };
 
-},{"./greiner-hormann":93,"./subtract":96,"./union":97,"./util":98}],95:[function(require,module,exports){
+},{"./greiner-hormann":105,"./subtract":108,"./union":109,"./util":110}],107:[function(require,module,exports){
 var Vertex = require('./vertex');
 var clockwise = require('turf-is-clockwise');
 
@@ -11858,7 +12884,7 @@ Ring.prototype.logIntersections = function () {
 
 module.exports = Ring;
 
-},{"./vertex":99,"turf-is-clockwise":101}],96:[function(require,module,exports){
+},{"./vertex":111,"turf-is-clockwise":113}],108:[function(require,module,exports){
 var util = require('./util');
 var ghClipping = require('./greiner-hormann');
 
@@ -11961,7 +12987,7 @@ function subtract(subject, clip, skiploop) {
 
 module.exports = subtract;
 
-},{"./greiner-hormann":93,"./util":98}],97:[function(require,module,exports){
+},{"./greiner-hormann":105,"./util":110}],109:[function(require,module,exports){
 var utils = require('./util');
 var subtract = require('./subtract');
 
@@ -12040,7 +13066,7 @@ module.exports = function (coords, coords2) {
   return hulls;
 };
 
-},{"./subtract":96,"./util":98}],98:[function(require,module,exports){
+},{"./subtract":108,"./util":110}],110:[function(require,module,exports){
 if (!Array.isArray) {
   Array.isArray = function (arg) {
     return Object.prototype.toString.call(arg) === '[object Array]';
@@ -12229,7 +13255,7 @@ exports.unionRings = function (rings, holes) {
   return rings;
 };
 
-},{"./greiner-hormann":93}],99:[function(require,module,exports){
+},{"./greiner-hormann":105}],111:[function(require,module,exports){
 function Vertex(x, y, alpha, intersect, degenerate) {
   this.x = x;
   this.y = y;
@@ -12306,7 +13332,7 @@ Vertex.prototype.log = function () {
 
 module.exports = Vertex;
 
-},{}],100:[function(require,module,exports){
+},{}],112:[function(require,module,exports){
 module.exports = function (point, vs) {
     // ray-casting algorithm based on
     // http://www.ecse.rpi.edu/Homepages/wrf/Research/Short_Notes/pnpoly.html
@@ -12326,7 +13352,7 @@ module.exports = function (point, vs) {
     return inside;
 };
 
-},{}],101:[function(require,module,exports){
+},{}],113:[function(require,module,exports){
 module.exports = function(ring){
   var sum = 0;
   var i = 1;
@@ -12340,7 +13366,7 @@ module.exports = function(ring){
   }
   return sum > 0;
 }
-},{}],102:[function(require,module,exports){
+},{}],114:[function(require,module,exports){
 var xhr = require('xhr');
 
 module.exports = function (opts, cb) {
@@ -12359,7 +13385,7 @@ module.exports = function (opts, cb) {
     });
 };
 
-},{"xhr":103}],103:[function(require,module,exports){
+},{"xhr":115}],115:[function(require,module,exports){
 var window = require("global/window")
 var once = require("once")
 var parseHeaders = require('parse-headers')
@@ -12538,7 +13564,7 @@ function createXHR(options, callback) {
 
 function noop() {}
 
-},{"global/window":104,"once":105,"parse-headers":109}],104:[function(require,module,exports){
+},{"global/window":116,"once":117,"parse-headers":121}],116:[function(require,module,exports){
 (function (global){
 if (typeof window !== "undefined") {
     module.exports = window;
@@ -12551,7 +13577,7 @@ if (typeof window !== "undefined") {
 }
 
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{}],105:[function(require,module,exports){
+},{}],117:[function(require,module,exports){
 module.exports = once
 
 once.proto = once(function () {
@@ -12572,7 +13598,7 @@ function once (fn) {
   }
 }
 
-},{}],106:[function(require,module,exports){
+},{}],118:[function(require,module,exports){
 var isFunction = require('is-function')
 
 module.exports = forEach
@@ -12620,7 +13646,7 @@ function forEachObject(object, iterator, context) {
     }
 }
 
-},{"is-function":107}],107:[function(require,module,exports){
+},{"is-function":119}],119:[function(require,module,exports){
 module.exports = isFunction
 
 var toString = Object.prototype.toString
@@ -12637,7 +13663,7 @@ function isFunction (fn) {
       fn === window.prompt))
 };
 
-},{}],108:[function(require,module,exports){
+},{}],120:[function(require,module,exports){
 
 exports = module.exports = trim;
 
@@ -12653,7 +13679,7 @@ exports.right = function(str){
   return str.replace(/\s*$/, '');
 };
 
-},{}],109:[function(require,module,exports){
+},{}],121:[function(require,module,exports){
 var trim = require('trim')
   , forEach = require('for-each')
   , isArray = function(arg) {
@@ -12685,7 +13711,7 @@ module.exports = function (headers) {
 
   return result
 }
-},{"for-each":106,"trim":108}],110:[function(require,module,exports){
+},{"for-each":118,"trim":120}],122:[function(require,module,exports){
 'use strict'
 
 var pool = require('typedarray-pool')
@@ -12797,13 +13823,13 @@ function meshLaplacian(cells, positions) {
   return entries
 }
 
-},{"typedarray-pool":113}],111:[function(require,module,exports){
+},{"typedarray-pool":125}],123:[function(require,module,exports){
 arguments[4][55][0].apply(exports,arguments)
-},{"dup":55}],112:[function(require,module,exports){
+},{"dup":55}],124:[function(require,module,exports){
 arguments[4][69][0].apply(exports,arguments)
-},{"dup":69}],113:[function(require,module,exports){
+},{"dup":69}],125:[function(require,module,exports){
 arguments[4][70][0].apply(exports,arguments)
-},{"bit-twiddle":111,"buffer":1,"dup":70}],114:[function(require,module,exports){
+},{"bit-twiddle":123,"buffer":1,"dup":70}],126:[function(require,module,exports){
 module.exports = reindex
 
 function reindex(array) {
@@ -12835,7 +13861,7 @@ function reindex(array) {
   }
 }
 
-},{}],115:[function(require,module,exports){
+},{}],127:[function(require,module,exports){
 'use strict'
 
 const Queue = require('./PriorityQueue')
@@ -13012,7 +14038,7 @@ class Graph {
 
 module.exports = Graph
 
-},{"./PriorityQueue":116,"./populateMap":117}],116:[function(require,module,exports){
+},{"./PriorityQueue":128,"./populateMap":129}],128:[function(require,module,exports){
 'use strict'
 
 /**
@@ -13123,7 +14149,7 @@ class PriorityQueue {
 
 module.exports = PriorityQueue
 
-},{}],117:[function(require,module,exports){
+},{}],129:[function(require,module,exports){
 'use strict'
 
 /**
@@ -13182,7 +14208,7 @@ function populateMap (map, object, keys) {
 
 module.exports = populateMap
 
-},{}],118:[function(require,module,exports){
+},{}],130:[function(require,module,exports){
 var getBounds = require('bound-points')
 var unlerp = require('unlerp')
 
@@ -13215,11 +14241,11 @@ function normalizePathScale (positions, bounds) {
   }
   return positions
 }
-},{"bound-points":21,"unlerp":119}],119:[function(require,module,exports){
+},{"bound-points":21,"unlerp":131}],131:[function(require,module,exports){
 module.exports = function range(min, max, value) {
   return (value - min) / (max - min)
 }
-},{}],120:[function(require,module,exports){
+},{}],132:[function(require,module,exports){
 /* eslint-disable no-unused-vars */
 'use strict';
 var hasOwnProperty = Object.prototype.hasOwnProperty;
@@ -13260,7 +14286,7 @@ module.exports = Object.assign || function (target, source) {
 	return to;
 };
 
-},{}],121:[function(require,module,exports){
+},{}],133:[function(require,module,exports){
 
 module.exports = parse
 
@@ -13317,7 +14343,7 @@ function parseValues(args){
 	return args ? args.map(Number) : []
 }
 
-},{}],122:[function(require,module,exports){
+},{}],134:[function(require,module,exports){
 //http://www.blackpawn.com/texts/pointinpoly/
 module.exports = function pointInTriangle(point, triangle) {
     //compute vectors & dot products
@@ -13339,7 +14365,7 @@ module.exports = function pointInTriangle(point, triangle) {
         v = (dot00*dot12 - dot01*dot02) * inv
     return u>=0 && v>=0 && (u+v < 1)
 }
-},{}],123:[function(require,module,exports){
+},{}],135:[function(require,module,exports){
 'use strict';
 module.exports = function (min, max) {
 	if (max === undefined) {
@@ -13354,7 +14380,7 @@ module.exports = function (min, max) {
 	return Math.random() * (max - min) + min;
 };
 
-},{}],124:[function(require,module,exports){
+},{}],136:[function(require,module,exports){
 // square distance from a point to a segment
 function getSqSegDist(p, p1, p2) {
     var x = p1[0],
@@ -13418,7 +14444,7 @@ module.exports = function simplifyDouglasPeucker(points, tolerance) {
     return simplified;
 }
 
-},{}],125:[function(require,module,exports){
+},{}],137:[function(require,module,exports){
 var simplifyRadialDist = require('./radial-distance')
 var simplifyDouglasPeucker = require('./douglas-peucker')
 
@@ -13431,7 +14457,7 @@ module.exports = function simplify(points, tolerance) {
 
 module.exports.radialDistance = simplifyRadialDist;
 module.exports.douglasPeucker = simplifyDouglasPeucker;
-},{"./douglas-peucker":124,"./radial-distance":126}],126:[function(require,module,exports){
+},{"./douglas-peucker":136,"./radial-distance":138}],138:[function(require,module,exports){
 function getSqDist(p1, p2) {
     var dx = p1[0] - p2[0],
         dy = p1[1] - p2[1];
@@ -13463,12 +14489,12 @@ module.exports = function simplifyRadialDist(points, tolerance) {
 
     return newPoints;
 }
-},{}],127:[function(require,module,exports){
+},{}],139:[function(require,module,exports){
 // expose module classes
 
 exports.intersect = require('./lib/intersect');
 exports.shape = require('./lib/IntersectionParams').newShape;
-},{"./lib/IntersectionParams":129,"./lib/intersect":130}],128:[function(require,module,exports){
+},{"./lib/IntersectionParams":141,"./lib/intersect":142}],140:[function(require,module,exports){
 /**
  *  Intersection
  */
@@ -13507,7 +14533,7 @@ Intersection.prototype.appendPoints = function(points) {
 
 module.exports = Intersection;
 
-},{}],129:[function(require,module,exports){
+},{}],141:[function(require,module,exports){
 var Point2D = require('kld-affine').Point2D;
 
 
@@ -14409,7 +15435,7 @@ RelativeSmoothCurveto3.prototype.getIntersectionParams = function() {
 
 module.exports = IntersectionParams;
 
-},{"kld-affine":131}],130:[function(require,module,exports){
+},{"kld-affine":143}],142:[function(require,module,exports){
 /**
  *
  *  Intersection.js
@@ -15115,14 +16141,14 @@ module.exports = intersect;
  
 
 
-},{"./Intersection":128,"./IntersectionParams":129,"kld-affine":131,"kld-polynomial":135}],131:[function(require,module,exports){
+},{"./Intersection":140,"./IntersectionParams":141,"kld-affine":143,"kld-polynomial":147}],143:[function(require,module,exports){
 // expose classes
 
 exports.Point2D = require('./lib/Point2D');
 exports.Vector2D = require('./lib/Vector2D');
 exports.Matrix2D = require('./lib/Matrix2D');
 
-},{"./lib/Matrix2D":132,"./lib/Point2D":133,"./lib/Vector2D":134}],132:[function(require,module,exports){
+},{"./lib/Matrix2D":144,"./lib/Point2D":145,"./lib/Vector2D":146}],144:[function(require,module,exports){
 /**
  *
  *   Matrix2D.js
@@ -15548,7 +16574,7 @@ Matrix2D.prototype.toString = function() {
 if (typeof module !== "undefined") {
     module.exports = Matrix2D;
 }
-},{}],133:[function(require,module,exports){
+},{}],145:[function(require,module,exports){
 /**
  *
  *   Point2D.js
@@ -15725,7 +16751,7 @@ if (typeof module !== "undefined") {
     module.exports = Point2D;
 }
 
-},{}],134:[function(require,module,exports){
+},{}],146:[function(require,module,exports){
 /**
  *
  *   Vector2D.js
@@ -15961,13 +16987,13 @@ if (typeof module !== "undefined") {
     module.exports = Vector2D;
 }
 
-},{}],135:[function(require,module,exports){
+},{}],147:[function(require,module,exports){
 // expose classes
 
 exports.Polynomial = require('./lib/Polynomial');
 exports.SqrtPolynomial = require('./lib/SqrtPolynomial');
 
-},{"./lib/Polynomial":136,"./lib/SqrtPolynomial":137}],136:[function(require,module,exports){
+},{"./lib/Polynomial":148,"./lib/SqrtPolynomial":149}],148:[function(require,module,exports){
 /**
  *
  *   Polynomial.js
@@ -16599,7 +17625,7 @@ if (typeof module !== "undefined") {
     module.exports = Polynomial;
 }
 
-},{}],137:[function(require,module,exports){
+},{}],149:[function(require,module,exports){
 /**
  *
  *   SqrtPolynomial.js
@@ -16661,7 +17687,7 @@ if (typeof module !== "undefined") {
     module.exports = SqrtPolynomial;
 }
 
-},{"./Polynomial":136}],138:[function(require,module,exports){
+},{"./Polynomial":148}],150:[function(require,module,exports){
 var bezier = require('adaptive-bezier-curve')
 var abs = require('abs-svg-path')
 var norm = require('normalize-svg-path')
@@ -16707,7 +17733,7 @@ module.exports = function contours(svg, scale) {
         paths.push(points)
     return paths
 }
-},{"abs-svg-path":139,"adaptive-bezier-curve":141,"normalize-svg-path":142,"vec2-copy":143}],139:[function(require,module,exports){
+},{"abs-svg-path":151,"adaptive-bezier-curve":153,"normalize-svg-path":154,"vec2-copy":155}],151:[function(require,module,exports){
 
 module.exports = absolutize
 
@@ -16776,7 +17802,7 @@ function absolutize(path){
 	})
 }
 
-},{}],140:[function(require,module,exports){
+},{}],152:[function(require,module,exports){
 function clone(point) { //TODO: use gl-vec2 for this
     return [point[0], point[1]]
 }
@@ -16975,9 +18001,9 @@ module.exports = function createBezierBuilder(opt) {
     }
 }
 
-},{}],141:[function(require,module,exports){
+},{}],153:[function(require,module,exports){
 module.exports = require('./function')()
-},{"./function":140}],142:[function(require,module,exports){
+},{"./function":152}],154:[function(require,module,exports){
 
 var π = Math.PI
 var _120 = radians(120)
@@ -17179,13 +18205,13 @@ function radians(degress){
 	return degress * (π / 180)
 }
 
-},{}],143:[function(require,module,exports){
+},{}],155:[function(require,module,exports){
 module.exports = function vec2Copy(out, a) {
     out[0] = a[0]
     out[1] = a[1]
     return out
 }
-},{}],144:[function(require,module,exports){
+},{}],156:[function(require,module,exports){
 var inherits = require('inherits')
 
 module.exports = function(THREE) {
@@ -17239,7 +18265,7 @@ module.exports = function(THREE) {
 
     return Complex
 }
-},{"inherits":145}],145:[function(require,module,exports){
+},{"inherits":157}],157:[function(require,module,exports){
 if (typeof Object.create === 'function') {
   // implementation from standard node.js 'util' module
   module.exports = function inherits(ctor, superCtor) {
@@ -17264,7 +18290,7 @@ if (typeof Object.create === 'function') {
   }
 }
 
-},{}],146:[function(require,module,exports){
+},{}],158:[function(require,module,exports){
 var Tess2 = require('tess2')
 var xtend = require('xtend')
 
@@ -17320,9 +18346,9 @@ module.exports = function(contours, opt) {
         cells: cells
     }
 }
-},{"tess2":147,"xtend":149}],147:[function(require,module,exports){
+},{"tess2":159,"xtend":161}],159:[function(require,module,exports){
 module.exports = require('./src/tess2');
-},{"./src/tess2":148}],148:[function(require,module,exports){
+},{"./src/tess2":160}],160:[function(require,module,exports){
 /*
 ** SGI FREE SOFTWARE LICENSE B (Version 2.0, Sept. 18, 2008) 
 ** Copyright (C) [dates of first publication] Silicon Graphics, Inc.
@@ -20748,7 +21774,7 @@ module.exports = require('./src/tess2');
 			return true;
 		}
 	};
-},{}],149:[function(require,module,exports){
+},{}],161:[function(require,module,exports){
 module.exports = extend
 
 var hasOwnProperty = Object.prototype.hasOwnProperty;
@@ -20769,7 +21795,7 @@ function extend() {
     return target
 }
 
-},{}],150:[function(require,module,exports){
+},{}],162:[function(require,module,exports){
 module.exports = unindex
 
 function unindex(positions, cells, out) {
@@ -20823,7 +21849,7 @@ function unindex(positions, cells, out) {
   return out
 }
 
-},{}],151:[function(require,module,exports){
+},{}],163:[function(require,module,exports){
 window.loadSvg = require('load-svg')
 window.parsePath = require('extract-svg-path').parse
 // window.svgMesh3d = require('svg-mesh-3d')
@@ -20838,7 +21864,7 @@ window.polygonBoolean = require('2d-polygon-boolean');
 // window.polybool = require('poly-bool');
 window.inside = require('point-in-triangle');
 window.ghClip = require('gh-clipping-algorithm');
-// window.triangulate = require('delaunay-triangulate');
+window.triangulate3D = require('delaunay-triangulate');
 window.triangulateContours = require('triangulate-contours')
 window.cdt2d = require('cdt2d');
 window.parseSVG = require('parse-svg-path');
@@ -20853,4 +21879,4 @@ window.areaPolygon = require('area-polygon');
 window.Dijkstra = require('node-dijkstra')
 
 
-},{"2d-polygon-boolean":5,"area-polygon":20,"bound-points":21,"cdt2d":22,"clean-pslg":40,"csr-matrix":86,"draw-triangles-2d":89,"extract-svg-path":90,"gh-clipping-algorithm":92,"load-svg":102,"mesh-laplacian":110,"mesh-reindex":114,"node-dijkstra":115,"normalize-path-scale":118,"object-assign":120,"parse-svg-path":121,"point-in-triangle":122,"random-float":123,"simplify-path":125,"svg-intersections":127,"svg-path-contours":138,"three-simplicial-complex":144,"triangulate-contours":146,"unindex-mesh":150}]},{},[151]);
+},{"2d-polygon-boolean":5,"area-polygon":20,"bound-points":21,"cdt2d":22,"clean-pslg":40,"csr-matrix":86,"delaunay-triangulate":100,"draw-triangles-2d":101,"extract-svg-path":102,"gh-clipping-algorithm":104,"load-svg":114,"mesh-laplacian":122,"mesh-reindex":126,"node-dijkstra":127,"normalize-path-scale":130,"object-assign":132,"parse-svg-path":133,"point-in-triangle":134,"random-float":135,"simplify-path":137,"svg-intersections":139,"svg-path-contours":150,"three-simplicial-complex":156,"triangulate-contours":158,"unindex-mesh":162}]},{},[163]);

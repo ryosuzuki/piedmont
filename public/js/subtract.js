@@ -96,10 +96,11 @@ function replaceObject (geometry) {
       }
     }
     createWall()
+    createCover()
   })
 
   for (var faceIndex=0; faceIndex<geometry.faces.length; faceIndex++) {
-    if (overlapIndex.includes(faceIndex)) continue;
+    if (!bump && overlapIndex.includes(faceIndex)) continue;
     var face = geometry.faces[faceIndex];
     var normal = face.normal;
     var va  = geometry.vertices[face.a];
@@ -162,11 +163,11 @@ function updateMesh (ng) {
   scene.add(nm)
 }
 
-
 var bump = true
 var bnd_points
 var bnd_normals
-
+var bnd_faces = []
+var outer_faces = []
 
 function round (array) {
   return array.map( function (a) {
@@ -197,31 +198,30 @@ function createWall () {
   ng.computeFaceNormals()
   ng.computeVertexNormals()
 
+  var outer_bnd_points = bnd_points.map( function (inner, index) {
+    if (!inner) return undefined
+    var normal = bnd_normals[index]
+    var h = 0.1
+    var v = new THREE.Vector3();
+    var h_normal = normal.clone().multiplyScalar(h);
+    var outer = v.clone().addVectors(inner, h_normal)
+    return outer
+  })
+
   var inner_points = _.compact(bnd_points)
-  var inner_normals = _.compact(bnd_normals)
+  var outer_points = _.compact(outer_bnd_points)
 
   for (var i=0; i<inner_points.length; i++) {
     var ni = (i+1)%inner_points.length
     var c_inner = inner_points[i]
     var n_inner = inner_points[ni]
-
-    if (!c_inner || !n_inner) continue
-
-    var c_normal = inner_normals[i]
-    var n_normal = inner_normals[ni]
-
-    var h = 0.1;
-    var v = new THREE.Vector3();
-    ch_normal = c_normal.clone().multiplyScalar(h);
-    nh_normal = n_normal.clone().multiplyScalar(h);
-    var c_outer = v.clone().addVectors(c_inner, ch_normal)
-    var n_outer = v.clone().addVectors(n_inner, nh_normal)
+    var c_outer = outer_points[i]
+    var n_outer = outer_points[ni]
 
     var num = ng.vertices.length;
     ng.vertices.push(c_inner);
     ng.vertices.push(c_outer);
     ng.vertices.push(n_inner);
-
     // For inner wall
     // ng.faces.push(new THREE.Face3(num, num+1, num+2))
     // For outer wall
@@ -234,10 +234,30 @@ function createWall () {
     // ng.faces.push(new THREE.Face3(num, num+1, num+2))
     ng.faces.push(new THREE.Face3(num+2, num+1, num))
   }
-
-
 }
 
+function createCover () {
+  for (var i=0; i<outer_faces.length; i++) {
+    var outer_face = outer_faces[i]
+    var a = outer_face.vertices[0]
+    var b = outer_face.vertices[1]
+    var c = outer_face.vertices[2]
+    var normal = outer_face.normal
+
+    var h = 0.1
+    var v = new THREE.Vector3();
+    var h_normal = normal.clone().multiplyScalar(h);
+    var a_outer = v.clone().addVectors(a, h_normal)
+    var b_outer = v.clone().addVectors(b, h_normal)
+    var c_outer = v.clone().addVectors(c, h_normal)
+
+    var num = ng.vertices.length;
+    ng.vertices.push(a_outer);
+    ng.vertices.push(b_outer);
+    ng.vertices.push(c_outer);
+    ng.faces.push(new THREE.Face3(num, num+1, num+2))
+  }
+}
 
 function createHall (faceIndex, positions) {
   var face = geometry.faces[faceIndex];
@@ -314,6 +334,12 @@ function createHall (faceIndex, positions) {
         bnd_points[ci] = c
         bnd_normals[ci] = normal
       }
+
+      var outer_face = {
+        vertices: [a, b, c],
+        normal: normal
+      }
+      outer_faces.push(outer_face)
     }
   }
 }
