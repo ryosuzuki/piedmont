@@ -43,14 +43,19 @@ var z = new THREE.Vector2(0, 0)
 var emptyUv = [z, z, z]
 
 
+var nm
 function replaceObject (geometry) {
-  if (ng) scene.remove(ng);
   geometry.computeFaceNormals()
   ng = new THREE.Geometry();
 
   window.overlapIndex = []
   var svgPositions = getSvgPositions()
   svgPositions.forEach( function (positions) {
+    positions = round(positions)
+    window.positions = positions
+
+    bnd_points = new Array(positions.length)
+
     for (var i=0; i<selectIndex.length; i++) {
       var faceIndex = selectIndex[i]
       var face = geometry.faces[faceIndex];
@@ -63,6 +68,9 @@ function replaceObject (geometry) {
       var triangle = ouv.map( function (v) {
         return [v.x, v.y];
       })
+
+      triangle = round(triangle)
+
       var points = polygonBoolean(triangle, positions, 'not')
       if (points.length > 1) {
         points = (points[0].length < points[1].length) ? points[0] : points[1]
@@ -117,12 +125,20 @@ function replaceObject (geometry) {
     // ng.faces.push(new THREE.Face3(num+2, num+1, num+1))
   }
 
-  console.log('done')
+  updateMesh(ng)
+  window.finishSubtract = true
+}
+var finishSubtract
+
+function updateMesh (ng) {
   scene.remove(mesh)
   scene.remove(dm)
   scene.remove(cm)
   scene.remove(sm)
   scene.remove(texture)
+  scene.remove(nm)
+
+  console.log('done')
   nm = new THREE.Mesh(ng, material);
   nm.geometry.verticesNeedUpdate = true;
   nm.dynamic = true;
@@ -138,13 +154,34 @@ function replaceObject (geometry) {
   nm.scale.y = mesh.scale.y
   nm.scale.z = mesh.scale.z
   scene.add(nm)
-  window.finishSubtract = true
 }
-var finishSubtract
 
 
 var bump = false
-var bnd_points = []
+var bnd_points
+
+
+function round (array) {
+  return array.map( function (a) {
+    return a.map( function (val) {
+      return parseFloat(val.toFixed(5))
+    })
+  })
+}
+
+
+function getIndex (positions, current_uv) {
+  var ui = _.map(positions, 0).indexOf(current_uv[0])
+  var vi = _.map(positions, 1).indexOf(current_uv[1])
+  console.log(ui)
+  console.log(vi)
+  if (ui == vi) {
+    return ui
+  } else {
+    return -1
+  }
+}
+
 
 function createHall (faceIndex, positions) {
   var face = geometry.faces[faceIndex];
@@ -157,16 +194,16 @@ function createHall (faceIndex, positions) {
   var triangle = ouv.map( function (v) {
     return [v.x, v.y];
   })
-
+  triangle = round(triangle)
   var diffs = greinerHormann.diff(triangle, positions)
-
   if (bump) {
     diffs = greinerHormann.intersection(positions, triangle)
   }
-
   // if (!diffs) return false
   for (var i=0; i<diffs.length; i++) {
     var diff = diffs[i]
+    diff = round(diff)
+
     var outer_triangle = triangle.filter(function (t) {
       for (var di=0; di<diff.length; di++) {
         var dp = diff[di];
@@ -176,32 +213,20 @@ function createHall (faceIndex, positions) {
     })
     var bndMesh
     var d = drawSVG(diff);
-    try {
-      bndMesh = svgMesh3d(d, {
-        scale: 1,
-        // simplify: Math.pow(10, -3),
-        customize: true,
-      })
-    } catch (e) {
-      console.log(e)
-      bndMesh = svgMesh3d(d, {
-        scale: 1,
-        simplify: Math.pow(10, -12),
-        customize: true,
-      })
-      // continue
-    }
+    bndMesh = svgMesh3d(d, {
+      scale: 1,
+      simplify: Math.pow(10, -5),
+      customize: true,
+    })
     var nuv = bndMesh.positions;
+    nuv = round(nuv)
+
     var nf = bndMesh.cells;
     var nxyz = uvTo3D(nuv, ouv, va, vb, vc);
     var inner_points = [];
     var outer_points = [];
 
-    var roundTriangle = triangle.map(function (p) {
-      return
-
-    })
-
+    // debugger
 
     for (var j=0; j<nf.length; j++) {
       var num = ng.vertices.length;
@@ -217,26 +242,13 @@ function createHall (faceIndex, positions) {
       var buv = nuv[nf[j][1]]
       var cuv = nuv[nf[j][2]]
 
-      var a_bnd = true
-      var b_bnd = true
-      var c_bnd = true
-      var epsilon = Math.pow(10, -2)
-      triangle.map( function (p) {
-        if (Math.abs(p[0] - auv[0]) < epsilon && Math.abs(p[1] - auv[1]) < epsilon) a_bnd = false
-        if (Math.abs(p[0] - buv[0]) < epsilon && Math.abs(p[1] - buv[1]) < epsilon) b_bnd = false
-        if (Math.abs(p[0] - cuv[0]) < epsilon && Math.abs(p[1] - cuv[1]) < epsilon) c_bnd = false
-      })
+      var ai = getIndex(positions, auv)
+      var bi = getIndex(positions, buv)
+      var ci = getIndex(positions, cuv)
 
-      var round = function (uv) {
-        var u = parseFloat(uv[0].toFixed(2))
-        var v = parseFloat(uv[1].toFixed(2))
-        var res = new THREE.Vector2(u, v)
-        return res
-      }
-
-      if (a_bnd) bnd_points.push(round(auv))
-      if (b_bnd) bnd_points.push(round(buv))
-      if (c_bnd) bnd_points.push(round(cuv))
+      if (ai !== -1) bnd_points[ai] = a
+      if (bi !== -1) bnd_points[bi] = b
+      if (ci !== -1) bnd_points[ci] = c
 
       // ng.faceVertexUvs[0].push([
       //   new THREE.Vector2(auv[0], auv[1]),
@@ -302,15 +314,21 @@ function createHall (faceIndex, positions) {
       // ng.faces.push(new THREE.Face3(num+2, num+1, num))
     }
   }
+
+  // updateMesh(ng)
+
 }
 
 
 function showBndPoints () {
   var g = new THREE.Geometry()
-  for (var i=0; i<bnd_points.length; i++) {
+  bnd_points = _.uniq(bnd_points)
+  for (var i=0; i<num; i++) {
+    if (!bnd_points[i]) continue
     g.vertices.push(bnd_points[i])
   }
   showPoints(g)
+  num++
 }
 
 
