@@ -63,6 +63,7 @@ function checkUv () {
 var origin
 function updateUv (start) {
   var val = 0.5
+
   try {
     if (!origin) {
       origin = start
@@ -144,6 +145,7 @@ function updateUv (start) {
     console.log('Fail: ' + err)
     running = false
   }
+
   updateMapping(updated_uvs)
 
   // updateMapping(updated_uvs)
@@ -185,6 +187,7 @@ function updateMapping (uvs) {
     }
   }
 
+  // moveMickey(new THREE.Vector2(0.5, 0.5))
   if (checkerMark) showCheckerMark()
   showDrawingCanvas()
 

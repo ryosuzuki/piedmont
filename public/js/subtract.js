@@ -76,6 +76,7 @@ function replaceObject (geometry) {
           var triArea = areaPolygon(triangle)
           if (area/triArea > 0) {
             createHall(faceIndex, positions)
+            overlapIndex = _.union(overlapIndex, [faceIndex])
             console.log(area/triArea)
             continue;
           }
@@ -178,7 +179,6 @@ function createHall (faceIndex, positions) {
         simplify: Math.pow(10, -12),
         customize: true,
       })
-      // debugger
       // continue
     }
     var nuv = bndMesh.positions;
