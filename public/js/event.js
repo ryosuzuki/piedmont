@@ -307,7 +307,12 @@ function onDocumentTouchStart( event ) {
 
 function exportStl () {
   var exporter = new THREE.STLExporter();
-  var stlString = exporter.parse( scene );
+  var stlString
+  if (scene.children.includes(nm)) {
+    stlString = exporter.parse(nm)
+  } else {
+    stlString = exporter.parse(mesh)
+  }
   var blob = new Blob([stlString], {type: 'text/plain'});
   saveAs(blob, 'demo.stl');
 }
