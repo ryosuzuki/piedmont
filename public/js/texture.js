@@ -76,7 +76,7 @@ function updateUv (start) {
         }
       }
     } else {
-      console.log('Start getNewUv ' + start)
+      // if (debugging) console.log('Start getNewUv ' + start)
       var current_uvs = uvs[start]
       var cid = start
       var eid
@@ -149,7 +149,7 @@ function updateUv (start) {
   // updateMapping(updated_uvs)
 }
 
-var entireSelect = true
+var entireSelect = false
 
 // window.updated_uvs = {}
 function updateMapping (uvs) {

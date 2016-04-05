@@ -51,9 +51,8 @@ function replaceObject (geometry) {
   window.overlapIndex = []
   var svgPositions = getSvgPositions()
   svgPositions.forEach( function (positions) {
-    for (var faceIndex=0; faceIndex<geometry.faces.length; faceIndex++) {
-    // for (var i=0; i<selectIndex.length; i++) {
-    //   var faceIndex = selectIndex[i]
+    for (var i=0; i<selectIndex.length; i++) {
+      var faceIndex = selectIndex[i]
       var face = geometry.faces[faceIndex];
       var ouv = geometry.faceVertexUvs[0][faceIndex];
       var va  = geometry.vertices[face.a];
@@ -76,13 +75,10 @@ function replaceObject (geometry) {
           var area = areaPolygon(points[0])
           var triArea = areaPolygon(triangle)
           if (area/triArea > 0) {
-            overlapIndex = _.union(overlapIndex, [faceIndex])
-            // console.log(polygonBoolean(triangle, positions, 'not'))
             createHall(faceIndex, positions)
             console.log(area/triArea)
             continue;
           }
-          // overlapIndex = _.union(overlapIndex, [faceIndex])
         }
       } else {
         createHall(faceIndex, positions)

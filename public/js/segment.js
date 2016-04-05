@@ -8,22 +8,32 @@ $(function () {
       var c = geometry.phi[map[face.c]];
       return (a+b+c)/3;
     });
-    var val = _.mean(geometry.phiFaces) * 0.1
-    window.selectIndex = []
-    for (var i=0; i<geometry.faces.length; i++) {
-      var phi = geometry.phiFaces[i]
-      if (phi < val) continue
-      var faceIndex = i
-      selectIndex.push(faceIndex)
-    }
-
+    var val = 0.1
+    showSegmentation(val)
   })
 })
 
+function showSegmentation (val) {
+  var val = _.mean(geometry.phiFaces) * val
+  window.selectIndex = []
+  for (var i=0; i<geometry.faces.length; i++) {
+    var phi = geometry.phiFaces[i]
+    if (phi < val) continue
+    var faceIndex = i
+    selectIndex.push(faceIndex)
+  }
+  showSelectIndex()
+}
+
+
 var selectIndex = []
 function initialCheck() {
+  if (window.selectIndex.includes(current.faceIndex)) {
+    // if (debugging) console.log('Skip')
+    return false
+  }
   console.log('Start initialCheck')
-  var selectIndex = check(0.003)
+  window.selectIndex = check(0.003)
   if (selectIndex.length < 5) {
     getMeshSegmentation()
   } else {
@@ -47,7 +57,7 @@ function showSelectIndex () {
   // var m = new THREE.MeshBasicMaterial({color: 0xeeeeee})
   var m = new THREE.MeshLambertMaterial({
     color: 0x00ffff,
-    // map: image,
+    map: image,
     transparent: true,
     opacity: 0.7
   });
@@ -77,6 +87,8 @@ function getMeshSegmentation () {
   var json = { size: size, p_edges: p_edges, q_edges: q_edges }
   socket.emit('update-harmonic', json)
 }
+
+
 
 function check (epsilon) {
   if (selectIndex.includes(current.faceIndex)) return false
