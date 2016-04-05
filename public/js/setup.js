@@ -169,8 +169,8 @@ function updateOriginal (path) {
     })
 
 
-    loadSvg('/public/assets/mickey-2.svg', function (err, svg) {
-    // loadSvg('/public/assets/heart.svg', function (err, svg) {
+    // loadSvg('/public/assets/mickey-2.svg', function (err, svg) {
+    loadSvg('/public/assets/heart.svg', function (err, svg) {
       originalPaper.activate()
       var paper = originalPaper
       var d = $('path', svg).attr('d');

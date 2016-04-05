@@ -8,7 +8,7 @@ material.color.set(new THREE.Color('blue'))
 
 var ng;
 function go () {
-  window.scale = 1/50
+  window.scale = 1/25
   Q.fcall(computeUniq(geometry))
   .then(replaceObject(geometry))
 }
@@ -174,7 +174,7 @@ function replaceObject (geometry) {
     ng.vertices.push(vc);
     var nf = new THREE.Face3(num, num+1, num+2)
     nf.normal = normal
-    // ng.faces.push(nf)
+    ng.faces.push(nf)
 
     /*
     var h = -0.01;
@@ -271,7 +271,7 @@ function getIndex (positions, uv) {
   }
 }
 
-var h = 0.01
+var h = 0.1
 
 function createWall () {
   ng.computeFaceNormals()
