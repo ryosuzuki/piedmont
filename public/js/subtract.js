@@ -174,14 +174,25 @@ function round (array) {
 }
 
 
-function getIndex (positions, current_uv) {
-  var ui = _.map(positions, 0).indexOf(current_uv[0])
-  var vi = _.map(positions, 1).indexOf(current_uv[1])
-  console.log(ui)
-  console.log(vi)
+function getIndex (positions, uv) {
+  // for (var i=0; i<positions.length; i++) {
+  //   var pos = positions[i]
+  //   if (pos[0] == uv[0] && pos[0] == uv[0]) return i
+  // }
+  // return -1
+  var ui = _.map(positions, 0).indexOf(uv[0])
+  var vi = _.map(positions, 1).indexOf(uv[1])
+  // console.log(ui)
+  // console.log(vi)
   if (ui == vi) {
     return ui
   } else {
+    if (positions[ui][0] == uv[0] && positions[ui][1] == uv[1]) {
+      return ui
+    }
+    if (positions[vi][0] == uv[0] && positions[vi][1] == uv[1]) {
+      return vi
+    }
     return -1
   }
 }
