@@ -142,6 +142,10 @@ function replaceObject (geometry) {
 }
 var finishSubtract
 
+
+var bump = false
+var bnd_points = []
+
 function createHall (faceIndex, positions) {
   var face = geometry.faces[faceIndex];
   var ouv = geometry.faceVertexUvs[0][faceIndex];
@@ -153,7 +157,13 @@ function createHall (faceIndex, positions) {
   var triangle = ouv.map( function (v) {
     return [v.x, v.y];
   })
+
   var diffs = greinerHormann.diff(triangle, positions)
+
+  if (bump) {
+    diffs = greinerHormann.intersection(positions, triangle)
+  }
+
   // if (!diffs) return false
   for (var i=0; i<diffs.length; i++) {
     var diff = diffs[i]
@@ -196,9 +206,14 @@ function createHall (faceIndex, positions) {
       ng.vertices.push(b);
       ng.vertices.push(c);
       ng.faces.push(new THREE.Face3(num, num+1, num+2))
+
       var auv = nuv[nf[j][0]]
       var buv = nuv[nf[j][1]]
       var cuv = nuv[nf[j][2]]
+
+
+
+
       // ng.faceVertexUvs[0].push([
       //   new THREE.Vector2(auv[0], auv[1]),
       //   new THREE.Vector2(buv[0], buv[1]),
@@ -219,6 +234,7 @@ function createHall (faceIndex, positions) {
       ng.vertices.push(outer_a)
       ng.vertices.push(outer_b)
       ng.vertices.push(outer_c)
+
       // ng.faces.push(new THREE.Face3(num, num+1, num+2))
       // ng.faces.push(new THREE.Face3(num+2, num+1, num+1))
 
@@ -237,6 +253,8 @@ function createHall (faceIndex, positions) {
       }
     }
 
+    bnd_points = _.union(bnd_points, inner_points)
+
     var n = inner_points.length;
     for (var j=0; j<n-1; j++) {
       var ci = inner_points[j];
@@ -249,6 +267,7 @@ function createHall (faceIndex, positions) {
       ng.vertices.push(co);
       ng.vertices.push(ni);
       // ng.faces.push(new THREE.Face3(num, num+1, num+2))
+
       // ng.faces.push(new THREE.Face3(num+2, num+1, num))
 
       var num = ng.vertices.length;
@@ -256,10 +275,21 @@ function createHall (faceIndex, positions) {
       ng.vertices.push(no);
       ng.vertices.push(ni);
       // ng.faces.push(new THREE.Face3(num, num+1, num+2))
+
       // ng.faces.push(new THREE.Face3(num+2, num+1, num))
     }
   }
 }
+
+
+function showBndPoints () {
+  var g = new THREE.Geometry()
+  for (var i=0; i<bnd_points.length; i++) {
+    g.vertices.push(bnd_points[i])
+  }
+  showPoints(g)
+}
+
 
 
 var checked = []
