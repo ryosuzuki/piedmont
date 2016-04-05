@@ -55,6 +55,7 @@ function replaceObject (geometry) {
     window.positions = positions
 
     bnd_points = new Array(positions.length)
+    bnd_normals = new Array(positions.length)
 
     for (var i=0; i<selectIndex.length; i++) {
       var faceIndex = selectIndex[i]
@@ -109,7 +110,7 @@ function replaceObject (geometry) {
     ng.vertices.push(vc);
     var nf = new THREE.Face3(num, num+1, num+2)
     nf.normal = normal
-    ng.faces.push(nf)
+    // ng.faces.push(nf)
 
     var h = -0.01;
     var v = new THREE.Vector3();
@@ -124,6 +125,8 @@ function replaceObject (geometry) {
     // ng.faces.push(new THREE.Face3(num, num+1, num+2))
     // ng.faces.push(new THREE.Face3(num+2, num+1, num+1))
   }
+
+  createWall()
 
   updateMesh(ng)
   window.finishSubtract = true
@@ -159,6 +162,7 @@ function updateMesh (ng) {
 
 var bump = false
 var bnd_points
+var bnd_normals
 
 
 function round (array) {
@@ -180,6 +184,46 @@ function getIndex (positions, current_uv) {
   } else {
     return -1
   }
+}
+
+function createWall () {
+  ng.computeFaceNormals()
+  ng.computeVertexNormals()
+
+  var inner_points = _.compact(bnd_points)
+  var inner_normals = _.compact(bnd_normals)
+
+  for (var i=0; i<inner_points.length; i++) {
+    var ni = (i+1)%inner_points.length
+    var c_inner = inner_points[i]
+    var n_inner = inner_points[ni]
+
+    if (!c_inner || !n_inner) continue
+
+    var c_normal = inner_normals[i]
+    var n_normal = inner_normals[ni]
+
+    var h = 0.1;
+    var v = new THREE.Vector3();
+    ch_normal = c_normal.clone().multiplyScalar(h);
+    nh_normal = n_normal.clone().multiplyScalar(h);
+    var c_outer = v.clone().addVectors(c_inner, ch_normal)
+    var n_outer = v.clone().addVectors(n_inner, nh_normal)
+
+    var num = ng.vertices.length;
+    ng.vertices.push(c_inner);
+    ng.vertices.push(c_outer);
+    ng.vertices.push(n_inner);
+    ng.faces.push(new THREE.Face3(num, num+1, num+2))
+
+    var num = ng.vertices.length;
+    ng.vertices.push(c_outer);
+    ng.vertices.push(n_outer);
+    ng.vertices.push(n_inner);
+    ng.faces.push(new THREE.Face3(num, num+1, num+2))
+  }
+
+
 }
 
 
@@ -242,14 +286,6 @@ function createHall (faceIndex, positions) {
       var buv = nuv[nf[j][1]]
       var cuv = nuv[nf[j][2]]
 
-      var ai = getIndex(positions, auv)
-      var bi = getIndex(positions, buv)
-      var ci = getIndex(positions, cuv)
-
-      if (ai !== -1) bnd_points[ai] = a
-      if (bi !== -1) bnd_points[bi] = b
-      if (ci !== -1) bnd_points[ci] = c
-
       // ng.faceVertexUvs[0].push([
       //   new THREE.Vector2(auv[0], auv[1]),
       //   new THREE.Vector2(buv[0], buv[1]),
@@ -263,6 +299,28 @@ function createHall (faceIndex, positions) {
       var h = -0.01;
       var v = new THREE.Vector3();
       var h_normal = normal.clone().multiplyScalar(h);
+
+
+      var ai = getIndex(positions, auv)
+      var bi = getIndex(positions, buv)
+      var ci = getIndex(positions, cuv)
+
+      if (ai !== -1) {
+        bnd_points[ai] = a
+        bnd_normals[ai] = normal
+      }
+      if (bi !== -1) {
+        bnd_points[bi] = b
+        bnd_normals[bi] = normal
+      }
+      if (ci !== -1) {
+        bnd_points[ci] = c
+        bnd_normals[ci] = normal
+      }
+
+
+
+
       var outer_a = v.clone().addVectors(inner_a, h_normal)
       var outer_b = v.clone().addVectors(inner_b, h_normal)
       var outer_c = v.clone().addVectors(inner_c, h_normal)
