@@ -37,7 +37,7 @@ app.use( function *(next) {
 })
 app.use(route.get('/', index))
 app.use(route.get('/favicon.ico', null))
-app.use(route.get('/:id', show))
+app.use(route.get('/tasks/:id', show))
 // app.use(route.post('/get-dgpc', getDgpc))
 // app.use(route.post('/get-obj', getObj))
 // app.use(route.post('/get-laplacian', getLaplacian))
@@ -91,7 +91,7 @@ function *index() {
 }
 
 function *show(id) {
-  this.body = yield this.render(id)
+  this.body = yield this.render('index', { id: id })
 }
 
 

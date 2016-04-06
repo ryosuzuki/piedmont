@@ -23,15 +23,55 @@ function loadObjects () {
 }
 
 function drawGeometry () {
-  // drawBasicGeometry('cylinder')
-  // loadObj('/data/bunny.obj', drawObj)
-  // loadStl('/data/test.stl', drawStl);
-  loadStl('/data/tower.stl', drawStl);
-  // loadStl('/data/knight.stl', drawStl);
-  // loadStl('/data/noah.stl', drawStl);
-
-
+  if (window.task) {
+    drawTaskGeometry()
+  } else {
+    // drawBasicGeometry('cylinder')
+    // loadObj('/data/bunny.obj', drawObj)
+    // loadStl('/data/test.stl', drawStl);
+    loadStl('/data/tower.stl', drawStl);
+    // loadStl('/data/knight.stl', drawStl);
+    // loadStl('/data/noah.stl', drawStl);
+  }
 }
+
+
+function drawTaskGeometry () {
+  switch (window.task) {
+    case 1:
+      geometry = new THREE.BoxGeometry(2*size, 0.1*size, 2*size, 2, 2, 2)
+      break
+    case 2:
+      geometry = new THREE.TetrahedronGeometry(2*size, 0)
+      break
+    case 'box':
+      geometry = new THREE.BoxGeometry(size, size, size, 2, 2, 2)
+      break
+    case 'plane':
+      geometry = new THREE.PlaneGeometry(size, size, 10)
+      break
+    case 'torus':
+      geometry = new THREE.TorusKnotGeometry( size, 0.3*size, 100, 8)
+      break
+    default:
+      geometry = new THREE.CylinderGeometry(size, size, 2*size, 30, 2)
+  }
+  var material = new THREE.MeshLambertMaterial({
+    color: 0xffffff,
+    vertexColors: THREE.FaceColors,
+  })
+  mesh = new THREE.Mesh(geometry, material)
+  mesh.geometry.verticesNeedUpdate = true;
+  mesh.dynamic = true;
+  mesh.castShadow = true;
+  mesh.receiveShadow = true;
+  scene.add(mesh);
+  objects.push(mesh);
+  loadObjects();
+}
+
+
+
 
 function drawObj (geometry) {
   window.geometry = geometry
