@@ -76,24 +76,49 @@ function repeatMickey () {
   unit.subVectors(next, center).normalize()
   var dist = next.distanceTo(center)
 
+  var bound_width = mickey.bounds.width
+  var bound_height = mickey.bounds.height
+
   var add_centers = []
   var sub_centers = []
   var i = 0
-  while (i<10) {
+
+  var width = drawingPaper.view.viewSize.width
+  var height = drawingPaper.view.viewSize.height
+
+  while (true) {
     var new_center = new THREE.Vector2()
     var v = unit.clone().multiplyScalar(i*dist)
     new_center.addVectors(center, v)
+
+    var min_x = new_center.x - bound_width/2
+    var max_x = new_center.x + bound_width/2
+    var min_y = new_center.y - bound_height/2
+    var max_y = new_center.y + bound_height/2
+    if (Math.abs(min_x) > width/2) break
+    if (Math.abs(max_x) > width/2) break
+    if (Math.abs(min_y) > height/2) break
+    if (Math.abs(max_y) > height/2) break
     add_centers.push(new_center)
     i++
   }
   _.pullAll(add_centers, [center, next])
 
   var i = 0
-  while (i<10) {
+  while (true) {
     var new_center = new THREE.Vector2()
     var v = unit.clone().multiplyScalar(-i*dist)
     new_center.addVectors(center, v)
-    sub_centers.push(new_center)
+
+    var min_x = new_center.x - bound_width/2
+    var max_x = new_center.x + bound_width/2
+    var min_y = new_center.y - bound_height/2
+    var max_y = new_center.y + bound_height/2
+    if (Math.abs(min_x) > width/2) break
+    if (Math.abs(max_x) > width/2) break
+    if (Math.abs(min_y) > height/2) break
+    if (Math.abs(max_y) > height/2) break
+    add_centers.push(new_center)
     i++
   }
   _.pullAll(sub_centers, [center, next])
