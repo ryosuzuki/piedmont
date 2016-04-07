@@ -44,6 +44,8 @@ function copyMickey (uv) {
   drawingPaper.activate()
   window.currentUv = uv
   window.originalMickey = mickey.clone()
+  originalMickey.sendToBack()
+  colorMickey(originalMickey)
 
   var center = convertUvToCanvas(uv)
   mickey.position = center
@@ -87,69 +89,76 @@ function repeatMickey () {
   var width = drawingPaper.view.viewSize.width
   var height = drawingPaper.view.viewSize.height
 
-  while (true) {
-    var new_center = new THREE.Vector2()
-    var v = unit.clone().multiplyScalar(i*dist)
-    new_center.addVectors(center, v)
+  var currentMickeys = _.clone(mickeys)
 
-    var min_x = new_center.x - bound_width/2
-    var max_x = new_center.x + bound_width/2
-    var min_y = new_center.y - bound_height/2
-    var max_y = new_center.y + bound_height/2
-    if (Math.abs(min_x) > width/2) break
-    if (Math.abs(max_x) > width/2) break
-    if (Math.abs(min_y) > height/2) break
-    if (Math.abs(max_y) > height/2) break
-    add_centers.push(new_center)
-    i++
-    if (i > 100) break
-  }
-  _.pullAll(add_centers, [center, next])
+  for (var ci=0; ci<currentMickeys.length; ci++) {
+    var current_mickey = currentMickeys[ci]
+    var current_center = new THREE.Vector2(current_mickey.position.x, current_mickey.position.y)
 
-  var i = 0
-  while (true) {
-    var new_center = new THREE.Vector2()
-    var v = unit.clone().multiplyScalar(-i*dist)
-    new_center.addVectors(center, v)
+    while (true) {
+      var new_center = new THREE.Vector2()
+      var v = unit.clone().multiplyScalar(i*dist)
+      new_center.addVectors(current_center, v)
 
-    var min_x = new_center.x - bound_width/2
-    var max_x = new_center.x + bound_width/2
-    var min_y = new_center.y - bound_height/2
-    var max_y = new_center.y + bound_height/2
-    if (Math.abs(min_x) > width/2) break
-    if (Math.abs(max_x) > width/2) break
-    if (Math.abs(min_y) > height/2) break
-    if (Math.abs(max_y) > height/2) break
-    add_centers.push(new_center)
-    i++
-    if (i > 100) break
-  }
-  _.pullAll(sub_centers, [center, next])
-
-  window.mickeys = []
-  var i = 0
-  var interval = setInterval( function () {
-    var center = add_centers[i]
-    if (center) {
-      var path = mickey.clone()
-      path.position = [center.x, center.y]
-      window.mickeys.push(path)
+      var min_x = new_center.x - bound_width/2
+      var max_x = new_center.x + bound_width/2
+      var min_y = new_center.y - bound_height/2
+      var max_y = new_center.y + bound_height/2
+      if (Math.abs(min_x) > width/2) break
+      if (Math.abs(max_x) > width/2) break
+      if (Math.abs(min_y) > height/2) break
+      if (Math.abs(max_y) > height/2) break
+      add_centers.push(new_center)
+      i++
+      if (i > 100) break
     }
+    _.pullAll(add_centers, [current_center, center, next])
 
-    var center = sub_centers[i]
-    if (center) {
-      var path = mickey.clone()
-      path.position = [center.x, center.y]
-      window.mickeys.push(path)
+    var i = 0
+    while (true) {
+      var new_center = new THREE.Vector2()
+      var v = unit.clone().multiplyScalar(-i*dist)
+      new_center.addVectors(current_center, v)
+
+      var min_x = new_center.x - bound_width/2
+      var max_x = new_center.x + bound_width/2
+      var min_y = new_center.y - bound_height/2
+      var max_y = new_center.y + bound_height/2
+      if (Math.abs(min_x) > width/2) break
+      if (Math.abs(max_x) > width/2) break
+      if (Math.abs(min_y) > height/2) break
+      if (Math.abs(max_y) > height/2) break
+      add_centers.push(new_center)
+      i++
+      if (i > 100) break
     }
+    _.pullAll(sub_centers, [current_center, center, next])
 
-    drawingPaper.view.draw()
-    dm.material.map.needsUpdate = true
-    i++
-    if (i >= centers.length) clearInterval(interval)
-  }, 100)
+    window.mickeys = []
+    var i = 0
+    var interval = setInterval( function () {
+      var center = add_centers[i]
+      if (center) {
+        var path = mickey.clone()
+        path.position = [center.x, center.y]
+        window.mickeys.push(path)
+      }
 
-  window.centers = _.union(add_centers, sub_centers)
+      var center = sub_centers[i]
+      if (center) {
+        var path = mickey.clone()
+        path.position = [center.x, center.y]
+        window.mickeys.push(path)
+      }
+
+      drawingPaper.view.draw()
+      dm.material.map.needsUpdate = true
+      i++
+      if (i >= centers.length) clearInterval(interval)
+    }, 100)
+
+    window.centers = _.union(add_centers, sub_centers)
+  }
 
 }
 

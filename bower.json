@@ -32,6 +32,8 @@
     "draggabilly": "~2.1.0",
     "dragula": "~3.6.8",
     "interact": "~1.2.6",
-    "jquery-ui": "~1.11.4"
+    "jquery-ui": "~1.11.4",
+    "async": "~1.5.2",
+    "requirejs": "~2.2.0"
   }
 }

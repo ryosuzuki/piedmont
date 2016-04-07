@@ -61,6 +61,7 @@
     "normalize-path-scale": "^2.0.0",
     "numeric": "^1.2.6",
     "object-assign": "^4.0.1",
+    "paper": "^0.9.25",
     "parse-svg-path": "^0.1.1",
     "point-in-triangle": "^1.0.1",
     "poly-bool": "^1.0.0",

@@ -142,7 +142,7 @@ function onDocumentMouseMove (event) {
   if (controlMode && current.uv) {
     var pos = convertUvToCanvas(current.uv)
     pos = new paper.Point(pos[0], pos[1])
-    if (pos.isInside(mickey.bounds)) {
+    if (pos.isInside(window.mickey.bounds)) {
       planeCanvas.material.map = scaleImage
       planeCanvas.material.needsUpdate = true
     } else {
@@ -171,11 +171,14 @@ function onDocumentMouseMove (event) {
           window.mickey = mickey
           window.currentMickey = mickey
           colorMickey(mickey, new paper.Color(1, .5, .5))
-          insideMode = true
         } else {
           colorMickey(mickey)
-          insideMode = false
         }
+      }
+      if (hover) {
+        insideMode = true
+      } else {
+        insideMode = false
       }
 
       // if (pos.isInside(mickey.bounds)) {

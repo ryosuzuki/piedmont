@@ -18212,85 +18212,6 @@ module.exports = function vec2Copy(out, a) {
     return out
 }
 },{}],156:[function(require,module,exports){
-var inherits = require('inherits')
-
-module.exports = function(THREE) {
-
-    function Complex(mesh) {
-        if (!(this instanceof Complex))
-            return new Complex(mesh)
-        THREE.Geometry.call(this)
-        this.dynamic = true
-
-        if (mesh)
-            this.update(mesh)
-    }
-
-    inherits(Complex, THREE.Geometry)
-
-    //may expose these in next version
-    Complex.prototype._updatePositions = function(positions) {
-        for (var i=0; i<positions.length; i++) {
-            var pos = positions[i]
-            if (i > this.vertices.length-1)
-                this.vertices.push(new THREE.Vector3().fromArray(pos))
-            else 
-                this.vertices[i].fromArray(pos)
-        }
-        this.vertices.length = positions.length
-        this.verticesNeedUpdate = true
-    }
-
-    Complex.prototype._updateCells = function(cells) {
-        for (var i=0; i<cells.length; i++) {
-            var face = cells[i]
-            if (i > this.faces.length-1)
-                this.faces.push(new THREE.Face3(face[0], face[1], face[2]))
-            else {
-                var tf = this.faces[i]
-                tf.a = face[0]
-                tf.b = face[1]
-                tf.c = face[2]
-            }
-        }
-
-        this.faces.length = cells.length
-        this.elementsNeedUpdate = true
-    }
-
-    Complex.prototype.update = function(mesh) {
-        this._updatePositions(mesh.positions)
-        this._updateCells(mesh.cells)
-    }
-
-    return Complex
-}
-},{"inherits":157}],157:[function(require,module,exports){
-if (typeof Object.create === 'function') {
-  // implementation from standard node.js 'util' module
-  module.exports = function inherits(ctor, superCtor) {
-    ctor.super_ = superCtor
-    ctor.prototype = Object.create(superCtor.prototype, {
-      constructor: {
-        value: ctor,
-        enumerable: false,
-        writable: true,
-        configurable: true
-      }
-    });
-  };
-} else {
-  // old school shim for old browsers
-  module.exports = function inherits(ctor, superCtor) {
-    ctor.super_ = superCtor
-    var TempCtor = function () {}
-    TempCtor.prototype = superCtor.prototype
-    ctor.prototype = new TempCtor()
-    ctor.prototype.constructor = ctor
-  }
-}
-
-},{}],158:[function(require,module,exports){
 var Tess2 = require('tess2')
 var xtend = require('xtend')
 
@@ -18346,9 +18267,9 @@ module.exports = function(contours, opt) {
         cells: cells
     }
 }
-},{"tess2":159,"xtend":161}],159:[function(require,module,exports){
+},{"tess2":157,"xtend":159}],157:[function(require,module,exports){
 module.exports = require('./src/tess2');
-},{"./src/tess2":160}],160:[function(require,module,exports){
+},{"./src/tess2":158}],158:[function(require,module,exports){
 /*
 ** SGI FREE SOFTWARE LICENSE B (Version 2.0, Sept. 18, 2008) 
 ** Copyright (C) [dates of first publication] Silicon Graphics, Inc.
@@ -21774,7 +21695,7 @@ module.exports = require('./src/tess2');
 			return true;
 		}
 	};
-},{}],161:[function(require,module,exports){
+},{}],159:[function(require,module,exports){
 module.exports = extend
 
 var hasOwnProperty = Object.prototype.hasOwnProperty;
@@ -21795,7 +21716,7 @@ function extend() {
     return target
 }
 
-},{}],162:[function(require,module,exports){
+},{}],160:[function(require,module,exports){
 module.exports = unindex
 
 function unindex(positions, cells, out) {
@@ -21849,13 +21770,13 @@ function unindex(positions, cells, out) {
   return out
 }
 
-},{}],163:[function(require,module,exports){
+},{}],161:[function(require,module,exports){
 window.loadSvg = require('load-svg')
 window.parsePath = require('extract-svg-path').parse
 // window.svgMesh3d = require('svg-mesh-3d')
 window.reindex= require('mesh-reindex');
 window.unindex= require('unindex-mesh');
-window.createGeom = require('three-simplicial-complex')(THREE)
+// window.createGeom = require('three-simplicial-complex')(THREE)
 window.meshLaplacian = require('mesh-laplacian')
 window.csrMatrix = require('csr-matrix')
 window.drawTriangles = require('draw-triangles-2d')
@@ -21878,5 +21799,4 @@ window.normalize = require('normalize-path-scale')
 window.areaPolygon = require('area-polygon');
 window.Dijkstra = require('node-dijkstra')
 
-
-},{"2d-polygon-boolean":5,"area-polygon":20,"bound-points":21,"cdt2d":22,"clean-pslg":40,"csr-matrix":86,"delaunay-triangulate":100,"draw-triangles-2d":101,"extract-svg-path":102,"gh-clipping-algorithm":104,"load-svg":114,"mesh-laplacian":122,"mesh-reindex":126,"node-dijkstra":127,"normalize-path-scale":130,"object-assign":132,"parse-svg-path":133,"point-in-triangle":134,"random-float":135,"simplify-path":137,"svg-intersections":139,"svg-path-contours":150,"three-simplicial-complex":156,"triangulate-contours":158,"unindex-mesh":162}]},{},[163]);
+},{"2d-polygon-boolean":5,"area-polygon":20,"bound-points":21,"cdt2d":22,"clean-pslg":40,"csr-matrix":86,"delaunay-triangulate":100,"draw-triangles-2d":101,"extract-svg-path":102,"gh-clipping-algorithm":104,"load-svg":114,"mesh-laplacian":122,"mesh-reindex":126,"node-dijkstra":127,"normalize-path-scale":130,"object-assign":132,"parse-svg-path":133,"point-in-triangle":134,"random-float":135,"simplify-path":137,"svg-intersections":139,"svg-path-contours":150,"triangulate-contours":156,"unindex-mesh":160}]},{},[161]);
