@@ -5,9 +5,14 @@ self.importScripts('/public/js/modules/svg-mesh.js')
 self.importScripts('/bower_components/lodash/lodash.js')
 self.importScripts('/bower_components/three.js/build/three.js')
 self.importScripts('/bower_components/greiner-hormann/dist/greiner-hormann.js')
+self.importScripts('/bower_components/numericjs/src/numeric.js')
+
+
 // self.importScripts('/node_modules/paper/dist/paper-node.js')
 
-var h = 0.1
+
+
+var h = 0.03
 
 var bump = true
 var bnd_points
@@ -15,11 +20,44 @@ var bnd_normals
 var bnd_2d
 var bnd_faces = []
 var outer_faces = []
+var outer_points = []
+var outer_bnd_points = []
 
-var polygonBoolean = window.polygonBoolean
+var overlapIndex = []
+
+var z = new THREE.Vector2(0, 0)
+var emptyUv = [z, z, z]
+
+
+
 var greinerHormann = window.greinerHormann
+
+var loadSvg = window.loadSvg
+var parsePath = window.parsePath
+var reindex = window.reindex
+var unindex = window.unindex
+var meshLaplacian = window.meshLaplacian
+var csrMatrix = window.csrMatrix
+var drawTriangles = window.drawTriangles
+var svgIntersections = window.svgIntersections
+var polygonBoolean = window.polygonBoolean
+var inside = window.inside
+var ghClip = window.ghClip
+var triangulate3D = window.triangulate3D
+var triangulateContours = window.triangulateContours
+var cdt2d = window.cdt2d
+var parseSVG = window.parseSVG
+var getContours = window.getContours
+var getBounds = window.getBounds
+var cleanPSLG = window.cleanPSLG
+var simplify = window.simplify
+var random = window.random
+var assign = window.assign
+var normalize = window.normalize
 var areaPolygon = window.areaPolygon
-var paper = window.paper
+var Dijkstra = window.Dijkstra
+
+
 
 var ng = new THREE.Geometry()
 var geometry
@@ -39,9 +77,8 @@ this.onmessage = function(event) {
   geometry.map = json.map
 
   // debugger
-    ng = fugafuga(svgPositions)
-
-  // this.postMessage({ ng: ng});
+  ng = fugafuga(svgPositions)
+  this.postMessage({ ng: ng});
 };
 
 
@@ -245,7 +282,7 @@ function createWall () {
     ng.computeFaceNormals()
     ng.computeVertexNormals()
 
-    var outer_bnd_points = bnd_points.map( function (inner, index) {
+    outer_bnd_points = bnd_points.map( function (inner, index) {
       if (!inner) return undefined
       var normal = bnd_normals[index]
       var v = new THREE.Vector3();
@@ -253,12 +290,9 @@ function createWall () {
       var outer = v.clone().addVectors(inner, h_normal)
       return outer
     })
-    window.outer_bnd_points = outer_bnd_points
 
     var inner_points = _.compact(bnd_points)
-    var outer_points = _.compact(outer_bnd_points)
-
-    window.outer_points = outer_points
+    outer_points = _.compact(outer_bnd_points)
 
     for (var i=0; i<inner_points.length; i++) {
       var ni = (i+1)%inner_points.length
@@ -372,17 +406,29 @@ function createCover () {
 
 
 function drawSVG (points) {
-  path = new paper.Path();
-  path.strokeColor = 'black';
-  for (var i=0; i<points.length; i++) {
-    var point = points[i];
-    var next = points[(i+1)%points.length];
-    path.moveTo(new paper.Point(point[0], point[1]))
-    path.lineTo(new paper.Point(next[0], next[1]))
+
+  var path = '';
+  for (var i=0; i<points.length; i++){
+    path += (i && 'L' || 'M') + points[i]
   }
-  path.closed = true;
-  paper.view.draw();
-  var d = $(path.exportSVG()).attr('d')
+  var d = path
+
+
+  // path = new paper.Path();
+  // path.strokeColor = 'black';
+  // for (var i=0; i<points.length; i++) {
+  //   var point = points[i];
+  //   var next = points[(i+1)%points.length];
+  //   path.moveTo(new paper.Point(point[0], point[1]))
+  //   path.lineTo(new paper.Point(next[0], next[1]))
+  // }
+  // path.closed = true;
+  // paper.view.draw();
+  // var d = $(path.exportSVG()).attr('d')
+
+
+
+
 
   // TODO: Combine these two code
   /*
@@ -479,4 +525,70 @@ function getIndex (positions, uv) {
     return false
   }
 }
+
+function uvTo3D (nuv, triangle, face_info) {
+  var va = face_info.va;
+  var vb = face_info.vb;
+  var vc = face_info.vc;
+  var normal = face_info.normal;
+  var normal_a = face_info.normal_a;
+  var normal_b = face_info.normal_b;
+  var normal_c = face_info.normal_c;
+  var normal_ab = face_info.normal_ab;
+  var normal_bc = face_info.normal_bc;
+  var normal_ca = face_info.normal_ca;
+
+  var nxyz = nuv.map(function (uv) {
+    var uv_a = triangle[0];
+    var uv_b = triangle[1];
+    var uv_c = triangle[2];
+    var A = [
+      [uv_a[0] - uv_c[0], uv_b[0] - uv_c[0]],
+      [uv_a[1] - uv_c[1], uv_b[1] - uv_c[1]]
+    ];
+    var B = [uv[0] - uv_c[0], uv[1] - uv_c[1]];
+    var x = numeric.solve(A, B)
+    var a = x[0], b = x[1], c = 1-x[0]-x[1];
+
+    var epsilon = Math.pow(10, -2)
+    if ( Math.abs(a) < epsilon) a = 0;
+    if ( Math.abs(b) < epsilon) b = 0;
+    if ( Math.abs(c) < epsilon) c = 0;
+
+    if (a == 0 && b == 0) c = 1;
+    if (b == 0 && c == 0) a = 1;
+    if (c == 0 && a == 0) b = 1;
+
+
+    var v = new THREE.Vector3();
+    v.x = a*va.x + b*vb.x + c*vc.x;
+    v.y = a*va.y + b*vb.y + c*vc.y;
+    v.z = a*va.z + b*vb.z + c*vc.z;
+
+    if (a !== 0 && b !== 0 && c == 0) {
+      normal = normal_ab
+    }
+    if (a == 0 && b !== 0 && c !== 0) {
+      normal = normal_bc
+    }
+    if (a !== 0 && b == 0 && c !== 0) {
+      normal = normal_ca
+    }
+    if (a !== 0 && b == 0 && c == 0) {
+      normal = normal_a
+    }
+    if (a == 0 && b !== 0 && c == 0) {
+      normal = normal_b
+    }
+    if (a == 0 && b == 0 && c !== 0) {
+      normal = normal_c
+    }
+
+    v = roundVector3(v)
+    return { vertex: v, normal: normal};
+  })
+  return nxyz;
+}
+
+
 

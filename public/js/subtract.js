@@ -40,7 +40,34 @@ function hoge (svgPositions) {
   var data = JSON.stringify(json)
   var worker = new Worker('/worker.js');
   worker.onmessage = function(event) {
-    console.log(event.data);
+    var data = event.data
+    console.log(data);
+    var g = data.ng
+    ng = new THREE.Geometry()
+    for (var i=0; i<g.faces.length; i++) {
+      try {
+        var a = g.vertices[g.faces[i].a]
+        var b = g.vertices[g.faces[i].b]
+        var c = g.vertices[g.faces[i].c]
+
+        var va = new THREE.Vector3(a.x, a.y, a.z)
+        var vb = new THREE.Vector3(b.x, b.y, b.z)
+        var vc = new THREE.Vector3(c.x, c.y, c.z)
+
+        var num = ng.vertices.length
+        ng.vertices.push(va)
+        ng.vertices.push(vb)
+        ng.vertices.push(vc)
+        ng.faces.push(new THREE.Face3(num, num+1, num+2))
+      }
+      catch (err) {
+        console.log(err)
+        continue
+      }
+
+    }
+
+    updateMesh(ng)
   };
   worker.postMessage(data);
 }
