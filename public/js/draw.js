@@ -29,27 +29,28 @@ function drawGeometry () {
       drawTaskGeometry()
       break
     case 2:
-      geometry = new THREE.CylinderGeometry(size, size, 2*size, 30, 2)
-      drawTaskGeometry()
+      loadObj('/data/cylinder.obj', drawStl);
       break
     case 3:
-      geometry = new THREE.SphereGeometry(size, 30, 30)
-      drawTaskGeometry()
+      loadObj('/data/cone.obj', drawStl);
       break
     case 4:
-      loadStl('/data/tower.stl', drawStl);
+      loadObj('/data/sphere.obj', drawStl);
       break
     case 5:
-      loadStl('/data/knight.stl', drawStl);
+      loadStl('/data/tower.stl', drawStl);
       break
     case 6:
-      loadObj('/data/bunny.obj', drawStl);
+      loadStl('/data/knight.stl', drawStl);
       break
     case 7:
-      loadObj('/data/beatle.obj', drawStl);
+      loadObj('/data/bunny.obj', drawStl);
+      break
+    case 8:
+      loadObj('/data/cone.obj', drawStl);
       break
     default:
-      loadStl('/data/tower.stl', drawStl);
+      loadStl('/data/half_moon.stl', drawStl);
   }
 }
 
