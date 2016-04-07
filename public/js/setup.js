@@ -118,7 +118,6 @@ var i = 0;
 function updateOriginal (path) {
   console.log('updateOriginal')
 
-
     // drawingPaper.activate()
     // var myCircle = new paper.Path.Circle(new paper.Point(0, 0), i);
     // myCircle.fillColor = 'black';
@@ -137,7 +136,6 @@ function updateOriginal (path) {
     window.mickey = path
     window.currentMickey = mickey
     window.mickeys = [window.mickey]
-
 
     drawingPaper.view.draw()
   }
@@ -167,7 +165,6 @@ function updateOriginal (path) {
       image.wrapT = THREE.RepeatWrapping;
       window.scaleImage = image;
     })
-
 
     // loadSvg('/public/assets/mickey-2.svg', function (err, svg) {
     loadSvg('/public/assets/heart.svg', function (err, svg) {

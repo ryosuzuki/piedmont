@@ -34,11 +34,16 @@ function initialCheck() {
   }
   console.log('Start initialCheck')
   window.selectIndex = check(0.003)
-  if (selectIndex.length < 5) {
+  if (window.task && window.task <= 3) {
+    showSelectIndex()
+  } else if (selectIndex.length < 5) {
     getMeshSegmentation()
   } else {
     showSelectIndex()
   }
+  origin = undefined
+  getDgpc(start)
+
 }
 
 var sm
@@ -83,15 +88,14 @@ function getMeshSegmentation () {
       g.vertices.push(geometry.uniq[i].vertex)
     }
   }
-  showPoints(g)
+  // showPoints(g)
   var json = { size: size, p_edges: p_edges, q_edges: q_edges }
   socket.emit('update-harmonic', json)
 }
 
-
-
 function check (epsilon) {
-  if (selectIndex.includes(current.faceIndex)) return false
+  // if (selectIndex.includes(current.faceIndex)) return false
+
   var face = current.face
   var a = geometry.uniq[face.a]
   var b = geometry.uniq[face.b]
@@ -113,10 +117,30 @@ function check (epsilon) {
       var cos_a = cos[i]
       var cos_b = cos[(i+1)%3]
       var cos_c = cos[(i+2)%3]
-      if (Math.abs(cos_a-1) < epsilon
-        || Math.abs(cos_a-cos_b) < epsilon
-        || Math.abs(cos_a-cos_c) < epsilon
-      ) {
+
+      var bool = false
+      switch (window.task) {
+        case 1:
+          bool = Math.abs(cos_a-1) < epsilon
+          break
+        case 2:
+          epsilon = 0.1
+          bool = Math.abs(cos_a-1) < epsilon
+              || Math.abs(cos_a-cos_b) < epsilon
+              || Math.abs(cos_a-cos_c) < epsilon
+          break
+        case 3:
+          epsilon = 0.01
+          bool = Math.abs(cos_a-1) < epsilon
+              || Math.abs(cos_a-cos_b) < epsilon
+              || Math.abs(cos_a-cos_c) < epsilon
+          break
+        default:
+          bool = Math.abs(cos_a-1) < epsilon
+              || Math.abs(cos_a-cos_b) < epsilon
+              || Math.abs(cos_a-cos_c) < epsilon
+      }
+      if (bool) {
         if (!finished.includes(nextFaces[i])) {
           queue = _.union(queue, [nextFaces[i]])
         }

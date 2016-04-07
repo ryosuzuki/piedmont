@@ -208,6 +208,11 @@ function updateMesh (ng) {
   scene.remove(nm)
 
   console.log('done')
+  var material = new THREE.MeshLambertMaterial({
+    color: 0xffffff,
+    vertexColors: THREE.FaceColors,
+    wireframe: true
+  })
   nm = new THREE.Mesh(ng, material);
   nm.geometry.verticesNeedUpdate = true;
   nm.dynamic = true;
@@ -274,71 +279,81 @@ function getIndex (positions, uv) {
 var h = 0.1
 
 function createWall () {
-  ng.computeFaceNormals()
-  ng.computeVertexNormals()
+  try {
+    ng.computeFaceNormals()
+    ng.computeVertexNormals()
 
-  var outer_bnd_points = bnd_points.map( function (inner, index) {
-    if (!inner) return undefined
-    var normal = bnd_normals[index]
-    var v = new THREE.Vector3();
-    var h_normal = normal.clone().multiplyScalar(h);
-    var outer = v.clone().addVectors(inner, h_normal)
-    return outer
-  })
-  window.outer_bnd_points = outer_bnd_points
+    var outer_bnd_points = bnd_points.map( function (inner, index) {
+      if (!inner) return undefined
+      var normal = bnd_normals[index]
+      var v = new THREE.Vector3();
+      var h_normal = normal.clone().multiplyScalar(h);
+      var outer = v.clone().addVectors(inner, h_normal)
+      return outer
+    })
+    window.outer_bnd_points = outer_bnd_points
 
-  var inner_points = _.compact(bnd_points)
-  var outer_points = _.compact(outer_bnd_points)
+    var inner_points = _.compact(bnd_points)
+    var outer_points = _.compact(outer_bnd_points)
 
-  window.outer_points = outer_points
+    window.outer_points = outer_points
 
-  for (var i=0; i<inner_points.length; i++) {
-    var ni = (i+1)%inner_points.length
-    var c_inner = inner_points[i]
-    var n_inner = inner_points[ni]
-    var c_outer = outer_points[i]
-    var n_outer = outer_points[ni]
+    for (var i=0; i<inner_points.length; i++) {
+      var ni = (i+1)%inner_points.length
+      var c_inner = inner_points[i]
+      var n_inner = inner_points[ni]
+      var c_outer = outer_points[i]
+      var n_outer = outer_points[ni]
 
-    var num = ng.vertices.length;
-    ng.vertices.push(c_inner);
-    ng.vertices.push(c_outer);
-    ng.vertices.push(n_inner);
-    // For inner wall
-    // ng.faces.push(new THREE.Face3(num, num+1, num+2))
-    // For outer wall
+      var num = ng.vertices.length;
+      ng.vertices.push(c_inner);
+      ng.vertices.push(c_outer);
+      ng.vertices.push(n_inner);
+      // For inner wall
+      // ng.faces.push(new THREE.Face3(num, num+1, num+2))
+      // For outer wall
 
-    ng.faces.push(new THREE.Face3(num+2, num+1, num))
+      ng.faces.push(new THREE.Face3(num+2, num+1, num))
 
-    var num = ng.vertices.length;
-    ng.vertices.push(c_outer);
-    ng.vertices.push(n_outer);
-    ng.vertices.push(n_inner);
-    // ng.faces.push(new THREE.Face3(num, num+1, num+2))
+      var num = ng.vertices.length;
+      ng.vertices.push(c_outer);
+      ng.vertices.push(n_outer);
+      ng.vertices.push(n_inner);
+      // ng.faces.push(new THREE.Face3(num, num+1, num+2))
 
-    ng.faces.push(new THREE.Face3(num+2, num+1, num))
+      ng.faces.push(new THREE.Face3(num+2, num+1, num))
+    }
+  }
+  catch (err) {
+    console.log(err)
   }
 }
 
 function createCover () {
-  var hoge = _.compact(bnd_2d)
-  var d = drawSVG(hoge);
-  var bndMesh = svgMesh3d(d, {
-    scale: 1,
-    simplify: Math.pow(10, -5),
-    // customize: true,
-  })
-  var cells = bndMesh.cells
+  try {
+    var hoge = _.compact(bnd_2d)
+    var d = drawSVG(hoge);
+    var bndMesh = svgMesh3d(d, {
+      scale: 1,
+      simplify: Math.pow(10, -5),
+      // customize: true,
+    })
+    var cells = bndMesh.cells
 
-  for (var i=0; i<cells.length; i++) {
-    // debugger
-    var a_outer = outer_points[cells[i][0]]
-    var b_outer = outer_points[cells[i][1]]
-    var c_outer = outer_points[cells[i][2]]
-    var num = ng.vertices.length;
-    ng.vertices.push(a_outer);
-    ng.vertices.push(b_outer);
-    ng.vertices.push(c_outer);
-    ng.faces.push(new THREE.Face3(num, num+1, num+2))
+    for (var i=0; i<cells.length; i++) {
+      // debugger
+      var a_outer = outer_points[cells[i][0]]
+      var b_outer = outer_points[cells[i][1]]
+      var c_outer = outer_points[cells[i][2]]
+      var num = ng.vertices.length;
+      ng.vertices.push(a_outer);
+      ng.vertices.push(b_outer);
+      ng.vertices.push(c_outer);
+      ng.faces.push(new THREE.Face3(num, num+1, num+2))
+    }
+  }
+  catch (err) {
+    console.log(err)
   }
 
   /*

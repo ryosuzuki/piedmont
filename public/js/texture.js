@@ -23,7 +23,49 @@ $(function () {
   })
 })
 
+
+var default_uvs = {}
+function copyDefaultUvMapping () {
+  // if (_.size(default_uvs) > 0) return false
+  scene.remove(dm)
+
+  g = new THREE.Geometry()
+  for (var i=0; i<geometry.faces.length; i++) {
+    var aid = map[geometry.faces[i].a]
+    var bid = map[geometry.faces[i].b]
+    var cid = map[geometry.faces[i].c]
+
+    var uv_a = geometry.faceVertexUvs[0][i][0]
+    var uv_b = geometry.faceVertexUvs[0][i][1]
+    var uv_c = geometry.faceVertexUvs[0][i][2]
+
+    var a = geometry.uniq[aid]
+    var b = geometry.uniq[bid]
+    var c = geometry.uniq[cid]
+
+    if (entireSelect || selectIndex.includes(i)) {
+      var num = g.vertices.length
+      g.vertices.push(a.vertex)
+      g.vertices.push(b.vertex)
+      g.vertices.push(c.vertex)
+      g.faces.push(new THREE.Face3(num, num+1, num+2))
+      g.faceVertexUvs[0].push([uv_a, uv_b, uv_c])
+    }
+  }
+
+  // moveMickey(new THREE.Vector2(0.5, 0.5))
+  if (checkerMark) showCheckerMark()
+  showDrawingCanvas()
+
+  // updateMapping(dated_uvs)
+}
+
 function getDgpc (start) {
+  if (window.task && window.task <= 3) {
+    copyDefaultUvMapping()
+    return false
+  }
+
   if (running) return false
   // if (_.size(origin_uvs) > 0) return false
 
