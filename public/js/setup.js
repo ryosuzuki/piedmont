@@ -115,6 +115,7 @@ $(function () {
 });
 
 var i = 0;
+
 function updateOriginal (path) {
   console.log('updateOriginal')
 
@@ -124,9 +125,24 @@ function updateOriginal (path) {
     // drawingPaper.view.draw()
     // i++
 
+
+    switch (window.task) {
+      case 1:
+        window.scale = 1/2
+        break
+      case 2:
+        window.scale = 1/5
+        break
+      case 3:
+        window.scale = 1/4
+        break
+      default:
+        window.scale = 1/5
+    }
+
     drawingPaper.activate()
     var path = new paper.Path(path.pathData)
-    path.scale(1/5)
+    path.scale(window.scale)
     path.strokeColor = 'black'
     path.fillColor = 'black'
     path.rotate(180)
@@ -169,6 +185,8 @@ function updateOriginal (path) {
 
     // loadSvg('/public/assets/mickey-2.svg', function (err, svg) {
     loadSvg('/public/assets/star.svg', function (err, svg) {
+
+
       originalPaper.activate()
       var paper = originalPaper
       var d = $('path', svg).attr('d');

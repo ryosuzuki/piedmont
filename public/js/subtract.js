@@ -8,7 +8,7 @@ material.color.set(new THREE.Color('blue'))
 
 var ng;
 function go () {
-  window.scale = 1/55
+  // window.scale = 1/55
   Q.fcall(computeUniq(geometry))
   .then(replaceObject(geometry))
 }
@@ -71,8 +71,9 @@ function getSvgPositions () {
     1. scale: [x, y] -> scale * [x, y]
     2. set center: [0, 0] -> [0.5, 0.5] + alpha
   */
+  var s = window.scale / 5
   positions = positions.map(function(p) {
-    return [ p[0]*scale, p[1]*scale ]
+    return [ p[0]*s, p[1]*s ]
   })
   var svgPositions = []
   window.mickeys.forEach( function (mickey) {

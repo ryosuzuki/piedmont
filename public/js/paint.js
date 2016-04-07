@@ -43,7 +43,9 @@ function copyMickey (uv) {
   if (!dm) return false
   drawingPaper.activate()
   window.currentUv = uv
-  window.originalMickey = mickey.clone()
+  window.originalMickey = window.mickey.clone()
+  originalMickey.opacity = 1
+  currentMickey.opacity = 1
   originalMickey.sendToBack()
   colorMickey(originalMickey)
 
@@ -110,7 +112,7 @@ function repeatMickey () {
       if (Math.abs(max_y) > height/2) break
       add_centers.push(new_center)
       i++
-      if (i > 20) break
+      if (i > 10) break
     }
     _.pullAll(add_centers, [current_center, center, next])
 
@@ -130,7 +132,7 @@ function repeatMickey () {
       if (Math.abs(max_y) > height/2) break
       add_centers.push(new_center)
       i++
-      if (i > 20) break
+      if (i > 10) break
     }
     _.pullAll(sub_centers, [current_center, center, next])
 
@@ -154,10 +156,16 @@ function repeatMickey () {
       drawingPaper.view.draw()
       dm.material.map.needsUpdate = true
       i++
-      if (i >= centers.length) clearInterval(interval)
+
+      window.centers = _.union(add_centers, sub_centers)
+      if (i >= centers.length) {
+        // debugger
+        clearInterval(interval)
+        originalMickey.opacity = 0
+        currentMickey.opacity = 0
+      }
     }, 100)
 
-    window.centers = _.union(add_centers, sub_centers)
   }
 
 }
