@@ -161,12 +161,27 @@ function onDocumentMouseMove (event) {
   if (current && current.uv) {
     var pos = convertUvToCanvas(current.uv)
     pos = new paper.Point(pos[0], pos[1])
-    if (pos.isInside(mickey.bounds)) {
-      colorMickey(new paper.Color(1, .5, .5))
-      insideMode = true
-    } else {
-      colorMickey()
-      insideMode = false
+
+    if (!copyMode) {
+      var hover = false
+      for (var i=0; i<mickeys.length; i++) {
+        var mickey = mickeys[i]
+        if (pos.isInside(mickey.bounds)) {
+          hover = true
+          window.mickey = mickey
+          window.currentMickey = mickey
+          colorMickey(mickey, new paper.Color(1, .5, .5))
+          insideMode = true
+        } else {
+          colorMickey(mickey)
+          insideMode = false
+        }
+      }
+
+      // if (pos.isInside(mickey.bounds)) {
+      // if (hover) {
+      // } else {
+      // }
     }
     if (moveMode || copyMode) {
       moveMickey(current.uv)

@@ -43,21 +43,22 @@ function copyMickey (uv) {
   if (!dm) return false
   drawingPaper.activate()
   window.currentUv = uv
-  window.nextMickey = mickey.clone()
+  window.originalMickey = mickey.clone()
+
   var center = convertUvToCanvas(uv)
-  nextMickey.position = center
+  mickey.position = center
   drawingPaper.view.draw()
   dm.material.map.needsUpdate = true
 
-  window.mickeys.push(nextMickey)
-  window.currentMickey = nextMickey
+  window.mickeys.push(mickey)
+  window.currentMickey = mickey
 }
 
 function pasteMickey (uv) {
 
 }
 
-function colorMickey (color) {
+function colorMickey (mickey, color) {
   if (!dm) return false
   if (!color) color = 'black'
   drawingPaper.activate()
@@ -69,8 +70,8 @@ function colorMickey (color) {
 function repeatMickey () {
   drawingPaper.activate()
 
-  var center = new THREE.Vector2(mickey.position.x, mickey.position.y)
-  var next = new THREE.Vector2(nextMickey.position.x, nextMickey.position.y)
+  var center = new THREE.Vector2(originalMickey.position.x, originalMickey.position.y)
+  var next = new THREE.Vector2(mickey.position.x, mickey.position.y)
 
   var unit = new THREE.Vector2()
   unit.subVectors(next, center).normalize()
@@ -101,6 +102,7 @@ function repeatMickey () {
     if (Math.abs(max_y) > height/2) break
     add_centers.push(new_center)
     i++
+    if (i > 100) break
   }
   _.pullAll(add_centers, [center, next])
 
@@ -120,6 +122,7 @@ function repeatMickey () {
     if (Math.abs(max_y) > height/2) break
     add_centers.push(new_center)
     i++
+    if (i > 100) break
   }
   _.pullAll(sub_centers, [center, next])
 

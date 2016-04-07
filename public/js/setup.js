@@ -217,7 +217,7 @@ function updateOriginal (path) {
   spotlight = light;
 
   var grid = new THREE.GridHelper(size*5, size/2);
-  grid.position.y = 0.01;
+  grid.position.y = -0.5*size;
   grid.material.opacity = 0.25;
   grid.material.transparent = true;
   scene.add(grid);
