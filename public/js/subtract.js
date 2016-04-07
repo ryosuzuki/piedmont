@@ -13,19 +13,10 @@ function go () {
   .then(replaceObject(geometry))
 }
 
-
-
-
-function fuga () {
-  var a = [0, 1]
-  a.forEach( function () {
-    console.log('hoge')
-    hoge()
-  })
-}
-
 function hoge (svgPositions) {
+  // hole = true
   var json = {
+    hole: hole,
     svgPositions: svgPositions,
     geometry: geometry,
     selectIndex: selectIndex,
@@ -62,9 +53,7 @@ function hoge (svgPositions) {
         console.log(err)
         continue
       }
-
     }
-
     updateMesh(ng)
   };
   worker.postMessage(data);
@@ -122,12 +111,22 @@ function getNewMesh (geometry) {
   hoge(svgPositions)
 }
 
+function restartMesh () {
+  window.finishSubtract = false
+  scene.remove(nm)
+  scene.add(mesh)
+  scene.add(dm)
+  scene.add(cm)
+  scene.add(sm)
+  // scene.add(texture)
+}
+
 var nm
 function replaceObject (geometry) {
   getNewMesh(geometry)
 
   // updateMesh(ng)
-  // window.finishSubtract = true
+  window.finishSubtract = true
 }
 
 var finishSubtract
@@ -163,7 +162,7 @@ function updateMesh (ng) {
   scene.add(nm)
 }
 
-var bump = true
+var hole = false
 var bnd_points
 var bnd_normals
 var bnd_2d

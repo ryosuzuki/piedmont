@@ -37,11 +37,18 @@ html, body {
   left:10px;
 }
 
-.bottom-buttons {
+.bottom-right-buttons {
   position:absolute;
   bottom:10px;
   right:10px;
 }
+
+.bottom-left-buttons {
+  position:absolute;
+  bottom:10px;
+  left:10px;
+}
+
 
 
 .ui.grid {

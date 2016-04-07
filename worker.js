@@ -14,7 +14,6 @@ self.importScripts('/bower_components/numericjs/src/numeric.js')
 
 var h = 0.03
 
-var bump = true
 var bnd_points
 var bnd_normals
 var bnd_2d
@@ -63,10 +62,13 @@ var ng = new THREE.Geometry()
 var geometry
 var svgPositions
 var selectIndex
+var hole
 
 this.onmessage = function(event) {
   var data = event.data
   var json = JSON.parse(data)
+  hole = json.hole
+  if (hole) h = -h
   svgPositions = json.svgPositions
   geometry = json.geometry
   selectIndex = json.selectIndex
@@ -115,7 +117,6 @@ function fugafuga (svgPositions) {
           var area = areaPolygon(points[0])
           var triArea = areaPolygon(triangle)
           if (area/triArea > 0) {
-            // createHole(faceInfo, positions)
             createHole(faceInfo, positions)
             overlapIndex = _.union(overlapIndex, [faceIndex])
             console.log(area/triArea)
@@ -124,7 +125,6 @@ function fugafuga (svgPositions) {
         }
       } else {
         s = new Date().getTime();
-        // createHole(faceInfo, positions)
         createHole(faceInfo, positions)
         console.log(new Date().getTime() - s)
 
@@ -132,12 +132,14 @@ function fugafuga (svgPositions) {
       }
     }
 
-    createWall()
-    createCover()
+    if (!hole) {
+      createWall()
+      createCover()
+    }
   })
 
   for (var faceIndex=0; faceIndex<geometry.faces.length; faceIndex++) {
-    if (!bump && overlapIndex.includes(faceIndex)) continue;
+    if (hole && overlapIndex.includes(faceIndex)) continue;
     var face = geometry.faces[faceIndex];
     var normal = face.normal;
     var va  = geometry.vertices[face.a];
@@ -190,10 +192,6 @@ function roundVector3 (v) {
   return new THREE.Vector3(vec[0], vec[1], vec[2])
 }
 
-
-
-
-
 function createHole (faceInfo, positions) {
   var faceIndex = faceInfo.faceIndex
   var face = geometry.faces[faceIndex];
@@ -203,9 +201,9 @@ function createHole (faceInfo, positions) {
     return [v.x, v.y];
   })
   triangle = round(triangle)
-  var diffs = greinerHormann.diff(triangle, positions)
-  if (bump) {
-    diffs = greinerHormann.intersection(positions, triangle)
+  var diffs = greinerHormann.intersection(positions, triangle)
+  if (hole) {
+    diffs = greinerHormann.diff(triangle, positions)
   }
   // if (!diffs) return false
   for (var i=0; i<diffs.length; i++) {
@@ -227,8 +225,6 @@ function createHole (faceInfo, positions) {
     var inner_points = [];
     var outer_points = [];
 
-    // debugger
-
     for (var j=0; j<nf.length; j++) {
       var num = ng.vertices.length;
       var a = nxyz[nf[j][0]]
@@ -237,7 +233,9 @@ function createHole (faceInfo, positions) {
       ng.vertices.push(a.vertex)
       ng.vertices.push(b.vertex)
       ng.vertices.push(c.vertex)
-      // ng.faces.push(new THREE.Face3(num, num+1, num+2))
+      if (hole) {
+        ng.faces.push(new THREE.Face3(num, num+1, num+2))
+      }
 
       // ng.faces.push(new THREE.Face3(num+2, num+1, num))
 
@@ -278,9 +276,9 @@ function createHole (faceInfo, positions) {
 }
 
 function createWall () {
-  try {
-    ng.computeFaceNormals()
-    ng.computeVertexNormals()
+  // try {
+    // ng.computeFaceNormals()
+    // ng.computeVertexNormals()
 
     outer_bnd_points = bnd_points.map( function (inner, index) {
       if (!inner) return undefined
@@ -319,10 +317,10 @@ function createWall () {
 
       ng.faces.push(new THREE.Face3(num+2, num+1, num))
     }
-  }
-  catch (err) {
-    console.log(err)
-  }
+  // }
+  // catch (err) {
+  //   console.log(err)
+  // }
 }
 
 function createCover () {

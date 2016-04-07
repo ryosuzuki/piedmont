@@ -110,7 +110,7 @@ function repeatMickey () {
       if (Math.abs(max_y) > height/2) break
       add_centers.push(new_center)
       i++
-      if (i > 100) break
+      if (i > 20) break
     }
     _.pullAll(add_centers, [current_center, center, next])
 
@@ -130,7 +130,7 @@ function repeatMickey () {
       if (Math.abs(max_y) > height/2) break
       add_centers.push(new_center)
       i++
-      if (i > 100) break
+      if (i > 20) break
     }
     _.pullAll(sub_centers, [current_center, center, next])
 

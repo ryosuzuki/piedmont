@@ -61,7 +61,8 @@ function copyDefaultUvMapping () {
 }
 
 function getDgpc (start) {
-  if (geometry.faceVertexUvs[0].length > 0) {
+  // if (geometry.faceVertexUvs[0].length > 0) {
+  if (window.task && window.task <= 3) {
     copyDefaultUvMapping()
     return false
   }
