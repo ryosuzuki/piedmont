@@ -14,8 +14,6 @@ function go () {
 }
 
 
-var z = new THREE.Vector2(0, 0)
-var emptyUv = [z, z, z]
 
 
 function fuga () {
