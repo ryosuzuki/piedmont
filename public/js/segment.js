@@ -135,6 +135,12 @@ function check (epsilon) {
               || Math.abs(cos_a-cos_b) < epsilon
               || Math.abs(cos_a-cos_c) < epsilon
           break
+        case 4:
+          epsilon = 0.1
+          bool = Math.abs(cos_a-1) < epsilon
+              || Math.abs(cos_a-cos_b) < epsilon
+              || Math.abs(cos_a-cos_c) < epsilon
+          break
         default:
           bool = Math.abs(cos_a-1) < epsilon
               || Math.abs(cos_a-cos_b) < epsilon
