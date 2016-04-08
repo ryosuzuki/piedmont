@@ -124,6 +124,11 @@ function onDocumentDoubleClick (event) {
   }
 }
 
+window.sorted_centers_x = _.map(_.sortBy(centers, 'x'), 'x')
+
+function getClosestMickey (pos) {
+  window
+}
 
 function onDocumentMouseMove (event) {
   var intersects = getIntersects(event)
@@ -164,6 +169,7 @@ function onDocumentMouseMove (event) {
 
     if (!copyMode) {
       var hover = false
+
       for (var i=0; i<mickeys.length; i++) {
         var mickey = mickeys[i]
         if (pos.isInside(mickey.bounds)) {

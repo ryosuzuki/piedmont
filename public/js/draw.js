@@ -38,13 +38,13 @@ function drawGeometry () {
       loadObj('/data/sphere.obj', drawStl);
       break
     case 5:
-      loadStl('/data/tower.stl', drawStl);
-      break
-    case 6:
       loadStl('/data/knight.stl', drawStl);
       break
-    case 7:
+    case 6:
       loadObj('/data/bunny.obj', drawStl);
+      break
+    case 7:
+      loadStl('/data/tower.stl', drawStl);
       break
     case 8:
       loadObj('/data/cone.obj', drawStl);
