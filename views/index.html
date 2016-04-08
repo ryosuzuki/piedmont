@@ -3,7 +3,9 @@
 {% block main %}
 
 <script>
-  window.task = {{ id }}
+  {% if (id) %}
+    window.task = {{ id }}
+  {% endif %}
 </script>
 
 <script src="/public/js/setup.js"></script>

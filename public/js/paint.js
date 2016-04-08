@@ -71,6 +71,7 @@ function colorMickey (mickey, color) {
   dm.material.map.needsUpdate = true
 }
 
+var centers = []
 function repeatMickey () {
   drawingPaper.activate()
 
@@ -86,17 +87,18 @@ function repeatMickey () {
 
   var add_centers = []
   var sub_centers = []
-  var i = 0
 
   var width = drawingPaper.view.viewSize.width
   var height = drawingPaper.view.viewSize.height
 
   var currentMickeys = _.clone(mickeys)
 
-  for (var ci=0; ci<currentMickeys.length; ci++) {
-    var current_mickey = currentMickeys[ci]
-    var current_center = new THREE.Vector2(current_mickey.position.x, current_mickey.position.y)
+  centers = _.union(centers, [center])
 
+  for (var ci=0; ci<window.centers.length; ci++) {
+    var current_center = window.centers[ci]
+
+    var i = 0
     while (true) {
       var new_center = new THREE.Vector2()
       var v = unit.clone().multiplyScalar(i*dist)
@@ -130,11 +132,15 @@ function repeatMickey () {
       if (Math.abs(max_x) > width/2) break
       if (Math.abs(min_y) > height/2) break
       if (Math.abs(max_y) > height/2) break
-      add_centers.push(new_center)
+      sub_centers.push(new_center)
       i++
       if (i > 10) break
     }
     _.pullAll(sub_centers, [current_center, center, next])
+
+
+    window.add_centers = add_centers
+    window.sub_centers = sub_centers
 
     window.mickeys = []
     var i = 0
