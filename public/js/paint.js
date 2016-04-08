@@ -161,8 +161,8 @@ function repeatMickey () {
       if (i >= centers.length) {
         // debugger
         clearInterval(interval)
-        originalMickey.opacity = 0
-        currentMickey.opacity = 0
+        // originalMickey.opacity = 0
+        // currentMickey.opacity = 0
       }
     }, 100)
 

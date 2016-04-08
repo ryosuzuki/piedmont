@@ -50,7 +50,7 @@ function drawGeometry () {
       loadObj('/data/cone.obj', drawStl);
       break
     default:
-      loadStl('/data/half_moon.stl', drawStl);
+      loadStl('/data/tower.stl', drawStl);
   }
 }
 
