@@ -124,17 +124,41 @@ function onDocumentDoubleClick (event) {
   }
 }
 
-window.sorted_centers_x = _.map(_.sortBy(centers, 'x'), 'x')
 
 function getClosestMickey (pos) {
-  window
+  if (centers.length < 1) {
+    window.mickey = mickey
+    window.currentMickey = mickey
+    colorMickey(mickey, new paper.Color(1, .5, .5))
+    return true
+  } else {
+    var sorted_centers = _.sortBy(centers, 'x')
+    var sorted_centers_x = _.map(sorted_centers, 'x')
+    var w = mickey.bounds.width
+    var h = mickey.bounds.width
+    var li = bsBounds.ge(sorted_centers_x, pos.x - w/2)
+    var hi = bsBounds.lt(sorted_centers_x, pos.x + w/2)
+    var candidates_y = sorted_centers.slice(li, hi+1)
+    var sorted_candidates_y = _.map(_.sortBy(candidates_y, 'y'), 'y')
+
+    var li = bsBounds.ge(sorted_candidates_y, pos.y - h/2)
+    var hi = bsBounds.lt(sorted_candidates_y, pos.y + h/2)
+    candidates = candidates_y.slice(li, hi+1)
+    if (candidates.length > 0) {
+      var index = li
+      window.mickey = window.mickeys[index]
+      window.currentMickey = mickey
+      colorMickey(mickey, new paper.Color(1, .5, .5))
+      return true
+    }
+    return false
+  }
 }
 
 function onDocumentMouseMove (event) {
   var intersects = getIntersects(event)
   if (intersects.length < 1) return false
   window.current = intersects[0]
-
 
   if (finishSubtract) return false
 
@@ -166,22 +190,23 @@ function onDocumentMouseMove (event) {
   if (current && current.uv) {
     var pos = convertUvToCanvas(current.uv)
     pos = new paper.Point(pos[0], pos[1])
-
+    window.pos = pos
     if (!copyMode) {
       var hover = false
-
-      for (var i=0; i<mickeys.length; i++) {
-        var mickey = mickeys[i]
-        if (pos.isInside(mickey.bounds)) {
-          hover = true
-          window.mickey = mickey
-          window.currentMickey = mickey
-          colorMickey(mickey, new paper.Color(1, .5, .5))
-        } else {
-          colorMickey(mickey)
-        }
-      }
+      hover = getClosestMickey(pos)
+      // for (var i=0; i<mickeys.length; i++) {
+      //   var mickey = mickeys[i]
+      //   if (pos.isInside(mickey.bounds)) {
+      //     hover = true
+      //     window.mickey = mickey
+      //     window.currentMickey = mickey
+      //     colorMickey(mickey, new paper.Color(1, .5, .5))
+      //   } else {
+      //     colorMickey(mickey)
+      //   }
+      // }
       if (hover) {
+        console.log('hoge')
         insideMode = true
       } else {
         insideMode = false

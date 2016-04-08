@@ -4247,6 +4247,60 @@ function normalize(point) {
 }
 
 },{}],21:[function(require,module,exports){
+"use strict"
+
+function compileSearch(funcName, predicate, reversed, extraArgs, earlyOut) {
+  var code = [
+    "function ", funcName, "(a,l,h,", extraArgs.join(","),  "){",
+earlyOut ? "" : "var i=", (reversed ? "l-1" : "h+1"),
+";while(l<=h){\
+var m=(l+h)>>>1,x=a[m]"]
+  if(earlyOut) {
+    if(predicate.indexOf("c") < 0) {
+      code.push(";if(x===y){return m}else if(x<=y){")
+    } else {
+      code.push(";var p=c(x,y);if(p===0){return m}else if(p<=0){")
+    }
+  } else {
+    code.push(";if(", predicate, "){i=m;")
+  }
+  if(reversed) {
+    code.push("l=m+1}else{h=m-1}")
+  } else {
+    code.push("h=m-1}else{l=m+1}")
+  }
+  code.push("}")
+  if(earlyOut) {
+    code.push("return -1};")
+  } else {
+    code.push("return i};")
+  }
+  return code.join("")
+}
+
+function compileBoundsSearch(predicate, reversed, suffix, earlyOut) {
+  var result = new Function([
+  compileSearch("A", "x" + predicate + "y", reversed, ["y"], earlyOut),
+  compileSearch("P", "c(x,y)" + predicate + "0", reversed, ["y", "c"], earlyOut),
+"function dispatchBsearch", suffix, "(a,y,c,l,h){\
+if(typeof(c)==='function'){\
+return P(a,(l===void 0)?0:l|0,(h===void 0)?a.length-1:h|0,y,c)\
+}else{\
+return A(a,(c===void 0)?0:c|0,(l===void 0)?a.length-1:l|0,y)\
+}}\
+return dispatchBsearch", suffix].join(""))
+  return result()
+}
+
+module.exports = {
+  ge: compileBoundsSearch(">=", false, "GE"),
+  gt: compileBoundsSearch(">", false, "GT"),
+  lt: compileBoundsSearch("<", true, "LT"),
+  le: compileBoundsSearch("<=", true, "LE"),
+  eq: compileBoundsSearch("-", true, "EQ", true)
+}
+
+},{}],22:[function(require,module,exports){
 'use strict'
 
 module.exports = findBounds
@@ -4269,7 +4323,7 @@ function findBounds(points) {
   }
   return [lo, hi]
 }
-},{}],22:[function(require,module,exports){
+},{}],23:[function(require,module,exports){
 'use strict'
 
 var monotoneTriangulate = require('./lib/monotone')
@@ -4353,7 +4407,7 @@ function cdt2d(points, edges, options) {
   }
 }
 
-},{"./lib/delaunay":23,"./lib/filter":24,"./lib/monotone":25,"./lib/triangulation":26}],23:[function(require,module,exports){
+},{"./lib/delaunay":24,"./lib/filter":25,"./lib/monotone":26,"./lib/triangulation":27}],24:[function(require,module,exports){
 'use strict'
 
 var inCircle = require('robust-in-sphere')[4]
@@ -4470,7 +4524,7 @@ function delaunayRefine(points, triangulation) {
   }
 }
 
-},{"binary-search-bounds":27,"robust-in-sphere":28}],24:[function(require,module,exports){
+},{"binary-search-bounds":28,"robust-in-sphere":29}],25:[function(require,module,exports){
 'use strict'
 
 var bsearch = require('binary-search-bounds')
@@ -4652,7 +4706,7 @@ function classifyFaces(triangulation, target, infinity) {
   return result
 }
 
-},{"binary-search-bounds":27}],25:[function(require,module,exports){
+},{"binary-search-bounds":28}],26:[function(require,module,exports){
 'use strict'
 
 var bsearch = require('binary-search-bounds')
@@ -4841,7 +4895,7 @@ function monotoneTriangulate(points, edges) {
   return cells
 }
 
-},{"binary-search-bounds":27,"robust-orientation":39}],26:[function(require,module,exports){
+},{"binary-search-bounds":28,"robust-orientation":40}],27:[function(require,module,exports){
 'use strict'
 
 var bsearch = require('binary-search-bounds')
@@ -4947,61 +5001,9 @@ function createTriangulation(numVerts, edges) {
   return new Triangulation(stars, edges)
 }
 
-},{"binary-search-bounds":27}],27:[function(require,module,exports){
-"use strict"
-
-function compileSearch(funcName, predicate, reversed, extraArgs, earlyOut) {
-  var code = [
-    "function ", funcName, "(a,l,h,", extraArgs.join(","),  "){",
-earlyOut ? "" : "var i=", (reversed ? "l-1" : "h+1"),
-";while(l<=h){\
-var m=(l+h)>>>1,x=a[m]"]
-  if(earlyOut) {
-    if(predicate.indexOf("c") < 0) {
-      code.push(";if(x===y){return m}else if(x<=y){")
-    } else {
-      code.push(";var p=c(x,y);if(p===0){return m}else if(p<=0){")
-    }
-  } else {
-    code.push(";if(", predicate, "){i=m;")
-  }
-  if(reversed) {
-    code.push("l=m+1}else{h=m-1}")
-  } else {
-    code.push("h=m-1}else{l=m+1}")
-  }
-  code.push("}")
-  if(earlyOut) {
-    code.push("return -1};")
-  } else {
-    code.push("return i};")
-  }
-  return code.join("")
-}
-
-function compileBoundsSearch(predicate, reversed, suffix, earlyOut) {
-  var result = new Function([
-  compileSearch("A", "x" + predicate + "y", reversed, ["y"], earlyOut),
-  compileSearch("P", "c(x,y)" + predicate + "0", reversed, ["y", "c"], earlyOut),
-"function dispatchBsearch", suffix, "(a,y,c,l,h){\
-if(typeof(c)==='function'){\
-return P(a,(l===void 0)?0:l|0,(h===void 0)?a.length-1:h|0,y,c)\
-}else{\
-return A(a,(c===void 0)?0:c|0,(l===void 0)?a.length-1:l|0,y)\
-}}\
-return dispatchBsearch", suffix].join(""))
-  return result()
-}
-
-module.exports = {
-  ge: compileBoundsSearch(">=", false, "GE"),
-  gt: compileBoundsSearch(">", false, "GT"),
-  lt: compileBoundsSearch("<", true, "LT"),
-  le: compileBoundsSearch("<=", true, "LE"),
-  eq: compileBoundsSearch("-", true, "EQ", true)
-}
-
-},{}],28:[function(require,module,exports){
+},{"binary-search-bounds":28}],28:[function(require,module,exports){
+arguments[4][21][0].apply(exports,arguments)
+},{"dup":21}],29:[function(require,module,exports){
 "use strict"
 
 var twoProduct = require("two-product")
@@ -5169,29 +5171,29 @@ function generateInSphereTest() {
 }
 
 generateInSphereTest()
-},{"robust-scale":30,"robust-subtract":31,"robust-sum":32,"two-product":33}],29:[function(require,module,exports){
+},{"robust-scale":31,"robust-subtract":32,"robust-sum":33,"two-product":34}],30:[function(require,module,exports){
 arguments[4][7][0].apply(exports,arguments)
-},{"dup":7}],30:[function(require,module,exports){
+},{"dup":7}],31:[function(require,module,exports){
 arguments[4][8][0].apply(exports,arguments)
-},{"dup":8,"two-product":33,"two-sum":29}],31:[function(require,module,exports){
+},{"dup":8,"two-product":34,"two-sum":30}],32:[function(require,module,exports){
 arguments[4][9][0].apply(exports,arguments)
-},{"dup":9}],32:[function(require,module,exports){
+},{"dup":9}],33:[function(require,module,exports){
 arguments[4][10][0].apply(exports,arguments)
-},{"dup":10}],33:[function(require,module,exports){
+},{"dup":10}],34:[function(require,module,exports){
 arguments[4][11][0].apply(exports,arguments)
-},{"dup":11}],34:[function(require,module,exports){
+},{"dup":11}],35:[function(require,module,exports){
 arguments[4][7][0].apply(exports,arguments)
-},{"dup":7}],35:[function(require,module,exports){
+},{"dup":7}],36:[function(require,module,exports){
 arguments[4][8][0].apply(exports,arguments)
-},{"dup":8,"two-product":38,"two-sum":34}],36:[function(require,module,exports){
+},{"dup":8,"two-product":39,"two-sum":35}],37:[function(require,module,exports){
 arguments[4][9][0].apply(exports,arguments)
-},{"dup":9}],37:[function(require,module,exports){
+},{"dup":9}],38:[function(require,module,exports){
 arguments[4][10][0].apply(exports,arguments)
-},{"dup":10}],38:[function(require,module,exports){
+},{"dup":10}],39:[function(require,module,exports){
 arguments[4][11][0].apply(exports,arguments)
-},{"dup":11}],39:[function(require,module,exports){
+},{"dup":11}],40:[function(require,module,exports){
 arguments[4][12][0].apply(exports,arguments)
-},{"dup":12,"robust-scale":35,"robust-subtract":36,"robust-sum":37,"two-product":38}],40:[function(require,module,exports){
+},{"dup":12,"robust-scale":36,"robust-subtract":37,"robust-sum":38,"two-product":39}],41:[function(require,module,exports){
 'use strict'
 
 module.exports = cleanPSLG
@@ -5553,7 +5555,7 @@ function cleanPSLG(points, edges, colors) {
   return modified
 }
 
-},{"./lib/rat-seg-intersect":41,"big-rat":45,"big-rat/cmp":43,"big-rat/to-float":60,"box-intersect":61,"compare-cell":71,"nextafter":72,"rat-vec":75,"robust-segment-intersect":84,"union-find":85}],41:[function(require,module,exports){
+},{"./lib/rat-seg-intersect":42,"big-rat":46,"big-rat/cmp":44,"big-rat/to-float":61,"box-intersect":62,"compare-cell":72,"nextafter":73,"rat-vec":76,"robust-segment-intersect":85,"union-find":86}],42:[function(require,module,exports){
 'use strict'
 
 //TODO: Move this to a separate module
@@ -5599,7 +5601,7 @@ function solveIntersection(a, b, c, d) {
   return rvAdd(a, rvMuls(ba, t))
 }
 
-},{"big-rat/div":44,"big-rat/mul":54,"big-rat/sign":58,"big-rat/sub":59,"big-rat/to-float":60,"rat-vec/add":74,"rat-vec/muls":76,"rat-vec/sub":77}],42:[function(require,module,exports){
+},{"big-rat/div":45,"big-rat/mul":55,"big-rat/sign":59,"big-rat/sub":60,"big-rat/to-float":61,"rat-vec/add":75,"rat-vec/muls":77,"rat-vec/sub":78}],43:[function(require,module,exports){
 'use strict'
 
 var rationalize = require('./lib/rationalize')
@@ -5612,7 +5614,7 @@ function add(a, b) {
     a[1].mul(b[1]))
 }
 
-},{"./lib/rationalize":52}],43:[function(require,module,exports){
+},{"./lib/rationalize":53}],44:[function(require,module,exports){
 'use strict'
 
 module.exports = cmp
@@ -5621,7 +5623,7 @@ function cmp(a, b) {
     return a[0].mul(b[1]).cmp(b[0].mul(a[1]))
 }
 
-},{}],44:[function(require,module,exports){
+},{}],45:[function(require,module,exports){
 'use strict'
 
 var rationalize = require('./lib/rationalize')
@@ -5632,7 +5634,7 @@ function div(a, b) {
   return rationalize(a[0].mul(b[1]), a[1].mul(b[0]))
 }
 
-},{"./lib/rationalize":52}],45:[function(require,module,exports){
+},{"./lib/rationalize":53}],46:[function(require,module,exports){
 'use strict'
 
 var isRat = require('./is-rat')
@@ -5694,7 +5696,7 @@ function makeRational(numer, denom) {
   return rationalize(a, b)
 }
 
-},{"./div":44,"./is-rat":46,"./lib/is-bn":50,"./lib/num-to-bn":51,"./lib/rationalize":52,"./lib/str-to-bn":53}],46:[function(require,module,exports){
+},{"./div":45,"./is-rat":47,"./lib/is-bn":51,"./lib/num-to-bn":52,"./lib/rationalize":53,"./lib/str-to-bn":54}],47:[function(require,module,exports){
 'use strict'
 
 var isBN = require('./lib/is-bn')
@@ -5705,7 +5707,7 @@ function isRat(x) {
   return Array.isArray(x) && x.length === 2 && isBN(x[0]) && isBN(x[1])
 }
 
-},{"./lib/is-bn":50}],47:[function(require,module,exports){
+},{"./lib/is-bn":51}],48:[function(require,module,exports){
 'use strict'
 
 var bn = require('bn.js')
@@ -5716,7 +5718,7 @@ function sign(x) {
   return x.cmp(new bn(0))
 }
 
-},{"bn.js":56}],48:[function(require,module,exports){
+},{"bn.js":57}],49:[function(require,module,exports){
 'use strict'
 
 module.exports = bn2num
@@ -5740,7 +5742,7 @@ function bn2num(b) {
   return b.sign ? -out : out
 }
 
-},{}],49:[function(require,module,exports){
+},{}],50:[function(require,module,exports){
 'use strict'
 
 var db = require('double-bits')
@@ -5761,7 +5763,7 @@ function ctzNumber(x) {
   return h + 32
 }
 
-},{"bit-twiddle":55,"double-bits":57}],50:[function(require,module,exports){
+},{"bit-twiddle":56,"double-bits":58}],51:[function(require,module,exports){
 'use strict'
 
 var BN = require('bn.js')
@@ -5774,7 +5776,7 @@ function isBN(x) {
   return x && typeof x === 'object' && Boolean(x.words)
 }
 
-},{"bn.js":56}],51:[function(require,module,exports){
+},{"bn.js":57}],52:[function(require,module,exports){
 'use strict'
 
 var BN = require('bn.js')
@@ -5791,7 +5793,7 @@ function num2bn(x) {
   }
 }
 
-},{"bn.js":56,"double-bits":57}],52:[function(require,module,exports){
+},{"bn.js":57,"double-bits":58}],53:[function(require,module,exports){
 'use strict'
 
 var num2bn = require('./num-to-bn')
@@ -5819,7 +5821,7 @@ function rationalize(numer, denom) {
   return [ numer, denom ]
 }
 
-},{"./bn-sign":47,"./num-to-bn":51}],53:[function(require,module,exports){
+},{"./bn-sign":48,"./num-to-bn":52}],54:[function(require,module,exports){
 'use strict'
 
 var BN = require('bn.js')
@@ -5830,7 +5832,7 @@ function str2BN(x) {
   return new BN(x)
 }
 
-},{"bn.js":56}],54:[function(require,module,exports){
+},{"bn.js":57}],55:[function(require,module,exports){
 'use strict'
 
 var rationalize = require('./lib/rationalize')
@@ -5841,7 +5843,7 @@ function mul(a, b) {
   return rationalize(a[0].mul(b[0]), a[1].mul(b[1]))
 }
 
-},{"./lib/rationalize":52}],55:[function(require,module,exports){
+},{"./lib/rationalize":53}],56:[function(require,module,exports){
 /**
  * Bit twiddling hacks for JavaScript.
  *
@@ -6047,7 +6049,7 @@ exports.nextCombination = function(v) {
 }
 
 
-},{}],56:[function(require,module,exports){
+},{}],57:[function(require,module,exports){
 (function (module, exports) {
 
 'use strict';
@@ -8367,7 +8369,7 @@ Mont.prototype.invm = function invm(a) {
 
 })(typeof module === 'undefined' || module, this);
 
-},{}],57:[function(require,module,exports){
+},{}],58:[function(require,module,exports){
 (function (Buffer){
 var hasTypedArrays = false
 if(typeof Float64Array !== "undefined") {
@@ -8471,7 +8473,7 @@ module.exports.denormalized = function(n) {
   return !(hi & 0x7ff00000)
 }
 }).call(this,require("buffer").Buffer)
-},{"buffer":1}],58:[function(require,module,exports){
+},{"buffer":1}],59:[function(require,module,exports){
 'use strict'
 
 var bnsign = require('./lib/bn-sign')
@@ -8482,7 +8484,7 @@ function sign(x) {
   return bnsign(x[0]) * bnsign(x[1])
 }
 
-},{"./lib/bn-sign":47}],59:[function(require,module,exports){
+},{"./lib/bn-sign":48}],60:[function(require,module,exports){
 'use strict'
 
 var rationalize = require('./lib/rationalize')
@@ -8493,7 +8495,7 @@ function sub(a, b) {
   return rationalize(a[0].mul(b[1]).sub(a[1].mul(b[0])), a[1].mul(b[1]))
 }
 
-},{"./lib/rationalize":52}],60:[function(require,module,exports){
+},{"./lib/rationalize":53}],61:[function(require,module,exports){
 'use strict'
 
 var bn2num = require('./lib/bn-to-num')
@@ -8536,7 +8538,7 @@ function roundRat(f) {
   }
 }
 
-},{"./lib/bn-to-num":48,"./lib/ctz":49}],61:[function(require,module,exports){
+},{"./lib/bn-to-num":49,"./lib/ctz":50}],62:[function(require,module,exports){
 'use strict'
 
 module.exports = boxIntersectWrapper
@@ -8675,7 +8677,7 @@ function boxIntersectWrapper(arg0, arg1, arg2) {
       throw new Error('box-intersect: Invalid arguments')
   }
 }
-},{"./lib/intersect":63,"./lib/sweep":67,"typedarray-pool":70}],62:[function(require,module,exports){
+},{"./lib/intersect":64,"./lib/sweep":68,"typedarray-pool":71}],63:[function(require,module,exports){
 'use strict'
 
 var DIMENSION   = 'd'
@@ -8820,7 +8822,7 @@ function bruteForcePlanner(full) {
 
 exports.partial = bruteForcePlanner(false)
 exports.full    = bruteForcePlanner(true)
-},{}],63:[function(require,module,exports){
+},{}],64:[function(require,module,exports){
 'use strict'
 
 module.exports = boxIntersectIter
@@ -9315,7 +9317,7 @@ function boxIntersectIter(
     }
   }
 }
-},{"./brute":62,"./median":64,"./partition":65,"./sweep":67,"bit-twiddle":68,"typedarray-pool":70}],64:[function(require,module,exports){
+},{"./brute":63,"./median":65,"./partition":66,"./sweep":68,"bit-twiddle":69,"typedarray-pool":71}],65:[function(require,module,exports){
 'use strict'
 
 module.exports = findMedian
@@ -9458,7 +9460,7 @@ function findMedian(d, axis, start, end, boxes, ids) {
     start, mid, boxes, ids,
     boxes[elemSize*mid+axis])
 }
-},{"./partition":65}],65:[function(require,module,exports){
+},{"./partition":66}],66:[function(require,module,exports){
 'use strict'
 
 module.exports = genPartition
@@ -9479,7 +9481,7 @@ function genPartition(predicate, args) {
         .replace('$', predicate))
   return Function.apply(void 0, fargs)
 }
-},{}],66:[function(require,module,exports){
+},{}],67:[function(require,module,exports){
 'use strict';
 
 //This code is extracted from ndarray-sort
@@ -9716,7 +9718,7 @@ function quickSort(left, right, data) {
     quickSort(less, great, data);
   }
 }
-},{}],67:[function(require,module,exports){
+},{}],68:[function(require,module,exports){
 'use strict'
 
 module.exports = {
@@ -10151,9 +10153,9 @@ red_loop:
     }
   }
 }
-},{"./sort":66,"bit-twiddle":68,"typedarray-pool":70}],68:[function(require,module,exports){
-arguments[4][55][0].apply(exports,arguments)
-},{"dup":55}],69:[function(require,module,exports){
+},{"./sort":67,"bit-twiddle":69,"typedarray-pool":71}],69:[function(require,module,exports){
+arguments[4][56][0].apply(exports,arguments)
+},{"dup":56}],70:[function(require,module,exports){
 "use strict"
 
 function dupe_array(count, value, i) {
@@ -10203,7 +10205,7 @@ function dupe(count, value) {
 }
 
 module.exports = dupe
-},{}],70:[function(require,module,exports){
+},{}],71:[function(require,module,exports){
 (function (global,Buffer){
 'use strict'
 
@@ -10420,7 +10422,7 @@ exports.clearCache = function clearCache() {
   }
 }
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {},require("buffer").Buffer)
-},{"bit-twiddle":68,"buffer":1,"dup":69}],71:[function(require,module,exports){
+},{"bit-twiddle":69,"buffer":1,"dup":70}],72:[function(require,module,exports){
 module.exports = compareCells
 
 var min = Math.min
@@ -10476,7 +10478,7 @@ function compareCells(a, b) {
   }
 }
 
-},{}],72:[function(require,module,exports){
+},{}],73:[function(require,module,exports){
 "use strict"
 
 var doubleBits = require("double-bits")
@@ -10519,9 +10521,9 @@ function nextafter(x, y) {
   }
   return doubleBits.pack(lo, hi)
 }
-},{"double-bits":73}],73:[function(require,module,exports){
-arguments[4][57][0].apply(exports,arguments)
-},{"buffer":1,"dup":57}],74:[function(require,module,exports){
+},{"double-bits":74}],74:[function(require,module,exports){
+arguments[4][58][0].apply(exports,arguments)
+},{"buffer":1,"dup":58}],75:[function(require,module,exports){
 'use strict'
 
 var bnadd = require('big-rat/add')
@@ -10537,7 +10539,7 @@ function add(a, b) {
   return r
 }
 
-},{"big-rat/add":42}],75:[function(require,module,exports){
+},{"big-rat/add":43}],76:[function(require,module,exports){
 'use strict'
 
 module.exports = float2rat
@@ -10552,7 +10554,7 @@ function float2rat(v) {
   return result
 }
 
-},{"big-rat":45}],76:[function(require,module,exports){
+},{"big-rat":46}],77:[function(require,module,exports){
 'use strict'
 
 var rat = require('big-rat')
@@ -10570,7 +10572,7 @@ function muls(a, x) {
   return r
 }
 
-},{"big-rat":45,"big-rat/mul":54}],77:[function(require,module,exports){
+},{"big-rat":46,"big-rat/mul":55}],78:[function(require,module,exports){
 'use strict'
 
 var bnsub = require('big-rat/sub')
@@ -10586,19 +10588,19 @@ function sub(a, b) {
   return r
 }
 
-},{"big-rat/sub":59}],78:[function(require,module,exports){
+},{"big-rat/sub":60}],79:[function(require,module,exports){
 arguments[4][7][0].apply(exports,arguments)
-},{"dup":7}],79:[function(require,module,exports){
+},{"dup":7}],80:[function(require,module,exports){
 arguments[4][8][0].apply(exports,arguments)
-},{"dup":8,"two-product":82,"two-sum":78}],80:[function(require,module,exports){
+},{"dup":8,"two-product":83,"two-sum":79}],81:[function(require,module,exports){
 arguments[4][9][0].apply(exports,arguments)
-},{"dup":9}],81:[function(require,module,exports){
+},{"dup":9}],82:[function(require,module,exports){
 arguments[4][10][0].apply(exports,arguments)
-},{"dup":10}],82:[function(require,module,exports){
+},{"dup":10}],83:[function(require,module,exports){
 arguments[4][11][0].apply(exports,arguments)
-},{"dup":11}],83:[function(require,module,exports){
+},{"dup":11}],84:[function(require,module,exports){
 arguments[4][12][0].apply(exports,arguments)
-},{"dup":12,"robust-scale":79,"robust-subtract":80,"robust-sum":81,"two-product":82}],84:[function(require,module,exports){
+},{"dup":12,"robust-scale":80,"robust-subtract":81,"robust-sum":82,"two-product":83}],85:[function(require,module,exports){
 "use strict"
 
 module.exports = segmentsIntersect
@@ -10646,7 +10648,7 @@ function segmentsIntersect(a0, a1, b0, b1) {
 
   return true
 }
-},{"robust-orientation":83}],85:[function(require,module,exports){
+},{"robust-orientation":84}],86:[function(require,module,exports){
 "use strict"; "use restrict";
 
 module.exports = UnionFind;
@@ -10709,7 +10711,7 @@ proto.link = function(x, y) {
     ++ranks[xr];
   }
 }
-},{}],86:[function(require,module,exports){
+},{}],87:[function(require,module,exports){
 "use strict"
 
 var almostEqual = require('almost-equal')
@@ -10957,7 +10959,7 @@ function fromNDArray(array) {
   return fromList(list, rows, cols)
 }
 
-},{"almost-equal":87,"dup":88}],87:[function(require,module,exports){
+},{"almost-equal":88,"dup":89}],88:[function(require,module,exports){
 "use strict"
 
 var abs = Math.abs
@@ -10979,9 +10981,9 @@ almostEqual.DBL_EPSILON = 2.2204460492503131e-16
 
 module.exports = almostEqual
 
-},{}],88:[function(require,module,exports){
-arguments[4][69][0].apply(exports,arguments)
-},{"dup":69}],89:[function(require,module,exports){
+},{}],89:[function(require,module,exports){
+arguments[4][70][0].apply(exports,arguments)
+},{"dup":70}],90:[function(require,module,exports){
 "use strict"
 
 //High level idea:
@@ -11428,23 +11430,23 @@ function incrementalConvexHull(points, randomSearch) {
   //Extract boundary cells
   return triangles.boundary()
 }
-},{"robust-orientation":95,"simplicial-complex":98}],90:[function(require,module,exports){
+},{"robust-orientation":96,"simplicial-complex":99}],91:[function(require,module,exports){
 arguments[4][7][0].apply(exports,arguments)
-},{"dup":7}],91:[function(require,module,exports){
+},{"dup":7}],92:[function(require,module,exports){
 arguments[4][8][0].apply(exports,arguments)
-},{"dup":8,"two-product":94,"two-sum":90}],92:[function(require,module,exports){
+},{"dup":8,"two-product":95,"two-sum":91}],93:[function(require,module,exports){
 arguments[4][9][0].apply(exports,arguments)
-},{"dup":9}],93:[function(require,module,exports){
+},{"dup":9}],94:[function(require,module,exports){
 arguments[4][10][0].apply(exports,arguments)
-},{"dup":10}],94:[function(require,module,exports){
+},{"dup":10}],95:[function(require,module,exports){
 arguments[4][11][0].apply(exports,arguments)
-},{"dup":11}],95:[function(require,module,exports){
+},{"dup":11}],96:[function(require,module,exports){
 arguments[4][12][0].apply(exports,arguments)
-},{"dup":12,"robust-scale":91,"robust-subtract":92,"robust-sum":93,"two-product":94}],96:[function(require,module,exports){
-arguments[4][55][0].apply(exports,arguments)
-},{"dup":55}],97:[function(require,module,exports){
-arguments[4][85][0].apply(exports,arguments)
-},{"dup":85}],98:[function(require,module,exports){
+},{"dup":12,"robust-scale":92,"robust-subtract":93,"robust-sum":94,"two-product":95}],97:[function(require,module,exports){
+arguments[4][56][0].apply(exports,arguments)
+},{"dup":56}],98:[function(require,module,exports){
+arguments[4][86][0].apply(exports,arguments)
+},{"dup":86}],99:[function(require,module,exports){
 "use strict"; "use restrict";
 
 var bits      = require("bit-twiddle")
@@ -11788,7 +11790,7 @@ function connectedComponents(cells, vertex_count) {
 }
 exports.connectedComponents = connectedComponents
 
-},{"bit-twiddle":96,"union-find":97}],99:[function(require,module,exports){
+},{"bit-twiddle":97,"union-find":98}],100:[function(require,module,exports){
 "use strict"
 
 function unique_pred(list, compare) {
@@ -11847,7 +11849,7 @@ function unique(list, compare, sorted) {
 
 module.exports = unique
 
-},{}],100:[function(require,module,exports){
+},{}],101:[function(require,module,exports){
 "use strict"
 
 var ch = require("incremental-convex-hull")
@@ -12007,7 +12009,7 @@ function triangulate(points, includePointAtInfinity) {
 
   return hull
 }
-},{"incremental-convex-hull":89,"uniq":99}],101:[function(require,module,exports){
+},{"incremental-convex-hull":90,"uniq":100}],102:[function(require,module,exports){
 module.exports = function drawTriangles(ctx, positions, cells, start, end) {
     var v = positions
     start = (start|0)
@@ -12024,7 +12026,7 @@ module.exports = function drawTriangles(ctx, positions, cells, start, end) {
         ctx.lineTo(v0[0], v0[1])
     }
 }
-},{}],102:[function(require,module,exports){
+},{}],103:[function(require,module,exports){
 var parseXml = require('xml-parse-from-string')
 
 function extractSvgPath (svgDoc) {
@@ -12052,7 +12054,7 @@ module.exports.parse = extractSvgPath
 //deprecated
 module.exports.fromString = extractSvgPath
 
-},{"xml-parse-from-string":103}],103:[function(require,module,exports){
+},{"xml-parse-from-string":104}],104:[function(require,module,exports){
 module.exports = (function xmlparser() {
   //common browsers
   if (typeof window.DOMParser !== 'undefined') {
@@ -12080,7 +12082,7 @@ module.exports = (function xmlparser() {
     return div
   }
 })()
-},{}],104:[function(require,module,exports){
+},{}],105:[function(require,module,exports){
 module.exports = {
   union: require('./lib/union'),
   intersect: require('./lib/intersect'),
@@ -12090,7 +12092,7 @@ module.exports = {
   utils: require('./lib/util')
 };
 
-},{"./lib/intersect":106,"./lib/subtract":108,"./lib/union":109,"./lib/util":110}],105:[function(require,module,exports){
+},{"./lib/intersect":107,"./lib/subtract":109,"./lib/union":110,"./lib/util":111}],106:[function(require,module,exports){
 var Ring = require('./ring');
 var Vertex = require('./vertex');
 var pip = require('point-in-polygon');
@@ -12662,7 +12664,7 @@ function lineIntersects(start1, end1, start2, end2) {
   }
 }
 
-},{"./ring":107,"./util":110,"./vertex":111,"point-in-polygon":112}],106:[function(require,module,exports){
+},{"./ring":108,"./util":111,"./vertex":112,"point-in-polygon":113}],107:[function(require,module,exports){
 var ghClipping = require('./greiner-hormann');
 var union = require('./union');
 var utils = require('./util');
@@ -12694,7 +12696,7 @@ module.exports = function (subject, clipper) {
   return result;
 };
 
-},{"./greiner-hormann":105,"./subtract":108,"./union":109,"./util":110}],107:[function(require,module,exports){
+},{"./greiner-hormann":106,"./subtract":109,"./union":110,"./util":111}],108:[function(require,module,exports){
 var Vertex = require('./vertex');
 var clockwise = require('turf-is-clockwise');
 
@@ -12884,7 +12886,7 @@ Ring.prototype.logIntersections = function () {
 
 module.exports = Ring;
 
-},{"./vertex":111,"turf-is-clockwise":113}],108:[function(require,module,exports){
+},{"./vertex":112,"turf-is-clockwise":114}],109:[function(require,module,exports){
 var util = require('./util');
 var ghClipping = require('./greiner-hormann');
 
@@ -12987,7 +12989,7 @@ function subtract(subject, clip, skiploop) {
 
 module.exports = subtract;
 
-},{"./greiner-hormann":105,"./util":110}],109:[function(require,module,exports){
+},{"./greiner-hormann":106,"./util":111}],110:[function(require,module,exports){
 var utils = require('./util');
 var subtract = require('./subtract');
 
@@ -13066,7 +13068,7 @@ module.exports = function (coords, coords2) {
   return hulls;
 };
 
-},{"./subtract":108,"./util":110}],110:[function(require,module,exports){
+},{"./subtract":109,"./util":111}],111:[function(require,module,exports){
 if (!Array.isArray) {
   Array.isArray = function (arg) {
     return Object.prototype.toString.call(arg) === '[object Array]';
@@ -13255,7 +13257,7 @@ exports.unionRings = function (rings, holes) {
   return rings;
 };
 
-},{"./greiner-hormann":105}],111:[function(require,module,exports){
+},{"./greiner-hormann":106}],112:[function(require,module,exports){
 function Vertex(x, y, alpha, intersect, degenerate) {
   this.x = x;
   this.y = y;
@@ -13332,7 +13334,7 @@ Vertex.prototype.log = function () {
 
 module.exports = Vertex;
 
-},{}],112:[function(require,module,exports){
+},{}],113:[function(require,module,exports){
 module.exports = function (point, vs) {
     // ray-casting algorithm based on
     // http://www.ecse.rpi.edu/Homepages/wrf/Research/Short_Notes/pnpoly.html
@@ -13352,7 +13354,7 @@ module.exports = function (point, vs) {
     return inside;
 };
 
-},{}],113:[function(require,module,exports){
+},{}],114:[function(require,module,exports){
 module.exports = function(ring){
   var sum = 0;
   var i = 1;
@@ -13366,7 +13368,7 @@ module.exports = function(ring){
   }
   return sum > 0;
 }
-},{}],114:[function(require,module,exports){
+},{}],115:[function(require,module,exports){
 var xhr = require('xhr');
 
 module.exports = function (opts, cb) {
@@ -13385,7 +13387,7 @@ module.exports = function (opts, cb) {
     });
 };
 
-},{"xhr":115}],115:[function(require,module,exports){
+},{"xhr":116}],116:[function(require,module,exports){
 var window = require("global/window")
 var once = require("once")
 var parseHeaders = require('parse-headers')
@@ -13564,7 +13566,7 @@ function createXHR(options, callback) {
 
 function noop() {}
 
-},{"global/window":116,"once":117,"parse-headers":121}],116:[function(require,module,exports){
+},{"global/window":117,"once":118,"parse-headers":122}],117:[function(require,module,exports){
 (function (global){
 if (typeof window !== "undefined") {
     module.exports = window;
@@ -13577,7 +13579,7 @@ if (typeof window !== "undefined") {
 }
 
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{}],117:[function(require,module,exports){
+},{}],118:[function(require,module,exports){
 module.exports = once
 
 once.proto = once(function () {
@@ -13598,7 +13600,7 @@ function once (fn) {
   }
 }
 
-},{}],118:[function(require,module,exports){
+},{}],119:[function(require,module,exports){
 var isFunction = require('is-function')
 
 module.exports = forEach
@@ -13646,7 +13648,7 @@ function forEachObject(object, iterator, context) {
     }
 }
 
-},{"is-function":119}],119:[function(require,module,exports){
+},{"is-function":120}],120:[function(require,module,exports){
 module.exports = isFunction
 
 var toString = Object.prototype.toString
@@ -13663,7 +13665,7 @@ function isFunction (fn) {
       fn === window.prompt))
 };
 
-},{}],120:[function(require,module,exports){
+},{}],121:[function(require,module,exports){
 
 exports = module.exports = trim;
 
@@ -13679,7 +13681,7 @@ exports.right = function(str){
   return str.replace(/\s*$/, '');
 };
 
-},{}],121:[function(require,module,exports){
+},{}],122:[function(require,module,exports){
 var trim = require('trim')
   , forEach = require('for-each')
   , isArray = function(arg) {
@@ -13711,7 +13713,7 @@ module.exports = function (headers) {
 
   return result
 }
-},{"for-each":118,"trim":120}],122:[function(require,module,exports){
+},{"for-each":119,"trim":121}],123:[function(require,module,exports){
 'use strict'
 
 var pool = require('typedarray-pool')
@@ -13823,13 +13825,13 @@ function meshLaplacian(cells, positions) {
   return entries
 }
 
-},{"typedarray-pool":125}],123:[function(require,module,exports){
-arguments[4][55][0].apply(exports,arguments)
-},{"dup":55}],124:[function(require,module,exports){
-arguments[4][69][0].apply(exports,arguments)
-},{"dup":69}],125:[function(require,module,exports){
+},{"typedarray-pool":126}],124:[function(require,module,exports){
+arguments[4][56][0].apply(exports,arguments)
+},{"dup":56}],125:[function(require,module,exports){
 arguments[4][70][0].apply(exports,arguments)
-},{"bit-twiddle":123,"buffer":1,"dup":70}],126:[function(require,module,exports){
+},{"dup":70}],126:[function(require,module,exports){
+arguments[4][71][0].apply(exports,arguments)
+},{"bit-twiddle":124,"buffer":1,"dup":71}],127:[function(require,module,exports){
 module.exports = reindex
 
 function reindex(array) {
@@ -13861,7 +13863,7 @@ function reindex(array) {
   }
 }
 
-},{}],127:[function(require,module,exports){
+},{}],128:[function(require,module,exports){
 'use strict'
 
 const Queue = require('./PriorityQueue')
@@ -14038,7 +14040,7 @@ class Graph {
 
 module.exports = Graph
 
-},{"./PriorityQueue":128,"./populateMap":129}],128:[function(require,module,exports){
+},{"./PriorityQueue":129,"./populateMap":130}],129:[function(require,module,exports){
 'use strict'
 
 /**
@@ -14149,7 +14151,7 @@ class PriorityQueue {
 
 module.exports = PriorityQueue
 
-},{}],129:[function(require,module,exports){
+},{}],130:[function(require,module,exports){
 'use strict'
 
 /**
@@ -14208,7 +14210,7 @@ function populateMap (map, object, keys) {
 
 module.exports = populateMap
 
-},{}],130:[function(require,module,exports){
+},{}],131:[function(require,module,exports){
 var getBounds = require('bound-points')
 var unlerp = require('unlerp')
 
@@ -14241,11 +14243,11 @@ function normalizePathScale (positions, bounds) {
   }
   return positions
 }
-},{"bound-points":21,"unlerp":131}],131:[function(require,module,exports){
+},{"bound-points":22,"unlerp":132}],132:[function(require,module,exports){
 module.exports = function range(min, max, value) {
   return (value - min) / (max - min)
 }
-},{}],132:[function(require,module,exports){
+},{}],133:[function(require,module,exports){
 /* eslint-disable no-unused-vars */
 'use strict';
 var hasOwnProperty = Object.prototype.hasOwnProperty;
@@ -14286,7 +14288,7 @@ module.exports = Object.assign || function (target, source) {
 	return to;
 };
 
-},{}],133:[function(require,module,exports){
+},{}],134:[function(require,module,exports){
 
 module.exports = parse
 
@@ -14343,7 +14345,7 @@ function parseValues(args){
 	return args ? args.map(Number) : []
 }
 
-},{}],134:[function(require,module,exports){
+},{}],135:[function(require,module,exports){
 //http://www.blackpawn.com/texts/pointinpoly/
 module.exports = function pointInTriangle(point, triangle) {
     //compute vectors & dot products
@@ -14365,7 +14367,7 @@ module.exports = function pointInTriangle(point, triangle) {
         v = (dot00*dot12 - dot01*dot02) * inv
     return u>=0 && v>=0 && (u+v < 1)
 }
-},{}],135:[function(require,module,exports){
+},{}],136:[function(require,module,exports){
 'use strict';
 module.exports = function (min, max) {
 	if (max === undefined) {
@@ -14380,7 +14382,7 @@ module.exports = function (min, max) {
 	return Math.random() * (max - min) + min;
 };
 
-},{}],136:[function(require,module,exports){
+},{}],137:[function(require,module,exports){
 // square distance from a point to a segment
 function getSqSegDist(p, p1, p2) {
     var x = p1[0],
@@ -14444,7 +14446,7 @@ module.exports = function simplifyDouglasPeucker(points, tolerance) {
     return simplified;
 }
 
-},{}],137:[function(require,module,exports){
+},{}],138:[function(require,module,exports){
 var simplifyRadialDist = require('./radial-distance')
 var simplifyDouglasPeucker = require('./douglas-peucker')
 
@@ -14457,7 +14459,7 @@ module.exports = function simplify(points, tolerance) {
 
 module.exports.radialDistance = simplifyRadialDist;
 module.exports.douglasPeucker = simplifyDouglasPeucker;
-},{"./douglas-peucker":136,"./radial-distance":138}],138:[function(require,module,exports){
+},{"./douglas-peucker":137,"./radial-distance":139}],139:[function(require,module,exports){
 function getSqDist(p1, p2) {
     var dx = p1[0] - p2[0],
         dy = p1[1] - p2[1];
@@ -14489,12 +14491,12 @@ module.exports = function simplifyRadialDist(points, tolerance) {
 
     return newPoints;
 }
-},{}],139:[function(require,module,exports){
+},{}],140:[function(require,module,exports){
 // expose module classes
 
 exports.intersect = require('./lib/intersect');
 exports.shape = require('./lib/IntersectionParams').newShape;
-},{"./lib/IntersectionParams":141,"./lib/intersect":142}],140:[function(require,module,exports){
+},{"./lib/IntersectionParams":142,"./lib/intersect":143}],141:[function(require,module,exports){
 /**
  *  Intersection
  */
@@ -14533,7 +14535,7 @@ Intersection.prototype.appendPoints = function(points) {
 
 module.exports = Intersection;
 
-},{}],141:[function(require,module,exports){
+},{}],142:[function(require,module,exports){
 var Point2D = require('kld-affine').Point2D;
 
 
@@ -15435,7 +15437,7 @@ RelativeSmoothCurveto3.prototype.getIntersectionParams = function() {
 
 module.exports = IntersectionParams;
 
-},{"kld-affine":143}],142:[function(require,module,exports){
+},{"kld-affine":144}],143:[function(require,module,exports){
 /**
  *
  *  Intersection.js
@@ -16141,14 +16143,14 @@ module.exports = intersect;
  
 
 
-},{"./Intersection":140,"./IntersectionParams":141,"kld-affine":143,"kld-polynomial":147}],143:[function(require,module,exports){
+},{"./Intersection":141,"./IntersectionParams":142,"kld-affine":144,"kld-polynomial":148}],144:[function(require,module,exports){
 // expose classes
 
 exports.Point2D = require('./lib/Point2D');
 exports.Vector2D = require('./lib/Vector2D');
 exports.Matrix2D = require('./lib/Matrix2D');
 
-},{"./lib/Matrix2D":144,"./lib/Point2D":145,"./lib/Vector2D":146}],144:[function(require,module,exports){
+},{"./lib/Matrix2D":145,"./lib/Point2D":146,"./lib/Vector2D":147}],145:[function(require,module,exports){
 /**
  *
  *   Matrix2D.js
@@ -16574,7 +16576,7 @@ Matrix2D.prototype.toString = function() {
 if (typeof module !== "undefined") {
     module.exports = Matrix2D;
 }
-},{}],145:[function(require,module,exports){
+},{}],146:[function(require,module,exports){
 /**
  *
  *   Point2D.js
@@ -16751,7 +16753,7 @@ if (typeof module !== "undefined") {
     module.exports = Point2D;
 }
 
-},{}],146:[function(require,module,exports){
+},{}],147:[function(require,module,exports){
 /**
  *
  *   Vector2D.js
@@ -16987,13 +16989,13 @@ if (typeof module !== "undefined") {
     module.exports = Vector2D;
 }
 
-},{}],147:[function(require,module,exports){
+},{}],148:[function(require,module,exports){
 // expose classes
 
 exports.Polynomial = require('./lib/Polynomial');
 exports.SqrtPolynomial = require('./lib/SqrtPolynomial');
 
-},{"./lib/Polynomial":148,"./lib/SqrtPolynomial":149}],148:[function(require,module,exports){
+},{"./lib/Polynomial":149,"./lib/SqrtPolynomial":150}],149:[function(require,module,exports){
 /**
  *
  *   Polynomial.js
@@ -17625,7 +17627,7 @@ if (typeof module !== "undefined") {
     module.exports = Polynomial;
 }
 
-},{}],149:[function(require,module,exports){
+},{}],150:[function(require,module,exports){
 /**
  *
  *   SqrtPolynomial.js
@@ -17687,7 +17689,7 @@ if (typeof module !== "undefined") {
     module.exports = SqrtPolynomial;
 }
 
-},{"./Polynomial":148}],150:[function(require,module,exports){
+},{"./Polynomial":149}],151:[function(require,module,exports){
 var bezier = require('adaptive-bezier-curve')
 var abs = require('abs-svg-path')
 var norm = require('normalize-svg-path')
@@ -17733,7 +17735,7 @@ module.exports = function contours(svg, scale) {
         paths.push(points)
     return paths
 }
-},{"abs-svg-path":151,"adaptive-bezier-curve":153,"normalize-svg-path":154,"vec2-copy":155}],151:[function(require,module,exports){
+},{"abs-svg-path":152,"adaptive-bezier-curve":154,"normalize-svg-path":155,"vec2-copy":156}],152:[function(require,module,exports){
 
 module.exports = absolutize
 
@@ -17802,7 +17804,7 @@ function absolutize(path){
 	})
 }
 
-},{}],152:[function(require,module,exports){
+},{}],153:[function(require,module,exports){
 function clone(point) { //TODO: use gl-vec2 for this
     return [point[0], point[1]]
 }
@@ -18001,9 +18003,9 @@ module.exports = function createBezierBuilder(opt) {
     }
 }
 
-},{}],153:[function(require,module,exports){
+},{}],154:[function(require,module,exports){
 module.exports = require('./function')()
-},{"./function":152}],154:[function(require,module,exports){
+},{"./function":153}],155:[function(require,module,exports){
 
 var π = Math.PI
 var _120 = radians(120)
@@ -18205,13 +18207,13 @@ function radians(degress){
 	return degress * (π / 180)
 }
 
-},{}],155:[function(require,module,exports){
+},{}],156:[function(require,module,exports){
 module.exports = function vec2Copy(out, a) {
     out[0] = a[0]
     out[1] = a[1]
     return out
 }
-},{}],156:[function(require,module,exports){
+},{}],157:[function(require,module,exports){
 var Tess2 = require('tess2')
 var xtend = require('xtend')
 
@@ -18267,9 +18269,9 @@ module.exports = function(contours, opt) {
         cells: cells
     }
 }
-},{"tess2":157,"xtend":159}],157:[function(require,module,exports){
+},{"tess2":158,"xtend":160}],158:[function(require,module,exports){
 module.exports = require('./src/tess2');
-},{"./src/tess2":158}],158:[function(require,module,exports){
+},{"./src/tess2":159}],159:[function(require,module,exports){
 /*
 ** SGI FREE SOFTWARE LICENSE B (Version 2.0, Sept. 18, 2008) 
 ** Copyright (C) [dates of first publication] Silicon Graphics, Inc.
@@ -21695,7 +21697,7 @@ module.exports = require('./src/tess2');
 			return true;
 		}
 	};
-},{}],159:[function(require,module,exports){
+},{}],160:[function(require,module,exports){
 module.exports = extend
 
 var hasOwnProperty = Object.prototype.hasOwnProperty;
@@ -21716,7 +21718,7 @@ function extend() {
     return target
 }
 
-},{}],160:[function(require,module,exports){
+},{}],161:[function(require,module,exports){
 module.exports = unindex
 
 function unindex(positions, cells, out) {
@@ -21770,7 +21772,7 @@ function unindex(positions, cells, out) {
   return out
 }
 
-},{}],161:[function(require,module,exports){
+},{}],162:[function(require,module,exports){
 window.loadSvg = require('load-svg')
 window.parsePath = require('extract-svg-path').parse
 // window.svgMesh3d = require('svg-mesh-3d')
@@ -21798,5 +21800,6 @@ window.assign = require('object-assign')
 window.normalize = require('normalize-path-scale')
 window.areaPolygon = require('area-polygon');
 window.Dijkstra = require('node-dijkstra')
+window.bsBounds = require('binary-search-bounds')
 
-},{"2d-polygon-boolean":5,"area-polygon":20,"bound-points":21,"cdt2d":22,"clean-pslg":40,"csr-matrix":86,"delaunay-triangulate":100,"draw-triangles-2d":101,"extract-svg-path":102,"gh-clipping-algorithm":104,"load-svg":114,"mesh-laplacian":122,"mesh-reindex":126,"node-dijkstra":127,"normalize-path-scale":130,"object-assign":132,"parse-svg-path":133,"point-in-triangle":134,"random-float":135,"simplify-path":137,"svg-intersections":139,"svg-path-contours":150,"triangulate-contours":156,"unindex-mesh":160}]},{},[161]);
+},{"2d-polygon-boolean":5,"area-polygon":20,"binary-search-bounds":21,"bound-points":22,"cdt2d":23,"clean-pslg":41,"csr-matrix":87,"delaunay-triangulate":101,"draw-triangles-2d":102,"extract-svg-path":103,"gh-clipping-algorithm":105,"load-svg":115,"mesh-laplacian":123,"mesh-reindex":127,"node-dijkstra":128,"normalize-path-scale":131,"object-assign":133,"parse-svg-path":134,"point-in-triangle":135,"random-float":136,"simplify-path":138,"svg-intersections":140,"svg-path-contours":151,"triangulate-contours":157,"unindex-mesh":161}]},{},[162]);

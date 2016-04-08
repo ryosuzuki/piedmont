@@ -25,3 +25,4 @@ window.assign = require('object-assign')
 window.normalize = require('normalize-path-scale')
 window.areaPolygon = require('area-polygon');
 window.Dijkstra = require('node-dijkstra')
+window.bsBounds = require('binary-search-bounds')
