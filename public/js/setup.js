@@ -183,8 +183,8 @@ function updateOriginal (path) {
       window.scaleImage = image;
     })
 
-    // loadSvg('/public/assets/mickey-2.svg', function (err, svg) {
-    loadSvg('/public/assets/star.svg', function (err, svg) {
+    loadSvg('/public/assets/mickey-2.svg', function (err, svg) {
+    // loadSvg('/public/assets/star.svg', function (err, svg) {
 
 
       originalPaper.activate()

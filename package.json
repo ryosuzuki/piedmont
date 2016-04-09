@@ -83,6 +83,7 @@
     "three-obj": "^0.6.2",
     "three-simplicial-complex": "^69.0.6",
     "triangulate-contours": "^1.0.2",
-    "unindex-mesh": "^2.0.0"
+    "unindex-mesh": "^2.0.0",
+    "watchjs": "0.0.0"
   }
 }

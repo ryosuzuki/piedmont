@@ -124,13 +124,15 @@ function onDocumentDoubleClick (event) {
   }
 }
 
-
 function getClosestMickey (pos) {
   if (centers.length < 1) {
-    window.mickey = mickey
-    window.currentMickey = mickey
-    colorMickey(mickey, new paper.Color(1, .5, .5))
-    return true
+    if (pos.isInside(mickey.bounds)) {
+      colorMickey(mickey, new paper.Color(1, .5, .5))
+      return true
+    } else {
+      colorMickey(mickey)
+      return false
+    }
   } else {
     var sorted_centers = _.sortBy(centers, 'x')
     var sorted_centers_x = _.map(sorted_centers, 'x')
@@ -140,16 +142,23 @@ function getClosestMickey (pos) {
     var hi = bsBounds.lt(sorted_centers_x, pos.x + w/2)
     var candidates_y = sorted_centers.slice(li, hi+1)
     var sorted_candidates_y = _.map(_.sortBy(candidates_y, 'y'), 'y')
-
     var li = bsBounds.ge(sorted_candidates_y, pos.y - h/2)
     var hi = bsBounds.lt(sorted_candidates_y, pos.y + h/2)
-    candidates = candidates_y.slice(li, hi+1)
+    if (li == hi) {
+      candidates = candidates_y.slice(li, hi+1)
+    } else {
+      candidates = candidates_y.slice(li, hi)
+    }
     if (candidates.length > 0) {
-      var index = li
+      colorMickey(mickey)
+      var index = centers.indexOf(candidates[0])
+      console.log(index)
       window.mickey = window.mickeys[index]
       window.currentMickey = mickey
       colorMickey(mickey, new paper.Color(1, .5, .5))
       return true
+    } else {
+      colorMickey(mickey)
     }
     return false
   }
@@ -193,20 +202,23 @@ function onDocumentMouseMove (event) {
     window.pos = pos
     if (!copyMode) {
       var hover = false
-      hover = getClosestMickey(pos)
-      // for (var i=0; i<mickeys.length; i++) {
-      //   var mickey = mickeys[i]
-      //   if (pos.isInside(mickey.bounds)) {
-      //     hover = true
-      //     window.mickey = mickey
-      //     window.currentMickey = mickey
-      //     colorMickey(mickey, new paper.Color(1, .5, .5))
-      //   } else {
-      //     colorMickey(mickey)
-      //   }
-      // }
+      // hover = getClosestMickey(pos)
+
+      if (mickeys.length < 20) {
+        for (var i=0; i<mickeys.length; i++) {
+          var mickey = mickeys[i]
+          colorMickey(window.mickey)
+          if (pos.isInside(mickey.bounds)) {
+            hover = true
+            window.mickey = mickey
+            window.currentMickey = mickey
+            colorMickey(mickey, new paper.Color(1, .5, .5))
+            break
+          }
+        }
+      }
+
       if (hover) {
-        console.log('hoge')
         insideMode = true
       } else {
         insideMode = false

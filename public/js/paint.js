@@ -104,19 +104,23 @@ function repeatMickey () {
       var v = unit.clone().multiplyScalar(i*dist)
       new_center.addVectors(current_center, v)
 
-      var min_x = new_center.x - bound_width/2
-      var max_x = new_center.x + bound_width/2
-      var min_y = new_center.y - bound_height/2
-      var max_y = new_center.y + bound_height/2
-      if (Math.abs(min_x) > width/2) break
-      if (Math.abs(max_x) > width/2) break
-      if (Math.abs(min_y) > height/2) break
-      if (Math.abs(max_y) > height/2) break
-      add_centers.push(new_center)
+      if ( !new_center.equals(current_center)
+        || !new_center.equals(center)
+        || !new_center.equals(next)
+      ) {
+        var min_x = new_center.x - bound_width/2
+        var max_x = new_center.x + bound_width/2
+        var min_y = new_center.y - bound_height/2
+        var max_y = new_center.y + bound_height/2
+        if (Math.abs(min_x) > width/2) break
+        if (Math.abs(max_x) > width/2) break
+        if (Math.abs(min_y) > height/2) break
+        if (Math.abs(max_y) > height/2) break
+        add_centers.push(new_center)
+      }
       i++
       if (i > 10) break
     }
-    _.pullAll(add_centers, [current_center, center, next])
 
     var i = 0
     while (true) {
@@ -124,20 +128,23 @@ function repeatMickey () {
       var v = unit.clone().multiplyScalar(-i*dist)
       new_center.addVectors(current_center, v)
 
-      var min_x = new_center.x - bound_width/2
-      var max_x = new_center.x + bound_width/2
-      var min_y = new_center.y - bound_height/2
-      var max_y = new_center.y + bound_height/2
-      if (Math.abs(min_x) > width/2) break
-      if (Math.abs(max_x) > width/2) break
-      if (Math.abs(min_y) > height/2) break
-      if (Math.abs(max_y) > height/2) break
-      sub_centers.push(new_center)
+      if ( !new_center.equals(current_center)
+        || !new_center.equals(center)
+        || !new_center.equals(next)
+      ) {
+        var min_x = new_center.x - bound_width/2
+        var max_x = new_center.x + bound_width/2
+        var min_y = new_center.y - bound_height/2
+        var max_y = new_center.y + bound_height/2
+        if (Math.abs(min_x) > width/2) break
+        if (Math.abs(max_x) > width/2) break
+        if (Math.abs(min_y) > height/2) break
+        if (Math.abs(max_y) > height/2) break
+        sub_centers.push(new_center)
+      }
       i++
       if (i > 10) break
     }
-    _.pullAll(sub_centers, [current_center, center, next])
-
 
     window.add_centers = add_centers
     window.sub_centers = sub_centers
