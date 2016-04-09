@@ -12,7 +12,7 @@ self.importScripts('/bower_components/numericjs/src/numeric.js')
 
 
 
-var h = 0.03
+var h = 0.05
 
 var bnd_points
 var bnd_normals
@@ -304,7 +304,7 @@ function createWall () {
       ng.vertices.push(c_outer);
       ng.vertices.push(n_inner);
       // For inner wall
-      // ng.faces.push(new THREE.Face3(num, num+1, num+2))
+      ng.faces.push(new THREE.Face3(num, num+1, num+2))
       // For outer wall
 
       ng.faces.push(new THREE.Face3(num+2, num+1, num))
@@ -313,7 +313,7 @@ function createWall () {
       ng.vertices.push(c_outer);
       ng.vertices.push(n_outer);
       ng.vertices.push(n_inner);
-      // ng.faces.push(new THREE.Face3(num, num+1, num+2))
+      ng.faces.push(new THREE.Face3(num, num+1, num+2))
 
       ng.faces.push(new THREE.Face3(num+2, num+1, num))
     }
