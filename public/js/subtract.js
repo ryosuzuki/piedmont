@@ -4,7 +4,7 @@ var material = new THREE.MeshBasicMaterial({
   side: THREE.DoubleSide,
   wireframe: true,
 })
-material.color.set(new THREE.Color('blue'))
+material.color.set(new THREE.Color('black'))
 
 var ng;
 function go () {
@@ -71,7 +71,7 @@ function getSvgPositions () {
     1. scale: [x, y] -> scale * [x, y]
     2. set center: [0, 0] -> [0.5, 0.5] + alpha
   */
-  var s = window.scale / 5
+  var s = window.scale / 25
   positions = positions.map(function(p) {
     return [ p[0]*s, p[1]*s ]
   })

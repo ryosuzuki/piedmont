@@ -12,7 +12,7 @@ self.importScripts('/bower_components/numericjs/src/numeric.js')
 
 
 
-var h = 0.05
+var h = 0.03
 
 var bnd_points
 var bnd_normals
@@ -132,10 +132,10 @@ function fugafuga (svgPositions) {
       }
     }
 
-    if (!hole) {
+    // if (!hole) {
       createWall()
       createCover()
-    }
+    // }
   })
 
   for (var faceIndex=0; faceIndex<geometry.faces.length; faceIndex++) {
@@ -190,6 +190,11 @@ function roundVector3 (v) {
     return parseFloat(val.toFixed(5))
   })
   return new THREE.Vector3(vec[0], vec[1], vec[2])
+}
+
+
+function createBoundary (faceInfo, positions) {
+
 }
 
 function createHole (faceInfo, positions) {
