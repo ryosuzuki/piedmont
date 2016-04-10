@@ -141,12 +141,17 @@ function updateMesh (ng) {
   scene.remove(nm)
 
   console.log('done')
-  var material = new THREE.MeshLambertMaterial({
+  var wireMaterial = new THREE.MeshBasicMaterial({
     color: 0xffffff,
     vertexColors: THREE.FaceColors,
-    wireframe: true
+    // wireframe: true
   })
   nm = new THREE.Mesh(ng, material);
+  // nm = THREE.SceneUtils.createMultiMaterialObject(ng, [
+  //   material,
+  //   wireMaterial
+  // ])
+
   nm.geometry.verticesNeedUpdate = true;
   nm.dynamic = true;
   nm.castShadow = true;

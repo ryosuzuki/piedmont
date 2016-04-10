@@ -67,6 +67,9 @@ function showSelectIndex () {
     opacity: 0.7
   });
   sm = new THREE.Mesh(g, m)
+  sm.scale.set(mesh.scale.x, mesh.scale.y, mesh.scale.z)
+  sm.position.set(mesh.position.x, mesh.position.y, mesh.position.z)
+  sm.rotation.set(mesh.rotation.x, mesh.rotation.y, mesh.rotation.z)
   scene.add(sm)
 }
 

@@ -64,7 +64,7 @@ function pasteMickey (uv) {
 
 function colorMickey (mickey, color) {
   if (!dm) return false
-  if (!color) color = 'black'
+  if (!color) color = 'grey'
   drawingPaper.activate()
   mickey.fillColor = color
   drawingPaper.view.draw()

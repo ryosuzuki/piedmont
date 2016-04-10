@@ -8,6 +8,8 @@ var size = 1
 var socket = io()
 
 
+var development = false
+
 
 $(function () {
   init();
@@ -241,11 +243,11 @@ function updateOriginal (path) {
   grid.position.y = -0.5*size;
   grid.material.opacity = 0.25;
   grid.material.transparent = true;
-  scene.add(grid);
+  // scene.add(grid);
 
   renderer = new THREE.WebGLRenderer({alpha: true, antialias: true });
   // renderer.setClearColor(0xbbbbbb, 1.0);
-  renderer.setClearColor(0xf0f0f0);
+  renderer.setClearColor(0xffffff);
   renderer.setSize( window.innerWidth, window.innerHeight );
   // renderer.shadowMap.enabled = true;
   document.getElementById('viewport').appendChild( renderer.domElement );
@@ -262,7 +264,9 @@ function updateOriginal (path) {
   stats.domElement.style.top = '10px';
   stats.domElement.style.right = '20px';
   stats.domElement.style.zIndex = 100;
-  document.getElementById('viewport').appendChild(stats.domElement)
+  if (development) {
+   document.getElementById('viewport').appendChild(stats.domElement)
+  }
   document.addEventListener('mousedown', onDocumentMouseDown, false)
   document.addEventListener('mousemove', onDocumentMouseMove, false)
   document.addEventListener('mouseup', onDocumentMouseUp, false)
@@ -275,7 +279,7 @@ function updateOriginal (path) {
 function animate(){
   requestAnimationFrame(animate);
   render();
-  stats.update();
+  if (development) stats.update();
 }
 
 function render() {

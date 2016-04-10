@@ -278,6 +278,7 @@ function showCheckerMark () {
   cm = new THREE.Mesh(g, m);
   cm.scale.set(mesh.scale.x, mesh.scale.y, mesh.scale.z)
   cm.position.set(mesh.position.x, mesh.position.y, mesh.position.z)
+  cm.rotation.set(mesh.rotation.x, mesh.rotation.y, mesh.rotation.z)
   scene.add(cm);
   // for (var id in origin_uvs) {
   //   var hash = origin_uvs[id]
@@ -308,6 +309,7 @@ function showDrawingCanvas () {
   dm = new THREE.Mesh(g, m)
   dm.scale.set(mesh.scale.x, mesh.scale.y, mesh.scale.z)
   dm.position.set(mesh.position.x, mesh.position.y, mesh.position.z)
+  dm.rotation.set(mesh.rotation.x, mesh.rotation.y, mesh.rotation.z)
   scene.add(dm);
 }
 

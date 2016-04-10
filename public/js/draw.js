@@ -89,10 +89,16 @@ function drawObj (geometry) {
 function drawStl (geometry) {
   window.geometry = geometry
   var material = new THREE.MeshLambertMaterial({
-    color: 0xffffff,
+    color: new THREE.Color('white'),
     vertexColors: THREE.FaceColors,
   });
   mesh = new THREE.Mesh(geometry, material);
+
+  if (!window.task) {
+    mesh.rotateX(-Math.PI/2)
+    mesh.rotateZ(-Math.PI/2)
+  }
+
   scene.add(mesh);
   objects.push(mesh)
   loadObjects()
