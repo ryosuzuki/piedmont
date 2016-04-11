@@ -10,8 +10,16 @@ var ng;
 function go () {
   // window.scale = 1/55
   Q.fcall(computeUniq(geometry))
+  .then(computeNormals(geometry))
   .then(replaceObject(geometry))
 }
+
+function computeNormals (geometry) {
+  geometry.computeFaceNormals()
+  geometry.computeVertexNormals()
+  return geometry
+}
+
 
 function hoge (svgPositions) {
   // hole = true

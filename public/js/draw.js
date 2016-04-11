@@ -52,7 +52,8 @@ function drawGeometry () {
       loadStl('/data/tower.stl', drawStl);
       break
     default:
-      loadStl('/data/tower.stl', drawStl);
+      loadStl('/data/tower-1.stl', drawStl);
+      // loadObj('/data/tower.obj', drawStl);
   }
 }
 
@@ -112,6 +113,8 @@ function drawStl2 (geometry) {
 
 function drawStl (geometry) {
   window.geometry = geometry
+  geometry.computeFaceNormals()
+  geometry.computeVertexNormals()
   var material = new THREE.MeshLambertMaterial({
     color: new THREE.Color('white'),
     vertexColors: THREE.FaceColors,

@@ -74,6 +74,7 @@ this.onmessage = function(event) {
   svgPositions = json.svgPositions
   geometry = json.geometry
   selectIndex = json.selectIndex
+
   geometry.faces = json.faces
   geometry.faceVertexUvs = json.faceVertexUvs
   geometry.vertices = json.vertices
@@ -147,6 +148,7 @@ function fugafuga (svgPositions) {
     }
 
 
+    // checkRemaining(positions)
 
     // debugger
 
@@ -202,7 +204,7 @@ function fugafuga (svgPositions) {
 }
 
 
-function checkRemaining () {
+function checkRemaining (positions) {
   var null_index = []
   for (var i=0; i<bnd_points.length; i++) {
     var p = bnd_points[i]
@@ -328,7 +330,7 @@ function createHole (faceInfo, positions, hoge) {
         ng.faces.push(new THREE.Face3(num, num+1, num+2))
       }
 
-      // ng.faces.push(new THREE.Face3(num+2, num+1, num))
+      ng.faces.push(new THREE.Face3(num+2, num+1, num))
 
       var auv = nuv[nf[j][0]]
       var buv = nuv[nf[j][1]]
@@ -549,8 +551,10 @@ function getFaceInfo (geometry, faceIndex) {
   var va  = geometry.vertices[face.a]
   var vb  = geometry.vertices[face.b]
   var vc  = geometry.vertices[face.c]
-  var normal = face.normal
-
+  va = new THREE.Vector3(va.x, va.y, va.z)
+  vb = new THREE.Vector3(vb.x, vb.y, vb.z)
+  vc = new THREE.Vector3(vc.x, vc.y, vc.z)
+  var normal = new THREE.Vector3(face.normal.x, face.normal.y, face.normal.z)
   var faces_a = geometry.uniq[geometry.map[face.a]].faces
   var faces_b = geometry.uniq[geometry.map[face.b]].faces
   var faces_c = geometry.uniq[geometry.map[face.c]].faces
