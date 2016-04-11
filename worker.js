@@ -147,11 +147,6 @@ function fugafuga (svgPositions) {
       }
     }
 
-
-    // checkRemaining(positions)
-
-    // debugger
-
     if (!hole) {
       createWall()
       createCover()
@@ -328,9 +323,9 @@ function createHole (faceInfo, positions, hoge) {
       ng.vertices.push(c.vertex)
       if (hole || hoge) {
         ng.faces.push(new THREE.Face3(num, num+1, num+2))
+      } else {
+        ng.faces.push(new THREE.Face3(num+2, num+1, num))
       }
-
-      ng.faces.push(new THREE.Face3(num+2, num+1, num))
 
       var auv = nuv[nf[j][0]]
       var buv = nuv[nf[j][1]]
@@ -342,25 +337,32 @@ function createHole (faceInfo, positions, hoge) {
 
       if (ai && ai.equal) {
         var index = ai.index
+        if (! bnd_points[index]) {
         bnd_points[index] = a.vertex
         bnd_normals[index] = a.normal
         bnd_2d[index] = auv
+
+        }
       } else {
         // debugger
       }
       if (bi  && bi.equal) {
         var index = bi.index
+        if (! bnd_points[index]) {
         bnd_points[index] = b.vertex
         bnd_normals[index] = b.normal
         bnd_2d[index] = buv
+        }
       } else {
         // debugger
       }
       if (ci && ci.equal) {
         var index = ci.index
+        if (! bnd_points[index]) {
         bnd_points[index] = c.vertex
         bnd_normals[index] = c.normal
         bnd_2d[index] = cuv
+        }
       } else {
         // debugger
       }

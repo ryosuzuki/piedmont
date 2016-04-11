@@ -63,7 +63,7 @@ function showSelectIndex () {
   }
   g.computeFaceNormals()
   // var m = new THREE.MeshBasicMaterial({color: 0xeeeeee})
-  checkerMark = false
+  // checkerMark = false
   var m = new THREE.MeshLambertMaterial({
     color: 0xdddddd,
     // color: 0x00ffff,

@@ -29,6 +29,7 @@ function hoge (svgPositions) {
     geometry: geometry,
     selectIndex: selectIndex,
     faces: geometry.faces,
+
     faceVertexUvs: geometry.faceVertexUvs,
     vertices: geometry.vertices,
     uniq: geometry.uniq,
@@ -71,7 +72,7 @@ function getSvgPositions () {
   var d = window.mickey.pathData
   var svgMesh = svgMesh3d(d, {
     scale: 1,
-    simplify: Math.pow(10, -5),
+    simplify: Math.pow(10, -10),
     normalize: true
   })
   positions = svgMesh.positions
@@ -79,7 +80,7 @@ function getSvgPositions () {
     1. scale: [x, y] -> scale * [x, y]
     2. set center: [0, 0] -> [0.5, 0.5] + alpha
   */
-  var s = window.scale / 5 // 25
+  var s = window.scale / 10
   positions = positions.map(function(p) {
     return [ p[0]*s, p[1]*s ]
   })
@@ -141,7 +142,7 @@ function replaceObject (geometry) {
 var finishSubtract
 
 var wireMaterial = new THREE.MeshBasicMaterial({
-  color: 0xffffff,
+  color: 0x999999,
   vertexColors: THREE.FaceColors,
   wireframe: true
 })

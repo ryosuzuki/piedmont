@@ -26,13 +26,13 @@ $(function () {
   originalPaper.view.viewSize = [256, 256] // new paper.Size(256, 256)
 
   var drawing = document.getElementById('drawing')
-  drawing.width = 256 //1280 // 256
-  drawing.height = 256 // 1280 // 256
+  drawing.width = 512 // 1280 // 256
+  drawing.height = 512 //1280 // 256
 
   drawingPaper = new paper.PaperScope()
   drawingPaper.setup($("#drawing")[0])
   drawingPaper.view.center = [0, 0]
-  drawingPaper.view.viewSize = [256, 256] // [1280, 1280] // new paper.Size(256, 256)
+  drawingPaper.view.viewSize = [512, 512] // [1280, 1280] // new paper.Size(256, 256)
 
 
   $('#original').draggable({
@@ -141,7 +141,7 @@ function updateOriginal (path) {
       default:
         window.scale = 0.8
     }
-    window.scale = window.scale / 5
+    window.scale = window.scale / 2
     drawingPaper.activate()
     var path = new paper.Path(path.pathData)
     path.scale(window.scale)
