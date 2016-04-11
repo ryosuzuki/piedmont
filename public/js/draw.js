@@ -94,6 +94,8 @@ function drawStl (geometry) {
   });
   mesh = new THREE.Mesh(geometry, material);
 
+  // mesh.rotateX(-Math.PI/2)
+
   wireMesh = new THREE.Mesh(geometry, wireMaterial);
   scene.add(mesh);
   // scene.add(wireMesh);

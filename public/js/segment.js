@@ -9,6 +9,9 @@ $(function () {
       return (a+b+c)/3;
     });
     var val = 0.1
+    if (window.task == 5) val = 3.0
+    if (window.task == 6) val = 2.0
+
     showSegmentation(val)
   })
 })
@@ -63,7 +66,7 @@ function showSelectIndex () {
   checkerMark = false
   var m = new THREE.MeshLambertMaterial({
     color: 0xdddddd,
-    color: 0x00ffff,
+    // color: 0x00ffff,
     map: image,
     transparent: true,
     opacity: 0.7
@@ -178,9 +181,22 @@ function getNextFaces (faceIndex) {
 }
 
 function showPoints (g) {
-  var m = new THREE.PointsMaterial( { size: 20, sizeAttenuation: false} );
-  // m.color.setHex(Math.random() * 0xffffff);
-  m.color.setHex(0xff00ff);
-  points = new THREE.Points(g, m);
-  scene.add(points)
+  // var m = new THREE.PointsMaterial( { size: 20, sizeAttenuation: false} );
+  // // m.color.setHex(Math.random() * 0xffffff);
+  // m.color.setHex(0xff00ff);
+  // points = new THREE.Points(g, m);
+  // scene.add(points)
+
+  console.log('hoge')
+  // debugger
+  var sphereGeometry = new THREE.SphereGeometry(0.01*size, 32, 32 );
+  var sphereMaterial = new THREE.MeshBasicMaterial( { color: 0xf5555, shading: THREE.FlatShading } );
+  for (var i= 0; i<g.vertices.length; i++ ) {
+    var sphere = new THREE.Mesh( sphereGeometry, sphereMaterial );
+    sphere.position.set(g.vertices[i].x, g.vertices[i].y, g.vertices[i].z)
+    scene.add( sphere );
+    // spheres.push( sphere );
+  }
+
+
 }

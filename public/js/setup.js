@@ -26,13 +26,13 @@ $(function () {
   originalPaper.view.viewSize = [256, 256] // new paper.Size(256, 256)
 
   var drawing = document.getElementById('drawing')
-  drawing.width = 1280 // 256
-  drawing.height = 1280 // 256
+  drawing.width = 256// 1280 // 256
+  drawing.height = 256 // 1280 // 256
 
   drawingPaper = new paper.PaperScope()
   drawingPaper.setup($("#drawing")[0])
   drawingPaper.view.center = [0, 0]
-  drawingPaper.view.viewSize = [1280, 1280] // new paper.Size(256, 256)
+  drawingPaper.view.viewSize = [256, 256] // [1280, 1280] // new paper.Size(256, 256)
 
 
   $('#original').draggable({
@@ -139,7 +139,7 @@ function updateOriginal (path) {
         window.scale = 1
         break
       default:
-        window.scale = 0.8
+        window.scale = 1/5//0.8
     }
 
     drawingPaper.activate()
@@ -210,7 +210,7 @@ function updateOriginal (path) {
   function init() {
     scene = new THREE.Scene();
     camera = new THREE.PerspectiveCamera(35, window.innerWidth / window.innerHeight, 0.01*size, 1000);
-    camera.position.set(size*2, size*2, size*2)
+    camera.position.set(size*1.9, size*1.4, size*1.8)
     camera.lookAt(new THREE.Vector3(0, 0, 0));
     scene.add( camera );
 
@@ -247,7 +247,7 @@ function updateOriginal (path) {
 
   renderer = new THREE.WebGLRenderer({alpha: true, antialias: true });
   // renderer.setClearColor(0xbbbbbb, 1.0);
-  renderer.setClearColor(0xffffff);
+  renderer.setClearColor(0xeeeeee);
   renderer.setSize( window.innerWidth, window.innerHeight );
   // renderer.shadowMap.enabled = true;
   document.getElementById('viewport').appendChild( renderer.domElement );

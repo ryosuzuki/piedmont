@@ -83,7 +83,7 @@ function onDocumentMouseUp (event) {
 
   if (window.dragging && intersects.length > 0) {
     window.pos = new THREE.Vector2(event.pageX, event.pageY)
-    var start = map[current.face.a]
+    var start = map[current.face.b]
     window.start = start
 
     initialCheck()
