@@ -139,7 +139,7 @@ function updateOriginal (path) {
         window.scale = 1
         break
       default:
-        window.scale = 1
+        window.scale = 0.8
     }
 
     drawingPaper.activate()

@@ -156,6 +156,7 @@ function repeatMickey () {
       if (center) {
         var path = mickey.clone()
         path.position = [center.x, center.y]
+        path.opacity = 0.5
         window.mickeys.push(path)
       }
 
@@ -163,6 +164,7 @@ function repeatMickey () {
       if (center) {
         var path = mickey.clone()
         path.position = [center.x, center.y]
+        path.opacity = 0.5
         window.mickeys.push(path)
       }
 

@@ -19,22 +19,30 @@
 
 <div class="top-buttons">
   <!-- <button class="ui blue button" id="import">STL Import</button> -->
-  <button class="ui grey button" id="mode">View Mode (⌘ + Mouse)</button>
-  <p>⌘ + Mouse: Select <br>⌥ + Mouse: Undo</p>
+  <button class="ui grey button" id="mode">
+    View Mode
+  </button>
+  <!-- <p>⌘ + Mouse: Select <br>⌥ + Mouse: Undo</p> -->
 </div>
 <!-- <canvas id="canvas"></canvas> -->
 
 
 <div class="bottom-left-buttons">
-  <button class="ui pink button" onclick="restartMesh()">Undo</button>
+  <button class="ui pink button" onclick="restartMesh()">
+    <i class="fa fa-fw fa-undo"></i>&nbsp; Undo
+  </button>
 </div>
 
 <div class="bottom-right-buttons">
   <!-- <button class="ui grey button" onclick="toggleMapping()">Toggle Mapping</button> -->
   <!-- <button class="ui grey button" onclick="toggleOriginal()">Toggle Original</button> -->
   <button class="ui teal button" onclick="repeatMickey()">Repeat Pattern</button>
-  <button class="ui green button" onclick="go()">Generate Texture</button>
-  <button class="ui violet button" onclick="exportStl()">STL Export</button>
+  <button class="ui teal button" onclick="go()">
+    <i class="fa fa-fw fa-magic"></i>&nbsp; Generate Texture
+  </button>
+  <button class="ui grey button" onclick="exportStl()">
+    <i class="fa fa-fw fa-download"></i>&nbsp; STL Export
+  </button>
 </div>
 
 <canvas id="original"></canvas>

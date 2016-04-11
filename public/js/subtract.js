@@ -132,8 +132,14 @@ function replaceObject (geometry) {
 
 var finishSubtract
 
+var wireMaterial = new THREE.MeshBasicMaterial({
+  color: 0xffffff,
+  vertexColors: THREE.FaceColors,
+  wireframe: true
+})
+
 function updateMesh (ng) {
-  scene.remove(mesh)
+  // scene.remove(mesh)
   scene.remove(dm)
   scene.remove(cm)
   scene.remove(sm)
@@ -141,12 +147,8 @@ function updateMesh (ng) {
   scene.remove(nm)
 
   console.log('done')
-  var wireMaterial = new THREE.MeshBasicMaterial({
-    color: 0xffffff,
-    vertexColors: THREE.FaceColors,
-    // wireframe: true
-  })
-  nm = new THREE.Mesh(ng, material);
+
+  nm = new THREE.Mesh(ng, wireMaterial);
   // nm = THREE.SceneUtils.createMultiMaterialObject(ng, [
   //   material,
   //   wireMaterial

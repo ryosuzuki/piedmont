@@ -127,7 +127,7 @@ function onDocumentDoubleClick (event) {
 function getClosestMickey (pos) {
   if (centers.length < 1) {
     if (pos.isInside(mickey.bounds)) {
-      colorMickey(mickey, new paper.Color(1, .5, .5))
+      colorMickey(mickey, new paper.Color('#FF829E'))
       return true
     } else {
       colorMickey(mickey)
@@ -212,7 +212,7 @@ function onDocumentMouseMove (event) {
             hover = true
             window.mickey = mickey
             window.currentMickey = mickey
-            colorMickey(mickey, new paper.Color(1, .5, .5))
+            colorMickey(mickey, new paper.Color('#FF829E'))
             break
           }
         }

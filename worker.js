@@ -92,6 +92,9 @@ function fugafuga (svgPositions) {
     bnd_normals = new Array(positions.length)
     bnd_2d = new Array(positions.length)
 
+
+    var hogehoge = []
+
     for (var i=0; i<selectIndex.length; i++) {
       var faceIndex = selectIndex[i]
       var faceInfo = getFaceInfo(geometry, faceIndex)
@@ -103,6 +106,13 @@ function fugafuga (svgPositions) {
       })
 
       triangle = round(triangle)
+
+      /*
+      for (var j=0; j<positions.length; j++) {
+        var p = positions[j]
+        if (inside(p, triangle)) hogehoge.push(faceIndex)
+      }
+      */
 
       var points = polygonBoolean(triangle, positions, 'not')
 
@@ -126,16 +136,24 @@ function fugafuga (svgPositions) {
       } else {
         s = new Date().getTime();
         createHole(faceInfo, positions)
-        console.log(new Date().getTime() - s)
+        // console.log(new Date().getTime() - s)
 
         overlapIndex = _.union(overlapIndex, [faceIndex])
       }
     }
 
+
+
+    // debugger
+
     // if (!hole) {
       createWall()
       createCover()
     // }
+
+
+
+
   })
 
   for (var faceIndex=0; faceIndex<geometry.faces.length; faceIndex++) {
@@ -168,9 +186,72 @@ function fugafuga (svgPositions) {
     // ng.faces.push(new THREE.Face3(num+2, num+1, num+1))
     */
   }
+
+  console.log({
+    outer_bnd_length: outer_bnd_points.length,
+    outer_length: outer_points.length,
+    outer_bnd_points: outer_bnd_points,
+    outer_points: outer_points
+  })
+
   return ng
 }
 
+
+function checkRemaining () {
+  var null_index = []
+  for (var i=0; i<bnd_points.length; i++) {
+    var p = bnd_points[i]
+    if (!p) null_index.push(i)
+  }
+
+  hogehoge = overlapIndex // _.uniq(hogehoge)
+  var should_check = []
+  for (var i=0; i<null_index.length; i++) {
+    var index = null_index[i]
+    var p = positions[index]
+    p = p.map( function (val) {
+      return parseFloat(val.toFixed(5))
+    })
+    for (var j=0; j<hogehoge.length; i++) {
+      var faceIndex = hogehoge[i]
+      // var faceInfo = getFaceInfo(geometry, faceIndex)
+      var ouv = geometry.faceVertexUvs[0][faceIndex]
+      if (!ouv) {
+        console.log('skip')
+        continue
+      }
+      var triangle = ouv.map( function (v) {
+        return [v.x, v.y];
+      })
+      if (inside(p, triangle)) {
+        should_check.push({
+          faceIndex: faceIndex,
+          position: p,
+          index: index,
+          triangle: triangle
+        })
+        break
+      }
+    }
+  }
+
+  // debugger
+  for (var i=0; i<should_check.length; i++) {
+    var faceIndex = should_check[i].faceIndex
+    var faceInfo = getFaceInfo(geometry, faceIndex)
+    var triangle = should_check[i].triangle
+    var position = should_check[i].position
+    var nxyz = uvTo3D([position], triangle, faceInfo);
+    console.log(nxyz)
+
+    var index = should_check[i].index
+    bnd_points[index] = nxyz[0].vertex
+    bnd_normals[index] = nxyz[0].normal
+    bnd_2d[index] = position
+  }
+
+}
 
 
 
@@ -194,6 +275,7 @@ function roundVector3 (v) {
 
 
 function createBoundary (faceInfo, positions) {
+  createHole(faceInfo, positions, 'hole')
 
 }
 
@@ -257,18 +339,24 @@ function createHole (faceInfo, positions) {
         bnd_points[index] = a.vertex
         bnd_normals[index] = a.normal
         bnd_2d[index] = auv
+      } else {
+        // debugger
       }
       if (bi && bi.equal) {
         var index = bi.index
         bnd_points[index] = b.vertex
         bnd_normals[index] = b.normal
         bnd_2d[index] = buv
+      } else {
+        // debugger
       }
       if (ci && ci.equal) {
         var index = ci.index
         bnd_points[index] = c.vertex
         bnd_normals[index] = c.normal
         bnd_2d[index] = cuv
+      } else {
+        // debugger
       }
       outer_faces.push({
         ai: ai,
@@ -297,6 +385,8 @@ function createWall () {
     var inner_points = _.compact(bnd_points)
     outer_points = _.compact(outer_bnd_points)
 
+
+    // debugger
     for (var i=0; i<inner_points.length; i++) {
       var ni = (i+1)%inner_points.length
       var c_inner = inner_points[i]
@@ -508,13 +598,15 @@ function getIndex (positions, uv) {
     })
     var min = _.min(diff)
     var index = diff.indexOf(min)
+    return { index: index, equal: false }
+
+    /*
     if (min < epsilon) {
-      // console.log(min)
-      // console.log(index)
       return { index: index, equal: false }
     } else {
       return false
     }
+    */
   }
   if (ui == vi) {
     return { index: ui, equal: true }
@@ -525,6 +617,7 @@ function getIndex (positions, uv) {
     if (positions[vi][0] == uv[0] && positions[vi][1] == uv[1]) {
       return { index: vi, equal: true }
     }
+    // debugger
     return false
   }
 }

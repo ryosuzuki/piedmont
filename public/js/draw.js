@@ -94,12 +94,9 @@ function drawStl (geometry) {
   });
   mesh = new THREE.Mesh(geometry, material);
 
-  if (!window.task) {
-    mesh.rotateX(-Math.PI/2)
-    mesh.rotateZ(-Math.PI/2)
-  }
-
+  wireMesh = new THREE.Mesh(geometry, wireMaterial);
   scene.add(mesh);
+  // scene.add(wireMesh);
   objects.push(mesh)
   loadObjects()
 }
