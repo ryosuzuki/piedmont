@@ -44,10 +44,12 @@ function drawGeometry () {
       loadObj('/data/bunny.obj', drawStl);
       break
     case 7:
-      loadStl('/data/tower.stl', drawStl);
+      loadStl('/data/tower-1.stl', drawStl);
       break
     case 8:
-      loadObj('/data/cone.obj', drawStl);
+      // loadStl('/data/demo-2.stl', drawStl);
+      loadStl('/data/demo-2.stl', drawStl2);
+      loadStl('/data/tower.stl', drawStl);
       break
     default:
       loadStl('/data/tower.stl', drawStl);
@@ -80,11 +82,33 @@ function drawObj (geometry) {
     color: 0xffffff,
     vertexColors: THREE.FaceColors,
   });
-  mesh = new THREE.Mesh(geometry, material);
+  mesh = new THREE.Mesh(geometry, wireMaterial);
   scene.add(mesh);
   objects.push(mesh)
   loadObjects()
 }
+
+
+function drawStl2 (geometry) {
+  window.geometry = geometry
+  var material = new THREE.MeshBasicMaterial({
+    color: 0xFFFFFF,
+    vertexColors: THREE.FaceColors,
+    wireframe: true
+  });
+  mesh2 = new THREE.Mesh(geometry, material);
+  // wireMesh = new THREE.Mesh(geometry, wireMaterial);
+
+  if (window.task == 8) {
+    mesh2.rotateY(-Math.PI/2)
+    mesh2.rotateX(-Math.PI/2)
+  }
+  scene.add(mesh2);
+  // scene.add(wireMesh);
+  loadObjects()
+}
+
+
 
 function drawStl (geometry) {
   window.geometry = geometry
@@ -94,9 +118,12 @@ function drawStl (geometry) {
   });
   mesh = new THREE.Mesh(geometry, material);
 
-  // mesh.rotateX(-Math.PI/2)
+  if (window.task == 8) {
+    mesh.rotateY(-Math.PI/2)
+    mesh.rotateX(-Math.PI/2)
+  }
 
-  wireMesh = new THREE.Mesh(geometry, wireMaterial);
+  // wireMesh = new THREE.Mesh(geometry, wireMaterial);
   scene.add(mesh);
   // scene.add(wireMesh);
   objects.push(mesh)

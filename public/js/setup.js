@@ -26,7 +26,7 @@ $(function () {
   originalPaper.view.viewSize = [256, 256] // new paper.Size(256, 256)
 
   var drawing = document.getElementById('drawing')
-  drawing.width = 256// 1280 // 256
+  drawing.width = 256 //1280 // 256
   drawing.height = 256 // 1280 // 256
 
   drawingPaper = new paper.PaperScope()
@@ -139,9 +139,9 @@ function updateOriginal (path) {
         window.scale = 1
         break
       default:
-        window.scale = 1/5//0.8
+        window.scale = 0.8
     }
-
+    window.scale = window.scale / 5
     drawingPaper.activate()
     var path = new paper.Path(path.pathData)
     path.scale(window.scale)

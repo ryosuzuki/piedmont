@@ -11,6 +11,8 @@ self.importScripts('/bower_components/numericjs/src/numeric.js')
 // self.importScripts('/node_modules/paper/dist/paper-node.js')
 
 
+var demo_video = true
+
 
 var h = 0.03
 
@@ -128,6 +130,7 @@ function fugafuga (svgPositions) {
           var triArea = areaPolygon(triangle)
           if (area/triArea > 0) {
             createHole(faceInfo, positions)
+            // createHole(faceInfo, positions, true)
             overlapIndex = _.union(overlapIndex, [faceIndex])
             console.log(area/triArea)
             continue;
@@ -136,7 +139,8 @@ function fugafuga (svgPositions) {
       } else {
         s = new Date().getTime();
         createHole(faceInfo, positions)
-        // console.log(new Date().getTime() - s)
+        // createHole(faceInfo, positions, true)
+        console.log(new Date().getTime() - s)
 
         overlapIndex = _.union(overlapIndex, [faceIndex])
       }
@@ -146,10 +150,10 @@ function fugafuga (svgPositions) {
 
     // debugger
 
-    // if (!hole) {
+    if (!hole) {
       createWall()
       createCover()
-    // }
+    }
 
 
 
@@ -258,7 +262,7 @@ function checkRemaining () {
 function round (array) {
   return array.map( function (a) {
     return a.map( function (val) {
-      return parseFloat(val.toFixed(5))
+      return val // parseFloat(val.toFixed(5))
     })
   })
 }
@@ -268,7 +272,7 @@ function round (array) {
 function roundVector3 (v) {
   var vec = [v.x, v.y, v.z]
   vec = vec.map( function (val) {
-    return parseFloat(val.toFixed(5))
+    return val // parseFloat(val.toFixed(5))
   })
   return new THREE.Vector3(vec[0], vec[1], vec[2])
 }
@@ -279,7 +283,7 @@ function createBoundary (faceInfo, positions) {
 
 }
 
-function createHole (faceInfo, positions) {
+function createHole (faceInfo, positions, hoge) {
   var faceIndex = faceInfo.faceIndex
   var face = geometry.faces[faceIndex];
   var ouv = geometry.faceVertexUvs[0][faceIndex];
@@ -289,7 +293,7 @@ function createHole (faceInfo, positions) {
   })
   triangle = round(triangle)
   var diffs = greinerHormann.intersection(positions, triangle)
-  if (hole) {
+  if (hole || hoge) {
     diffs = greinerHormann.diff(triangle, positions)
   }
   // if (!diffs) return false
@@ -320,7 +324,7 @@ function createHole (faceInfo, positions) {
       ng.vertices.push(a.vertex)
       ng.vertices.push(b.vertex)
       ng.vertices.push(c.vertex)
-      if (hole) {
+      if (hole || hoge) {
         ng.faces.push(new THREE.Face3(num, num+1, num+2))
       }
 
@@ -342,7 +346,7 @@ function createHole (faceInfo, positions) {
       } else {
         // debugger
       }
-      if (bi && bi.equal) {
+      if (bi  && bi.equal) {
         var index = bi.index
         bnd_points[index] = b.vertex
         bnd_normals[index] = b.normal
@@ -681,7 +685,13 @@ function uvTo3D (nuv, triangle, face_info) {
     }
 
     v = roundVector3(v)
-    return { vertex: v, normal: normal};
+
+    if (demo_video) {
+      return { vertex: v, normal: face_info.normal};
+    } else {
+      return { vertex: v, normal: normal};
+    }
+
   })
   return nxyz;
 }
