@@ -14,7 +14,7 @@ self.importScripts('/bower_components/numericjs/src/numeric.js')
 var demo_video = true
 
 
-var h = 0.03
+var h = 1
 
 var bnd_points
 var bnd_normals
@@ -565,18 +565,18 @@ function getFaceInfo (geometry, faceIndex) {
   var faces_bc = _.intersection(faces_b, faces_c)
   var faces_ca = _.intersection(faces_c, faces_a)
 
-  var v = new THREE.Vector3()
-  var n1 = geometry.faces[faces_ab[0]].normal
-  var n2 = geometry.faces[faces_ab[1]].normal
-  var normal_ab = v.clone().addVectors(n1, n2).normalize()
+  // var v = new THREE.Vector3()
+  // var n1 = geometry.faces[faces_ab[0]].normal
+  // var n2 = geometry.faces[faces_ab[1]].normal
+  // var normal_ab = v.clone().addVectors(n1, n2).normalize()
 
-  var n1 = geometry.faces[faces_bc[0]].normal
-  var n2 = geometry.faces[faces_bc[1]].normal
-  var normal_bc = v.clone().addVectors(n1, n2).normalize()
+  // var n1 = geometry.faces[faces_bc[0]].normal
+  // var n2 = geometry.faces[faces_bc[1]].normal
+  // var normal_bc = v.clone().addVectors(n1, n2).normalize()
 
-  var n1 = geometry.faces[faces_ca[0]].normal
-  var n2 = geometry.faces[faces_ca[1]].normal
-  var normal_ca = v.clone().addVectors(n1, n2).normalize()
+  // var n1 = geometry.faces[faces_ca[0]].normal
+  // var n2 = geometry.faces[faces_ca[1]].normal
+  // var normal_ca = v.clone().addVectors(n1, n2).normalize()
 
   var normal_a = geometry.uniq[geometry.map[face.a]].vertex_normal
   var normal_b = geometry.uniq[geometry.map[face.b]].vertex_normal
@@ -590,9 +590,9 @@ function getFaceInfo (geometry, faceIndex) {
     normal_a: roundVector3(normal_a),
     normal_b: roundVector3(normal_b),
     normal_c: roundVector3(normal_c),
-    normal_ab: roundVector3(normal_ab),
-    normal_bc: roundVector3(normal_bc),
-    normal_ca: roundVector3(normal_ca),
+    // normal_ab: roundVector3(normal_ab),
+    // normal_bc: roundVector3(normal_bc),
+    // normal_ca: roundVector3(normal_ca),
   }
   return faceInfo
 }

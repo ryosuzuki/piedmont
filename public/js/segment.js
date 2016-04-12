@@ -36,7 +36,8 @@ function initialCheck() {
     return false
   }
   console.log('Start initialCheck')
-  window.selectIndex = check(0.003)
+  // window.selectIndex = check(0.003)
+  window.selectIndex = check(0.3)
   if (window.task && window.task <= 3) {
     showSelectIndex()
   } else if (selectIndex.length < 5) {

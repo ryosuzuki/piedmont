@@ -193,8 +193,8 @@ function updateOriginal (path) {
       var paper = originalPaper
       var d = $('path', svg).attr('d');
       var path = new paper.Path(d)
-      // var path = new paper.Path.Rectangle(new paper.Point(-100, -100), new paper.Point(100, 100))
-      // var path = new paper.Path.Circle(new paper.Point(0, 0), 256)
+      // var path = new paper.Path.Rectangle(new paper.Point(-100, -20), new paper.Point(100, 20))
+      var path = new paper.Path.Circle(new paper.Point(0, 0), 256)
       path.strokeColor = 'black'
       path.fillColor = 'black'
       path.closed = true

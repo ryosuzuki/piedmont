@@ -51,6 +51,15 @@ function drawGeometry () {
       loadStl('/data/demo-2.stl', drawStl2);
       loadStl('/data/tower.stl', drawStl);
       break
+    case 9:
+      loadStl('/data/noah.stl', drawStl);
+      break
+    case 10:
+      loadStl('/data/cornersaver.stl', drawStl);
+      break
+    case 11:
+      loadStl('/data/cup.stl', drawStl);
+      break
     default:
       loadStl('/data/tower-1.stl', drawStl);
       // loadObj('/data/tower.obj', drawStl);

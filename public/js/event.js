@@ -204,7 +204,7 @@ function onDocumentMouseMove (event) {
       var hover = false
       // hover = getClosestMickey(pos)
 
-      if (mickeys.length < 20) {
+      if (mickeys.length < 40) {
         for (var i=0; i<mickeys.length; i++) {
           var mickey = mickeys[i]
           colorMickey(window.mickey)
