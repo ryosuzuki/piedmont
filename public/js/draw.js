@@ -58,7 +58,11 @@ function drawGeometry () {
       loadStl('/data/cornersaver.stl', drawStl);
       break
     case 11:
-      loadStl('/data/cup.stl', drawStl);
+      loadStl('/data/cup-1.stl', drawStl);
+      break
+    case 12:
+      loadStl('/tactile-picture.stl', drawStl);
+      // loadStl('/tactile-picture.stl', drawStl2);
       break
     default:
       loadStl('/data/tower-1.stl', drawStl);

@@ -204,7 +204,7 @@ function onDocumentMouseMove (event) {
       var hover = false
       // hover = getClosestMickey(pos)
 
-      if (mickeys.length < 40) {
+      if (mickeys.length < 10) {
         for (var i=0; i<mickeys.length; i++) {
           var mickey = mickeys[i]
           colorMickey(window.mickey)
@@ -392,6 +392,11 @@ Mousetrap.bind('command+c', function (event) {
     $('#mode').addClass('pink').text('Copy Mode (Press ⌘)')
   }
 }, 'keydown')
+
+Mousetrap.bind('option', function (event) {
+  repeatMickey()
+}, 'keydown')
+
 
 Mousetrap.bind('command+v', function (event) {
   if (copyMode && current && current.uv) pasteMickey(current.uv)

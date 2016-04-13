@@ -37,7 +37,7 @@ function initialCheck() {
   }
   console.log('Start initialCheck')
   // window.selectIndex = check(0.003)
-  window.selectIndex = check(0.3)
+  window.selectIndex = check(0.003)
   if (window.task && window.task <= 3) {
     showSelectIndex()
   } else if (selectIndex.length < 5) {
@@ -64,7 +64,7 @@ function showSelectIndex () {
   }
   g.computeFaceNormals()
   // var m = new THREE.MeshBasicMaterial({color: 0xeeeeee})
-  // checkerMark = false
+  checkerMark = false
   var m = new THREE.MeshLambertMaterial({
     color: 0xdddddd,
     // color: 0x00ffff,

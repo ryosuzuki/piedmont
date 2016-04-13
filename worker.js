@@ -14,7 +14,7 @@ self.importScripts('/bower_components/numericjs/src/numeric.js')
 var demo_video = true
 
 
-var h = 1
+var h = 0.01
 
 var bnd_points
 var bnd_normals
