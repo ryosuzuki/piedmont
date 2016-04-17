@@ -119,7 +119,7 @@ function repeatMickey () {
         add_centers.push(new_center)
       }
       i++
-      if (i > 10) break
+      if (i > 5) break
     }
 
     var i = 0
@@ -143,7 +143,7 @@ function repeatMickey () {
         sub_centers.push(new_center)
       }
       i++
-      if (i > 10) break
+      if (i > 5) break
     }
 
     window.add_centers = add_centers

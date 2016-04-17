@@ -141,7 +141,7 @@ function updateOriginal (path) {
       default:
         window.scale = 0.8
     }
-    window.scale = window.scale / 2
+    window.scale = window.scale / 5
     drawingPaper.activate()
     var path = new paper.Path(path.pathData)
     path.scale(window.scale)
@@ -185,8 +185,10 @@ function updateOriginal (path) {
       window.scaleImage = image;
     })
 
-    // loadSvg('/public/assets/mickey-2.svg', function (err, svg) {
+    // loadSvg('/public/assets/mickey.svg', function (err, svg) {
     loadSvg('/public/assets/star.svg', function (err, svg) {
+    // loadSvg('/dog.svg', function (err, svg) {
+    // loadSvg('/star.svg', function (err, svg) {
 
 
       originalPaper.activate()
@@ -203,6 +205,21 @@ function updateOriginal (path) {
       paper.view.draw()
 
       updateOriginal(path)
+
+      var axis = {
+           'horizontal': {
+                'x': -1,
+                'y': 1
+           },
+           'vertical': {
+                'x': 1,
+                'y': -1
+            }
+        }
+
+      path.scale(axis['horizontal'].x, axis['horizontal'].y)
+      paper.view.draw()
+
     })
   }
 
