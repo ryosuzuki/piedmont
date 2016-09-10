@@ -1,5 +1,6 @@
 import THREE from 'three'
 import '../node_modules/three/examples/js/renderers/CanvasRenderer.js'
+import '../node_modules/three/examples/js/renderers/Projector.js'
 import '../node_modules/three/examples/js/controls/OrbitControls.js'
 import '../node_modules/three/examples/js/libs/stats.min.js'
 
@@ -8,8 +9,8 @@ class Setup {
     options = options || {}
     options.antialias = true
 
-    const width = Setup.WindowWidth // window.innerWidth
-    const height = Setup.WindowHeight // window.innerHeight
+    const width = Setup.WindowWidth
+    const height = Setup.WindowHeight
     const size = 1
 
     this.scene = new THREE.Scene()
@@ -22,16 +23,13 @@ class Setup {
     this.lookAt.add(this.camera)
     this.camera.lookAt(this.lookAt.position)
 
-
    if (Setup.isWebglAvailable()) {
       this.renderer = new THREE.WebGLRenderer(options)
     } else {
       this.renderer = new THREE.CanvasRenderer(options)
     }
-    // this.renderer = new THREE.WebGLRenderer(options)
     this.renderer.setClearColor('#f0f0f0')
     this.renderer.setSize(width, height)
-    this.renderer.shadowMap.enabled = true
 
     let grid = new THREE.GridHelper(size*5, size/2);
     grid.position.y = 0.01;
@@ -39,15 +37,6 @@ class Setup {
     grid.material.transparent = true;
     this.scene.add(grid);
     this.grid = grid
-
-    // let geometry = new THREE.PlaneGeometry(1000, 1000, 10, 10)
-    // let material = new THREE.MeshLambertMaterial({
-    //   color: new THREE.Color(0, 0, 1)
-    // })
-    // let ground = new THREE.Mesh(geometry, material)
-    // ground.rotation.x = THREE.Math.degToRad(-90)
-    // ground.receiveShadow = true
-    // this.scene.add(ground)
 
     this.controls = new THREE.OrbitControls(this.camera, this.renderer.domElement)
     this.controls.enableDamping = true
@@ -76,11 +65,11 @@ class Setup {
     let ambientLight = new THREE.AmbientLight('#ccc')
     this.scene.add(ambientLight)
 
-    let pointLight1 = new THREE.PointLight('#fff')
-    pointLight1.position.set(10, 20, 30)
-    pointLight1.intensity = 0.8
-    pointLight1.castShadow = true
-    this.scene.add(pointLight1)
+    let pointLight = new THREE.PointLight('#fff')
+    pointLight.position.set(10, 20, 30)
+    pointLight.intensity = 0.8
+    pointLight.castShadow = true
+    this.scene.add(pointLight)
 
     let spotLight = new THREE.SpotLight('#fff', 1.5);
     spotLight.position.set(size*7, size*7, -size*7);
@@ -94,7 +83,6 @@ class Setup {
     this.scene.add(spotLight);
 
     this.isAnimating = true
-
   }
   static isWebglAvailable () {
     try {
@@ -121,16 +109,13 @@ class Setup {
   render () {
     this.renderer.clear();
     this.renderer.render(this.scene, this.camera)
-    // this.animate()
-    // if (this.isAnimating) {
-    //   requestAnimationFrame(this.render.bind(this))
-    // }
+    this.animate()
+    if (this.isAnimating) {
+      requestAnimationFrame(this.render.bind(this))
+    }
   }
   animate () {
-    var deg = THREE.Math.radToDeg(this.lookAt.rotation.y)
-    this.lookAt.rotation.y = THREE.Math.degToRad(deg - 0.2)
   }
-
   setCameraFOV (fov, z) {
     this.camera.fov = fov
     this.camera.position.z = z || this.camera.position.z
