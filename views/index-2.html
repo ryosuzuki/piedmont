@@ -2,6 +2,21 @@
 
 {% block main %}
 
+<script>
+  {% if (id) %}
+    window.task = {{ id }}
+  {% endif %}
+</script>
+
+<script src="/public/js/setup.js"></script>
+<script src="/public/js/event.js"></script>
+<script src="/public/js/texture.js"></script>
+<script src="/public/js/segment.js"></script>
+<script src="/public/js/paint.js"></script>
+<script src="/public/js/draw.js"></script>
+<!-- <script src="/public/js/bump.js"></script> -->
+<script src="/public/js/subtract.js"></script>
+
 <div class="top-buttons">
   <!-- <button class="ui blue button" id="import">STL Import</button> -->
   <button class="ui grey button" id="mode">
@@ -10,6 +25,7 @@
   <!-- <p>⌘ + Mouse: Select <br>⌥ + Mouse: Undo</p> -->
 </div>
 <!-- <canvas id="canvas"></canvas> -->
+
 
 <div class="bottom-left-buttons">
   <button class="ui pink button" onclick="restartMesh()">
@@ -31,8 +47,8 @@
 
 <canvas id="original"></canvas>
 <canvas id="drawing"></canvas>
-<canvas id="viewport"></canvas>
+<div id="viewport"></div>
 
-<script src="dist/bundle.js"></script>
+
 
 {% endblock %}

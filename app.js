@@ -1,23 +1,30 @@
 
-var fs = require('fs')
-var path = require('path')
-var http = require('http')
-var route = require('koa-route')
-var views = require('co-views')
-var favicon = require('koa-favicon')
-var serve = require('koa-static')
-var parser = require('koa-bodyparser')
-var koa = require('koa.io')
-var co = require('co')
-var Q = require('q')
+const fs = require('fs')
+const path = require('path')
+const http = require('http')
+const route = require('koa-route')
+const views = require('co-views')
+const favicon = require('koa-favicon')
+const serve = require('koa-static')
+const parser = require('koa-bodyparser')
+const koa = require('koa.io')
+const co = require('co')
+const Q = require('q')
+const config = require('./webpack.config.js')
+const webpack = require('webpack')
+const webpackDevMiddleware = require('koa-webpack-dev-middleware')
+const webpackHotMiddleware = require('koa-webpack-hot-middleware')
 
-var app = koa()
-var server = http.createServer(app.callback())
-var port = process.env.PORT || 3000
-// var compute = require('./engine/compute/index.js')
-var dgpc = require('./engine/dgpc/index.js')
-var harmonic = require('./engine/harmonic/index.js')
+const app = koa()
+const compiler = webpack(config)
+app.use(webpackDevMiddleware(compiler, {
+  noInfo: true,
+  publicPath: config.output.publicPath
+}))
+app.use(webpackHotMiddleware(compiler))
 
+const server = http.createServer(app.callback())
+const port = process.env.PORT || 3000
 
 app.use(serve('.'))
 app.use(favicon('/public/assets/favicon.ico'))
@@ -39,12 +46,6 @@ app.use(route.get('/', index))
 app.use(route.get('/favicon.ico', null))
 app.use(route.get('/tasks/:id', show))
 app.use(route.get('/prototype', prototype))
-// app.use(route.post('/get-dgpc', getDgpc))
-// app.use(route.post('/get-obj', getObj))
-// app.use(route.post('/get-laplacian', getLaplacian))
-// app.use(route.post('/get-mapping', getMapping))
-// app.use(route.post('/save', save))
-// app.use(route.post('/stl', generateSTL))
 
 app.io.route('connection', function *(next, json) {
   console.log('connected')
@@ -98,74 +99,6 @@ function *show(id) {
 function *prototype() {
   this.body = yield this.render('playground')
 }
-
-
-/*
-function *getDgpc() {
-  var json = this.request.body.json
-  json = JSON.parse(json)
-  var result = dgpc.getMapping(json)
-  this.response.body = result
-}
-
-function *getObj() {
-  var json = fs.readFileSync('demo.json')
-  // var json = fs.readFileSync('cow.json')
-  this.response.body = json
-}
-
-function *getLaplacian() {
-  var json = this.request.body.json
-  json = JSON.parse(json)
-  var result = compute.getField(json)
-  this.response.body = result
-}
-
-function *getMapping() {
-  var json = this.request.body.json
-  json = JSON.parse(json)
-  var result = compute.getMapping(json)
-  this.response.body = result
-}
-
-function *save() {
-  var json = this.request.body.json
-  // json = JSON.parse(json)
-  console.log(json)
-  fs.writeFileSync('hoge.json', json, 'utf8')
-}
-*/
-
-var Geometry = require('./engine/voxelize/src/geometry')
-var stl = require('ndarray-stl')
-
-function *generateSTL () {
-  var body = this.request.body
-  var json = this.request.body.json
-  // fs.writeFileSync('sample.json', json, 'utf8')
-  json = JSON.parse(json)
-  console.log('Start voxelization...')
-  /*
-  json = {
-    cells:
-    positions:
-    mappings:
-    selected_cells:
-    resolution:
-  }
-  */
-  var geometry = new Geometry(json)
-  var object = geometry.voxelize(0.02)
-  var data = stl(object.voxels)
-  // fs.writeFileSync('hoge.stl', str, 'utf8')
-  console.log('done')
-  fs.writeFileSync('/Users/ryosuzuki/Downloads/hoge.stl', data, 'utf8')
-  this.status = 200
-  this.response.body = JSON.stringify(data)
-}
-
-
-
 
 
 app.listen(port)
