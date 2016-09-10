@@ -8,14 +8,15 @@ class Setup {
   constructor (options) {
     options = options || {}
     options.antialias = true
+    options.alpha = true
 
     const width = Setup.WindowWidth
     const height = Setup.WindowHeight
-    const size = 1
+    const unit = 1
 
     this.scene = new THREE.Scene()
     this.camera = new THREE.PerspectiveCamera(70, width / height, 1, Number.MAX_SAFE_INTEGER)
-    this.camera.position.set(size*2, size*2, size*2)
+    this.camera.position.set(unit*2, unit*2, unit*2)
     this.scene.add(this.camera)
 
     this.lookAt = new THREE.Object3D()
@@ -28,10 +29,10 @@ class Setup {
     } else {
       this.renderer = new THREE.CanvasRenderer(options)
     }
-    this.renderer.setClearColor('#f0f0f0')
+    this.renderer.setClearColor('#eee')
     this.renderer.setSize(width, height)
 
-    let grid = new THREE.GridHelper(size*5, size/2);
+    let grid = new THREE.GridHelper(unit*5, unit/2);
     grid.position.y = 0.01;
     grid.material.opacity = 0.25;
     grid.material.transparent = true;
@@ -40,29 +41,17 @@ class Setup {
 
     this.controls = new THREE.OrbitControls(this.camera, this.renderer.domElement)
     this.controls.enableDamping = true
+    this.controls.rotateSpeed = 0.3
+    this.controls.zoomSpeed = 0.3
+    this.controls.panSpeed = 0.3
     this.controls.damping = 0.2;
     this.controls.dampingFactor = 0.25
     this.controls.enableZoom = true
-    // this.controls.addEventListener( 'change', this.render() );
 
-    // this.stats = new Stats();
-    // stats.domElement.style.position = 'absolute';
-    // stats.domElement.style.top = '10px';
-    // stats.domElement.style.right = '20px';
-    // stats.domElement.style.zIndex = 100;
-    // document.getElementById('viewport').appendChild(this.stats.domElement);
+    this.raycaster = new THREE.Raycaster()
+    this.mouse = new THREE.Vector2()
 
-    let geometry = new THREE.BoxGeometry(size, size, size)
-    let cube = new THREE.Mesh(geometry, new THREE.MeshLambertMaterial({
-      color: new THREE.Color(0, 1, 0),
-      side: THREE.DoubleSide
-    }))
-    cube.position.y = 0
-    cube.castShadow = true
-    this.scene.add(cube)
-    this.cube = cube
-
-    let ambientLight = new THREE.AmbientLight('#ccc')
+    let ambientLight = new THREE.AmbientLight('#999')
     this.scene.add(ambientLight)
 
     let pointLight = new THREE.PointLight('#fff')
@@ -71,10 +60,21 @@ class Setup {
     pointLight.castShadow = true
     this.scene.add(pointLight)
 
+    let directionalLight = new THREE.DirectionalLight('#fff', 0.2)
+    directionalLight.position.set(4*unit, 4*unit, 7*unit)
+    this.scene.add(directionalLight);
+
+    let directionalLight2 = new THREE.DirectionalLight('#fff', 0.2)
+    directionalLight2.position.set(-7*unit, -4*unit, -4*unit);
+    this.scene.add(directionalLight2);
+
+    let headLight = new THREE.PointLight('#fff', 0.25);
+    this.scene.add(headLight);
+
     let spotLight = new THREE.SpotLight('#fff', 1.5);
-    spotLight.position.set(size*7, size*7, -size*7);
+    spotLight.position.set(unit*7, unit*7, -unit*7);
     spotLight.castShadow = true;
-    spotLight.shadow.camera.near = size*3;
+    spotLight.shadow.camera.near = unit*3;
     spotLight.shadow.camera.far = this.camera.far;
     spotLight.shadow.camera.fov = 70;
     spotLight.shadow.bias = -0.000222;

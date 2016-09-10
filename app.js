@@ -20,6 +20,7 @@ app.use(webpackHotMiddleware(compiler))
 
 app.use(express.static(__dirname + '/dist'))
 app.use('/src', express.static(__dirname + '/src'))
+app.use('/data', express.static(__dirname + '/data'))
 app.use('/public', express.static(__dirname + '/public'))
 app.use('/bower_components', express.static(__dirname + '/bower_components'))
 app.set('view engine', 'ejs')
