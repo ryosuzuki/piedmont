@@ -7,16 +7,24 @@ import computeUniq from './modules/uniq'
 
 
 class Mesh {
-  constructor (setup) {
-    this.scene = setup.scene
+  constructor (app) {
+    this.app = app
     this.file = '../data/cone.obj'
     this.material = new THREE.MeshLambertMaterial({
       color: '#eee',
       vertexColors: THREE.FaceColors,
     });
-    this.loadImage()
+    this.initialize()
   }
-
+  initialize () {
+    this.loadImage()
+    this.loadGeometry()
+    this.mesh = new THREE.Mesh(this.geometry, this.material);
+    this.mesh.geometry.verticesNeedUpdate = true;
+    this.mesh.dynamic = true;
+    this.mesh.castShadow = true;
+    this.app.scene.add(this.mesh)
+  }
   loadImage () {
     this.imageFile = '/public/assets/bunny_1k.png'
     var loader = new THREE.TextureLoader();
@@ -39,12 +47,12 @@ class Mesh {
   }
 
   showImage () {
-    this.scene.remove(this.mesh)
+    this.app.scene.remove(this.mesh)
     this.mesh = new THREE.Mesh(this.geometry, this.uvMaterial);
     // cm.scale.set(mesh.scale.x, mesh.scale.y, mesh.scale.z)
     // cm.position.set(mesh.position.x, mesh.position.y, mesh.position.z)
     // cm.rotation.set(mesh.rotation.x, mesh.rotation.y, mesh.rotation.z)
-    this.scene.add(this.mesh);
+    this.app.scene.add(this.mesh);
   }
 
   loadGeometry () {
@@ -60,18 +68,9 @@ class Mesh {
     if (object.attributes.uv) {
       geometry = Mesh.getInitialUv(object, geometry)
     }
-    this.geometry = computeUniq(geometry)
+    this.geometry = geometry
+    // this.geometry = computeUniq(geometry)
   }
-
-  render () {
-    this.loadGeometry()
-    this.mesh = new THREE.Mesh(this.geometry, this.material);
-    this.mesh.geometry.verticesNeedUpdate = true;
-    this.mesh.dynamic = true;
-    this.mesh.castShadow = true;
-    this.scene.add(this.mesh)
-  }
-
   static getInitialUv (object, geometry) {
     var mappings = object.attributes.uv.array
     var n = mappings.length/2

@@ -4,15 +4,22 @@ import '../node_modules/three/examples/js/renderers/Projector.js'
 import '../node_modules/three/examples/js/controls/OrbitControls.js'
 import '../node_modules/three/examples/js/libs/stats.min.js'
 
-class Setup {
+import Mesh from './mesh'
+import Plane from './plane'
+
+const unit = 1
+
+class App {
   constructor (options) {
     options = options || {}
     options.antialias = true
     options.alpha = true
 
-    const width = Setup.WindowWidth
-    const height = Setup.WindowHeight
-    const unit = 1
+    const width = App.WindowWidth
+    const height = App.WindowHeight
+    this.current = null
+    this.mesh = null
+
 
     this.scene = new THREE.Scene()
     this.camera = new THREE.PerspectiveCamera(70, width / height, 1, Number.MAX_SAFE_INTEGER)
@@ -24,7 +31,7 @@ class Setup {
     this.lookAt.add(this.camera)
     this.camera.lookAt(this.lookAt.position)
 
-   if (Setup.isWebglAvailable()) {
+    if (App.isWebglAvailable()) {
       this.renderer = new THREE.WebGLRenderer(options)
     } else {
       this.renderer = new THREE.CanvasRenderer(options)
@@ -80,6 +87,8 @@ class Setup {
     // this.scene.add(spotLight);
 
     this.isAnimating = true
+    this.isControl = true
+
   }
   static isWebglAvailable () {
     try {
@@ -98,6 +107,9 @@ class Setup {
   }
   start () {
     this.isAnimating = true
+    this.mesh = new Mesh(this)
+    this.plane = new Plane(this)
+    this.listen()
     this.render()
   }
   stop () {
@@ -110,7 +122,96 @@ class Setup {
     if (this.isAnimating) {
       requestAnimationFrame(this.render.bind(this))
     }
+    switch (this.mode) {
+      case 'CONTROL':
+      this.controls.enabled = true
+      break;
+      case 'MOVE':
+      this.controls.enabled = false
+      move()
+      break;
+      case 'COPY':
+      this.controls.enabled = false
+      copy()
+      case 'SCALE':
+      this.controls.enabled = false
+      scale()
+      break;
+      case 'ROTATE':
+      this.controls.enabled = false
+      rotate()
+      break;
+      default:
+      this.controls.enabled = true
+      break;
+    }
   }
+  mouseDown (event) {
+    this.update(event)
+  }
+  mouseMove (event) {
+    this.update(event)
+  }
+  mouseUp (event) {
+    this.update(event)
+  }
+  update (event) {
+    this.current = null
+    this.mouse.x = ( event.clientX / this.renderer.domElement.clientWidth ) * 2 - 1;
+    this.mouse.y = - ( event.clientY / this.renderer.domElement.clientHeight ) * 2 + 1;
+    this.raycaster.setFromCamera( this.mouse, this.camera );
+    let objects = [_.last(this.scene.children)]
+    this.intersects = this.raycaster.intersectObjects(objects);
+    if (this.intersects.length > 0) {
+      this.current = this.intersects[0]
+    }
+    this.plane.update()
+  }
+  listen () {
+    window.addEventListener('mousemove', this.mouseMove.bind(this), false)
+    window.addEventListener('mousedown', this.mouseDown.bind(this), false)
+    window.addEventListener('mouseup', this.mouseUp.bind(this), false)
+    // window.addEventListener('dblclick', this.doubleClick.bind(this), false)
+  }
+  scale () {
+      if (!previous) window.previous = current
+        var center2d = getScreenPosition(planeCanvas.position)
+      var current2d = getScreenPosition(current.point)
+      var previous2d = getScreenPosition(previous.point)
+
+      var cd = current2d.distanceTo(center2d)
+      var pd = previous2d.distanceTo(center2d)
+      var scale = cd / pd
+      scaleMickey(scale)
+      window.previous = current
+    // drawLine(pos.x, pos.y)
+    // if (pos) showDrawingCanvas(pos)
+  }
+  rotate () {
+    if (!previous) window.previous = current
+      var center2d = getScreenPosition(planeCanvas.position)
+    var current2d = getScreenPosition(current.point)
+    var previous2d = getScreenPosition(previous.point)
+    var v = new THREE.Vector2()
+    var cv = v.clone().subVectors(current2d, center2d).normalize()
+    var pv = v.clone().subVectors(previous2d, center2d).normalize()
+    var angle = Math.acos(cv.dot(pv))
+    var sign = (current2d.x - center2d.x) * (previous2d.y - center2d.y) - (current2d.y - center2d.y) * (previous2d.x - center2d.x) > 0 ? 1 : -1
+    planeCanvas.rotateZ(sign*angle)
+    rotateMickey(sign*angle*90/Math.PI)
+    planeCanvas.material.map = rotateImage
+
+    var result = getSingedAngle(center2d, current2d, previous2d)
+    var sign = result.sign
+    var angle = result.angle
+    planeCanvas.rotateZ(sign*angle)
+    rotateMickey(sign*angle*90/Math.PI)
+    planeCanvas.material.map = rotateImage
+    window.previous = current
+  }
+
+
+
   animate () {
 
   }
@@ -121,5 +222,5 @@ class Setup {
   }
 }
 
-export default Setup
+export default App
 

@@ -1,17 +1,9 @@
 import THREE from 'three'
 import './three'
-import Setup from './setup'
-import Mesh from './mesh'
-import Event from './event'
+import App from './app'
 
 let canvas = document.getElementById('viewport')
-let setup = new Setup({ canvas: canvas })
-let mesh = new Mesh(setup)
-let event = new Event(setup)
+let app = new App({ canvas: canvas })
 
-setup.start()
-event.start()
-mesh.render()
-
-window.setup = setup
-window.mesh = mesh
+app.start()
+window.app = app
