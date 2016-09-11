@@ -6,6 +6,7 @@ import '../node_modules/three/examples/js/libs/stats.min.js'
 
 import Mesh from './mesh'
 import Plane from './plane'
+import Paint from './paint'
 
 const unit = 1
 
@@ -19,11 +20,11 @@ class App {
     const height = App.WindowHeight
     this.current = null
     this.mesh = null
-
+    this.mode = null
 
     this.scene = new THREE.Scene()
     this.camera = new THREE.PerspectiveCamera(70, width / height, 1, Number.MAX_SAFE_INTEGER)
-    this.camera.position.set(unit*2, unit*2, unit*2)
+    this.camera.position.set(unit*3, unit*3, unit*3)
     this.scene.add(this.camera)
 
     this.lookAt = new THREE.Object3D()
@@ -88,8 +89,8 @@ class App {
 
     this.isAnimating = true
     this.isControl = true
-
   }
+
   static isWebglAvailable () {
     try {
       var canvas = document.createElement('canvas')
@@ -99,22 +100,28 @@ class App {
       return false
     }
   }
+
   static get WindowWidth () {
     return top.innerWidth
   }
+
   static get WindowHeight () {
     return top.innerHeight
   }
+
   start () {
     this.isAnimating = true
     this.mesh = new Mesh(this)
     this.plane = new Plane(this)
+    this.paint = new Paint(this)
     this.listen()
     this.render()
   }
+
   stop () {
     this.isAnimating = false
   }
+
   render () {
     this.renderer.clear();
     this.renderer.render(this.scene, this.camera)
@@ -124,37 +131,56 @@ class App {
     }
     switch (this.mode) {
       case 'CONTROL':
-      this.controls.enabled = true
-      break;
+        this.controls.enabled = true
+        break;
+      case 'DRAG':
+        if (this.current) {
+          this.mesh.mesh.material.color = new THREE.Color('gray')
+        } else {
+          this.mesh.mesh.material.color = new THREE.Color('white')
+        }
+        break;
+      case 'DROP':
+        if (this.current) {
+          this.mesh.replace('canvas')
+        }
+        this.mode = null
+        break;
       case 'MOVE':
-      this.controls.enabled = false
-      move()
-      break;
+        this.controls.enabled = false
+        move()
+        break;
       case 'COPY':
+        this.controls.enabled = false
+        copy()
+        case 'SCALE':
       this.controls.enabled = false
-      copy()
-      case 'SCALE':
-      this.controls.enabled = false
-      scale()
-      break;
+        scale()
+        break;
       case 'ROTATE':
-      this.controls.enabled = false
-      rotate()
-      break;
+        this.controls.enabled = false
+        rotate()
+        break;
       default:
-      this.controls.enabled = true
-      break;
+        this.controls.enabled = true
+        this.mesh.mesh.material.color = new THREE.Color('white')
+
+        break;
     }
   }
+
   mouseDown (event) {
     this.update(event)
   }
+
   mouseMove (event) {
     this.update(event)
   }
+
   mouseUp (event) {
     this.update(event)
   }
+
   update (event) {
     this.current = null
     this.mouse.x = ( event.clientX / this.renderer.domElement.clientWidth ) * 2 - 1;
@@ -167,12 +193,15 @@ class App {
     }
     this.plane.update()
   }
+
   listen () {
+    this.paint.listen()
     window.addEventListener('mousemove', this.mouseMove.bind(this), false)
     window.addEventListener('mousedown', this.mouseDown.bind(this), false)
     window.addEventListener('mouseup', this.mouseUp.bind(this), false)
     // window.addEventListener('dblclick', this.doubleClick.bind(this), false)
   }
+
   scale () {
       if (!previous) window.previous = current
         var center2d = getScreenPosition(planeCanvas.position)
@@ -210,11 +239,9 @@ class App {
     window.previous = current
   }
 
-
-
   animate () {
-
   }
+
   setCameraFOV (fov, z) {
     this.camera.fov = fov
     this.camera.position.z = z || this.camera.position.z

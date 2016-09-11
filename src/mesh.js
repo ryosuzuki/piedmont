@@ -10,12 +10,15 @@ class Mesh {
   constructor (app) {
     this.app = app
     this.file = '../data/cone.obj'
-    this.material = new THREE.MeshLambertMaterial({
+    this.imageFile = '/public/assets/bunny_1k.png'
+    this.defaultMaterial = new THREE.MeshLambertMaterial({
       color: '#eee',
       vertexColors: THREE.FaceColors,
     });
+    this.material = this.defaultMaterial
     this.initialize()
   }
+
   initialize () {
     this.loadImage()
     this.loadGeometry()
@@ -24,35 +27,6 @@ class Mesh {
     this.mesh.dynamic = true;
     this.mesh.castShadow = true;
     this.app.scene.add(this.mesh)
-  }
-  loadImage () {
-    this.imageFile = '/public/assets/bunny_1k.png'
-    var loader = new THREE.TextureLoader();
-    loader.load(this.imageFile, function (image) {
-      this.uvImage = image
-      this.uvImage.minFilter = THREE.LinearFilter;
-      this.uvImage.needsUpdate = true;
-      this.uvImage.wrapS = THREE.RepeatWrapping;
-      this.uvImage.wrapT = THREE.RepeatWrapping;
-      this.uvMaterial = new THREE.MeshLambertMaterial({
-        color: 0xffffff,
-        map: this.uvImage,
-        transparent: true,
-        opacity: 0.5
-      });
-      this.uvMaterial.map.minFilter = THREE.LinearFilter
-      this.uvMaterial.map.needsUpdate = true
-      this.showImage()
-    }.bind(this));
-  }
-
-  showImage () {
-    this.app.scene.remove(this.mesh)
-    this.mesh = new THREE.Mesh(this.geometry, this.uvMaterial);
-    // cm.scale.set(mesh.scale.x, mesh.scale.y, mesh.scale.z)
-    // cm.position.set(mesh.position.x, mesh.position.y, mesh.position.z)
-    // cm.rotation.set(mesh.rotation.x, mesh.rotation.y, mesh.rotation.z)
-    this.app.scene.add(this.mesh);
   }
 
   loadGeometry () {
@@ -71,6 +45,59 @@ class Mesh {
     this.geometry = geometry
     // this.geometry = computeUniq(geometry)
   }
+
+  loadImage () {
+    var loader = new THREE.TextureLoader();
+    loader.load(this.imageFile, function (image) {
+      this.uvImage = image
+      this.uvImage.minFilter = THREE.LinearFilter;
+      this.uvImage.needsUpdate = true;
+      this.uvImage.wrapS = THREE.RepeatWrapping;
+      this.uvImage.wrapT = THREE.RepeatWrapping;
+      this.uvMaterial = new THREE.MeshLambertMaterial({
+        color: 0xffffff,
+        map: this.uvImage,
+        transparent: true,
+        opacity: 0.5
+      });
+      this.uvMaterial.map.minFilter = THREE.LinearFilter
+      this.uvMaterial.map.needsUpdate = true
+      this.replace('uv')
+    }.bind(this));
+
+    let canvas = document.getElementById('drawing')
+    this.canvasImage = new THREE.Texture(canvas)
+    this.canvasImage.flipY = false
+    this.canvasImage.minFilter = THREE.LinearFilter
+    // this.canvasImage.magFilter = THREE.NearestFilter
+    // this.canvasImage.wrapS = THREE.RepeatWrapping;
+    // this.canvasImage.wrapT = THREE.RepeatWrapping;
+    // this.canvasImage.repeat.set(2, 2);
+    this.canvasMaterial = new THREE.MeshLambertMaterial({
+      map: this.canvasImage,
+      transparent: true
+    });
+  }
+
+  replace (type) {
+    switch (type) {
+      case 'UV':
+        this.material = this.uvMaterial
+        break;
+      case 'CANVAS':
+        this.material = this.canvasMaterial
+      default:
+        this.material = this.defaultMaterial
+        break;
+    }
+    this.app.scene.remove(this.mesh)
+    this.mesh = new THREE.Mesh(this.geometry, this.material);
+    // this.mesh.scale.set(mesh.scale.x, mesh.scale.y, mesh.scale.z)
+    // cm.position.set(mesh.position.x, mesh.position.y, mesh.position.z)
+    // cm.rotation.set(mesh.rotation.x, mesh.rotation.y, mesh.rotation.z)
+    this.app.scene.add(this.mesh);
+  }
+
   static getInitialUv (object, geometry) {
     var mappings = object.attributes.uv.array
     var n = mappings.length/2
