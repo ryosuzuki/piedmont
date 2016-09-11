@@ -55,8 +55,8 @@ class Setup {
     this.scene.add(ambientLight)
 
     let pointLight = new THREE.PointLight('#fff')
-    pointLight.position.set(10, 20, 30)
-    pointLight.intensity = 0.8
+    pointLight.position.set(10*unit, 20*unit, 30*unit)
+    pointLight.intensity = 0.3
     pointLight.castShadow = true
     this.scene.add(pointLight)
 
@@ -68,9 +68,6 @@ class Setup {
     directionalLight2.position.set(-7*unit, -4*unit, -4*unit);
     this.scene.add(directionalLight2);
 
-    let headLight = new THREE.PointLight('#fff', 0.25);
-    this.scene.add(headLight);
-
     let spotLight = new THREE.SpotLight('#fff', 1.5);
     spotLight.position.set(unit*7, unit*7, -unit*7);
     spotLight.castShadow = true;
@@ -80,7 +77,7 @@ class Setup {
     spotLight.shadow.bias = -0.000222;
     spotLight.shadow.mapSize.width = 1024;
     spotLight.shadow.mapSize.height = 1024;
-    this.scene.add(spotLight);
+    // this.scene.add(spotLight);
 
     this.isAnimating = true
   }

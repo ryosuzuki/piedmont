@@ -1,35 +1,79 @@
-import fs from 'fs'
 import THREE from 'three'
 import '../node_modules/three/examples/js/loaders/OBJLoader.js'
 import '../node_modules/three/examples/js/loaders/STLLoader.js'
 import '../node_modules/three/examples/js/loaders/BinaryLoader.js'
 
+import computeUniq from './modules/uniq'
+
 
 class Mesh {
   constructor (setup) {
     this.scene = setup.scene
-    this.loader = new THREE.OBJLoader()
     this.file = '../data/cone.obj'
     this.material = new THREE.MeshLambertMaterial({
-      color: 0xffffff,
+      color: '#eee',
       vertexColors: THREE.FaceColors,
     });
+    this.loadImage()
   }
 
-  render () {
+  loadImage () {
+    this.imageFile = '/public/assets/bunny_1k.png'
+    var loader = new THREE.TextureLoader();
+    loader.load(this.imageFile, function (image) {
+      this.uvImage = image
+      this.uvImage.minFilter = THREE.LinearFilter;
+      this.uvImage.needsUpdate = true;
+      this.uvImage.wrapS = THREE.RepeatWrapping;
+      this.uvImage.wrapT = THREE.RepeatWrapping;
+      this.uvMaterial = new THREE.MeshLambertMaterial({
+        color: 0xffffff,
+        map: this.uvImage,
+        transparent: true,
+        opacity: 0.5
+      });
+      this.uvMaterial.map.minFilter = THREE.LinearFilter
+      this.uvMaterial.map.needsUpdate = true
+      this.showImage()
+      console.log('fuga')
+    }.bind(this));
+  }
+
+  showImage () {
+    this.scene.remove(this.mesh)
+    this.mesh = new THREE.Mesh(this.geometry, this.uvMaterial);
+    // cm.scale.set(mesh.scale.x, mesh.scale.y, mesh.scale.z)
+    // cm.position.set(mesh.position.x, mesh.position.y, mesh.position.z)
+    // cm.rotation.set(mesh.rotation.x, mesh.rotation.y, mesh.rotation.z)
+    this.scene.add(this.mesh);
+  }
+
+  loadGeometry () {
+    let objLoader = new THREE.OBJLoader()
     var req = new XMLHttpRequest();
     req.open('GET', this.file, false);
     req.send(null);
     let text = req.responseText
-    let res = this.loader.parse(text)
+    let res = objLoader.parse(text)
     let object = res.children[0].geometry
     let positions = object.attributes.position.array
-    this.geometry = Mesh.convertPositionsToGeometry(positions)
+    let geometry = Mesh.convertPositionsToGeometry(positions)
     if (object.attributes.uv) {
-      this.geometry = Mesh.getInitialUv(object, this.geometry)
+      geometry = Mesh.getInitialUv(object, geometry)
     }
+    this.geometry = computeUniq(geometry)
+  }
+
+  render () {
+    this.loadGeometry()
     this.mesh = new THREE.Mesh(this.geometry, this.material);
-    this.scene.add(this.mesh);
+    this.mesh.geometry.verticesNeedUpdate = true;
+    // this.mesh.dynamic = true;
+    // this.mesh.castShadow = true;
+    // this.mesh.receiveShadow = true;
+
+    this.scene.add(this.mesh)
+    window.mesh = this.mesh
   }
 
   static getInitialUv (object, geometry) {
@@ -47,6 +91,7 @@ class Mesh {
     }
     return geometry
   }
+
   static convertPositionsToGeometry (positions) {
     var n = positions.length/9
     var geometry = new THREE.Geometry()
