@@ -12,3 +12,6 @@ let event = new Event(setup)
 setup.start()
 event.start()
 mesh.render()
+
+window.setup = setup
+window.mesh = mesh

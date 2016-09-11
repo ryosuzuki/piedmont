@@ -112,6 +112,7 @@ class Setup {
     }
   }
   animate () {
+
   }
   setCameraFOV (fov, z) {
     this.camera.fov = fov

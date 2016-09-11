@@ -35,7 +35,6 @@ class Mesh {
       this.uvMaterial.map.minFilter = THREE.LinearFilter
       this.uvMaterial.map.needsUpdate = true
       this.showImage()
-      console.log('fuga')
     }.bind(this));
   }
 
@@ -68,12 +67,9 @@ class Mesh {
     this.loadGeometry()
     this.mesh = new THREE.Mesh(this.geometry, this.material);
     this.mesh.geometry.verticesNeedUpdate = true;
-    // this.mesh.dynamic = true;
-    // this.mesh.castShadow = true;
-    // this.mesh.receiveShadow = true;
-
+    this.mesh.dynamic = true;
+    this.mesh.castShadow = true;
     this.scene.add(this.mesh)
-    window.mesh = this.mesh
   }
 
   static getInitialUv (object, geometry) {
