@@ -14,7 +14,7 @@ class Plane {
     this.loadImage()
     this.geometry = new THREE.PlaneGeometry(0.6*unit, 0.6*unit, 10)
     this.material = new THREE.MeshLambertMaterial({
-      color: '#00ffff',
+      color: '#0ff',
       vertexColors: THREE.FaceColors,
       side: THREE.DoubleSide,
       transparent: true,
@@ -36,6 +36,14 @@ class Plane {
       this.rotateImage.needsUpdate = true;
       this.rotateImage.wrapS = THREE.RepeatWrapping;
       this.rotateImage.wrapT = THREE.RepeatWrapping;
+      this.rotateMaterial = new THREE.MeshLambertMaterial({
+        color: '#fff',
+        map: this.rotateImage,
+        vertexColors: THREE.FaceColors,
+        side: THREE.DoubleSide,
+        transparent: true,
+        opacity: 0.3
+      });
     }.bind(this))
     loader.load(this.scaleImageFile, function (image) {
       this.scaleImage = image
@@ -43,7 +51,33 @@ class Plane {
       this.scaleImage.needsUpdate = true;
       this.scaleImage.wrapS = THREE.RepeatWrapping;
       this.scaleImage.wrapT = THREE.RepeatWrapping;
+      this.scaleMaterial = new THREE.MeshLambertMaterial({
+        color: '#fff',
+        map: this.scaleImage,
+        vertexColors: THREE.FaceColors,
+        side: THREE.DoubleSide,
+        transparent: true,
+        opacity: 0.3
+      });
     }.bind(this))
+  }
+
+  replace (type) {
+    switch (type) {
+      case 'rotate':
+        this.material = this.rotateMaterial
+        break;
+      case 'scale':
+        this.material = this.scaleMaterial
+        break;
+      default:
+        this.material = this.material
+        break;
+    }
+    this.app.scene.remove(this.mesh)
+    this.mesh = new THREE.Mesh(this.geometry, this.material);
+    this.app.scene.add(this.mesh);
+    this.update()
   }
 
   show () {
@@ -67,6 +101,7 @@ class Plane {
       this.mesh.position.set(Infinity, Infinity, Infinity)
     }
   }
+
 
 }
 

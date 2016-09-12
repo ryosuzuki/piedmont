@@ -80,13 +80,12 @@ class Pattern {
 
   move () {
     this.drawing.activate()
-    let pos = this.convertUvToCanvas(this.app.current.uv)
-    this.item.position = [pos.x, pos.y]
+    this.item.position = [this.app.current.pos.x, this.app.current.pos.y]
     this.update()
   }
 
-  scale (size) {
-    size = size || 2
+  scale () {
+    let size = this.app.current.distance / this.app.previous.distance
     this.drawing.activate()
     this.items.forEach( function (item) {
       item.scale(size)
@@ -94,8 +93,17 @@ class Pattern {
     this.update()
   }
 
-  rotate (angle) {
-    angle = angle || 90
+  rotate () {
+    let angle = Math.acos(this.app.current.vector2d.dot(this.app.previous.vector2d))
+    let sign = (this.app.current.point2d.x - this.app.current.center2d.x)
+      * (this.app.previous.point2d.y - this.app.current.center2d.y)
+      - (this.app.current.point2d.y  - this.app.current.center2d.y)
+      * (this.app.previous.point2d.x - this.app.current.center2d.x)
+      > 0 ? 1 : -1
+    // this.app.plane.mesh.rotateZ(sign*angle)
+    // this.app.plane.mesh.material.map = rotateImage
+
+    let rotate = sign*angle*90/Math.PI
     this.drawing.activate()
     this.items.forEach( function (item) {
       item.rotate(rotate)
@@ -112,22 +120,6 @@ class Pattern {
   update () {
     this.drawing.view.draw()
     this.app.mesh.replace('canvas')
-  }
-
-  convertUvToCanvas (uv) {
-    const width = this.drawing.view.viewSize.width
-    const height = this.drawing.view.viewSize.height
-    const x = (uv.x-0.5)*width
-    const y = (uv.y-0.5)*height
-    let pos = new Paper.Point(x, y)
-    return pos
-    // return [ (uv.x)*width, (uv.y)*height]
-  }
-
-  convertCanvasToUv (center) {
-    var width = this.drawing.view.viewSize.width
-    var height = this.drawing.view.viewSize.height
-    return [ (center.x/width)+0.5, (center.y/height)+0.5 ]
   }
 
 }

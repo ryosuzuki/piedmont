@@ -51,16 +51,14 @@ class Mesh {
     loader.load(this.imageFile, function (image) {
       this.uvImage = image
       this.uvImage.minFilter = THREE.LinearFilter;
-      this.uvImage.needsUpdate = true;
       this.uvImage.wrapS = THREE.RepeatWrapping;
       this.uvImage.wrapT = THREE.RepeatWrapping;
+      this.uvImage.needsUpdate = true
       this.uvMaterial = new THREE.MeshLambertMaterial({
         color: '#fff',
         map: this.uvImage,
         transparent: true,
       });
-      this.uvMaterial.map.minFilter = THREE.LinearFilter
-      this.uvMaterial.map.needsUpdate = true
     }.bind(this));
 
   }

@@ -141,11 +141,11 @@ class App {
         break;
       case 'SCALE':
         this.controls.enabled = false
-        scale()
+        this.pattern.scale()
         break;
       case 'ROTATE':
         this.controls.enabled = false
-        rotate()
+        this.pattern.rotate()
         break;
       default:
         this.controls.enabled = true
@@ -165,10 +165,15 @@ class App {
       return false
     }
 
+    this.previous = this.current
     this.current = this.intersects[0]
-    this.current.pos = this.pattern.convertUvToCanvas(this.current.uv)
-    this.pattern.detect()
+    this.current.pos = this.convertUvToCanvas(this.current.uv)
+    this.current.center2d = this.convert3dTo2d(this.plane.mesh.position)
+    this.current.point2d = this.convert3dTo2d(this.current.point)
+    this.current.distance = this.convert2dToDistance(this.current.point2d)
+    this.current.vector2d = this.convert2dToVector(this.current.point2d)
 
+    this.pattern.detect()
 
     console.log(event.type)
     switch (event.type) {
@@ -210,20 +215,6 @@ class App {
     document.addEventListener('dragend', this.update.bind(this), false)
   }
 
-  scale () {
-      if (!previous) window.previous = current
-        var center2d = getScreenPosition(planeCanvas.position)
-      var current2d = getScreenPosition(current.point)
-      var previous2d = getScreenPosition(previous.point)
-
-      var cd = current2d.distanceTo(center2d)
-      var pd = previous2d.distanceTo(center2d)
-      var scale = cd / pd
-      scaleMickey(scale)
-      window.previous = current
-    // drawLine(pos.x, pos.y)
-    // if (pos) showDrawingCanvas(pos)
-  }
   rotate () {
     if (!previous) window.previous = current
       var center2d = getScreenPosition(planeCanvas.position)
@@ -249,6 +240,46 @@ class App {
 
   animate () {
   }
+
+  convert2dToDistance (point2d) {
+    return point2d.distanceTo(this.current.center2d)
+  }
+
+  convert2dToVector (point2d) {
+    var vec = new THREE.Vector2()
+    return vec.clone().subVectors(point2d, this.current.center2d).normalize()
+  }
+
+  convert3dTo2d (point) {
+    let vector = new THREE.Vector3();
+    let canvas = this.renderer.domElement;
+    vector.set(point.x, point.y, point.z);
+    this.mesh.mesh.updateMatrixWorld()
+    vector.applyMatrix4( this.mesh.mesh.matrixWorld )
+    vector.project( this.camera );
+    vector.x = Math.round( (   vector.x + 1 ) * canvas.width  / 2 ),
+    vector.y = Math.round( ( - vector.y + 1 ) * canvas.height / 2 );
+    vector.z = 0;
+    let pos = new THREE.Vector2(vector.x, vector.y)
+    return pos
+  }
+
+  convertUvToCanvas (uv) {
+    const width = this.pattern.drawing.view.viewSize.width
+    const height = this.pattern.drawing.view.viewSize.height
+    const x = (uv.x-0.5)*width
+    const y = (uv.y-0.5)*height
+    let pos = new Paper.Point(x, y)
+    return pos
+    // return [ (uv.x)*width, (uv.y)*height]
+  }
+
+  convertCanvasToUv (center) {
+    var width = this.pattern.drawing.view.viewSize.width
+    var height = this.pattern.drawing.view.viewSize.height
+    return [ (center.x/width)+0.5, (center.y/height)+0.5 ]
+  }
+
 
   setCameraFOV (fov, z) {
     this.camera.fov = fov
