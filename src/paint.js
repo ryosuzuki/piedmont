@@ -1,7 +1,6 @@
 import loadsvg from 'load-svg'
 import Paper from 'paper'
 
-window.Paper = Paper
 class Paint {
   constructor (app) {
     this.app = app
@@ -10,19 +9,11 @@ class Paint {
     let canvas = document.getElementById('original')
     canvas.width = 256
     canvas.height = 256
-    let drawing = document.getElementById('drawing')
-    drawing.width = 512 // 1280 // 256
-    drawing.height = 512 //1280 // 256
 
     this.original = new Paper.PaperScope()
     this.original.setup($('#original')[0])
     this.original.view.center = [0, 0]
     this.original.view.viewSize = [256, 256] // new paper.Size(256, 256)
-
-    this.drawing = new Paper.PaperScope()
-    this.drawing.setup($('#drawing')[0])
-    this.drawing.view.center = [0, 0]
-    this.drawing.view.viewSize = [512, 512] // [1280, 1280] // new paper.Size(256, 256)
 
     this.initialize()
   }
@@ -31,24 +22,14 @@ class Paint {
     loadsvg(this.file, function (err, svg) {
       this.original.activate()
       let d = $('path', svg).attr('d');
-      let path = new Paper.Path(d)
+      this.path = new Paper.Path(d)
       // var path = new paper.Path.Rectangle(new paper.Point(-100, -100), new paper.Point(100, 100))
       // var path = new paper.Path.Circle(new paper.Point(0, 0), 256)
-      path.strokeColor = 'black'
-      path.fillColor = 'black'
-      path.closed = true
-      path.position = [0, 0]
-      path.scale(1/5)
-      this.original.view.draw()
-
-      var rect = new Paper.Path.Rectangle({
-        point: [-this.original.view.size.width/2, -this.original.view.size.height/2],
-        size: [this.original.view.size.width, this.original.view.size.height],
-        strokeColor: 'white',
-        selected: true
-      });
-      rect.sendToBack();
-      rect.fillColor = '#ff0000';
+      this.path.strokeColor = 'black'
+      this.path.fillColor = 'black'
+      this.path.closed = true
+      this.path.position = [0, 0]
+      this.path.scale(1/5)
       this.original.view.draw()
 
       // updateOriginal(path)
@@ -62,9 +43,26 @@ class Paint {
           'y': -1
         }
       }
-      path.scale(axis['horizontal'].x, axis['horizontal'].y)
+      this.path.scale(axis['horizontal'].x, axis['horizontal'].y)
       this.original.view.draw()
+      this.update()
     }.bind(this))
+  }
+
+  update () {
+    this.app.pattern.initialize(this.path)
+
+    const drawing = this.app.pattern.drawing
+    const size = drawing.view.size
+    let rect = new Paper.Path.Rectangle({
+      point: [-size.width/2, -size.height/2],
+      size: [size.width, size.height],
+      strokeColor: 'white',
+      selected: true
+    });
+    rect.sendToBack();
+    rect.fillColor = '#ff0000';
+    drawing.view.draw()
   }
 
   listen () {

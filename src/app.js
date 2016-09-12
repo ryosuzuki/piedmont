@@ -7,6 +7,7 @@ import '../node_modules/three/examples/js/libs/stats.min.js'
 import Mesh from './mesh'
 import Plane from './plane'
 import Paint from './paint'
+import Pattern from './pattern'
 
 const unit = 1
 
@@ -114,6 +115,7 @@ class App {
     this.mesh = new Mesh(this)
     this.plane = new Plane(this)
     this.paint = new Paint(this)
+    this.pattern = new Pattern(this)
     this.listen()
     this.render()
   }
@@ -164,7 +166,6 @@ class App {
       default:
         this.controls.enabled = true
         this.mesh.mesh.material.color = new THREE.Color('white')
-
         break;
     }
   }

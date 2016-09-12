@@ -21,7 +21,7 @@ html, body {
   position: absolute;
   width: 256px;
   height: 256px;
-  display: none;
+  // display: none;
   top: 400px;
   left: 20px;
   background: rgba(210, 210, 210, 0.2);

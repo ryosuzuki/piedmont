@@ -1,5 +1,5 @@
 import THREE from 'three'
-import './three'
+import './import'
 import App from './app'
 
 let canvas = document.getElementById('viewport')
