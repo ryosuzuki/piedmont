@@ -1,8 +1,5 @@
 import THREE from 'three'
-import '../node_modules/three/examples/js/renderers/CanvasRenderer.js'
-import '../node_modules/three/examples/js/renderers/Projector.js'
-import '../node_modules/three/examples/js/controls/OrbitControls.js'
-import '../node_modules/three/examples/js/libs/stats.min.js'
+import './libs/OrbitControls.js'
 
 import Mesh from './mesh'
 import Plane from './plane'
@@ -33,11 +30,7 @@ class App {
     this.lookAt.add(this.camera)
     this.camera.lookAt(this.lookAt.position)
 
-    if (App.isWebglAvailable()) {
-      this.renderer = new THREE.WebGLRenderer(options)
-    } else {
-      this.renderer = new THREE.CanvasRenderer(options)
-    }
+    this.renderer = new THREE.WebGLRenderer(options)
     this.renderer.setClearColor('#eee')
     this.renderer.setSize(width, height)
 
@@ -92,16 +85,6 @@ class App {
     this.isControl = true
   }
 
-  static isWebglAvailable () {
-    try {
-      var canvas = document.createElement('canvas')
-      return !!(window.WebGLRenderingContext
-        && (canvas.getContext('webgl') || canvas.getContext('experimental-webgl')))
-    } catch (e) {
-      return false
-    }
-  }
-
   static get WindowWidth () {
     return top.innerWidth
   }
@@ -150,13 +133,14 @@ class App {
         break;
       case 'MOVE':
         this.controls.enabled = false
-        move()
+        this.pattern.move()
         break;
       case 'COPY':
         this.controls.enabled = false
         copy()
-        case 'SCALE':
-      this.controls.enabled = false
+        break;
+      case 'SCALE':
+        this.controls.enabled = false
         scale()
         break;
       case 'ROTATE':
@@ -170,37 +154,60 @@ class App {
     }
   }
 
-  mouseDown (event) {
-    this.update(event)
-  }
-
-  mouseMove (event) {
-    this.update(event)
-  }
-
-  mouseUp (event) {
-    this.update(event)
-  }
-
   update (event) {
-    this.current = null
     this.mouse.x = ( event.clientX / this.renderer.domElement.clientWidth ) * 2 - 1;
     this.mouse.y = - ( event.clientY / this.renderer.domElement.clientHeight ) * 2 + 1;
     this.raycaster.setFromCamera( this.mouse, this.camera );
     let objects = [app.mesh.mesh]
     this.intersects = this.raycaster.intersectObjects(objects);
-    if (this.intersects.length > 0) {
-      this.current = this.intersects[0]
+    if (this.intersects.length == 0) {
+      this.current = null
+      return false
     }
-    this.plane.update()
+
+    this.current = this.intersects[0]
+    this.current.pos = this.pattern.convertUvToCanvas(this.current.uv)
+    this.pattern.detect()
+
+
+    console.log(event.type)
+    switch (event.type) {
+      case 'dragstart':
+
+        break;
+      case 'dragend':
+        this.mode = null
+        break;
+      case 'mousedown':
+        if (this.current.item) {
+          this.mode = 'MOVE'
+        }
+        break
+      case 'mousemove':
+        break
+      case 'mouseup':
+        this.mode = null
+        this.controls.restart()
+        break
+      case 'dblclick':
+        this.plane.update()
+        break;
+      default:
+        this.mode = null
+        break;
+    }
+
   }
 
   listen () {
     this.paint.listen()
-    window.addEventListener('mousemove', this.mouseMove.bind(this), false)
-    window.addEventListener('mousedown', this.mouseDown.bind(this), false)
-    window.addEventListener('mouseup', this.mouseUp.bind(this), false)
-    // window.addEventListener('dblclick', this.doubleClick.bind(this), false)
+    document.addEventListener('mousedown', this.update.bind(this), false)
+    document.addEventListener('mousemove', this.update.bind(this), false)
+    document.addEventListener('mouseup', this.update.bind(this), false)
+    document.addEventListener('dblclick', this.update.bind(this), false)
+    document.addEventListener('dragstart', this.update.bind(this), false)
+    document.addEventListener('drag', this.update.bind(this), false)
+    document.addEventListener('dragend', this.update.bind(this), false)
   }
 
   scale () {

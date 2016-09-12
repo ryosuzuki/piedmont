@@ -51,18 +51,6 @@ class Paint {
 
   update () {
     this.app.pattern.initialize(this.path)
-
-    const drawing = this.app.pattern.drawing
-    const size = drawing.view.size
-    let rect = new Paper.Path.Rectangle({
-      point: [-size.width/2, -size.height/2],
-      size: [size.width, size.height],
-      strokeColor: 'white',
-      selected: true
-    });
-    rect.sendToBack();
-    rect.fillColor = '#ff0000';
-    drawing.view.draw()
   }
 
   listen () {

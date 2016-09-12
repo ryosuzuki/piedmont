@@ -68,21 +68,18 @@ class Mesh {
   replace (type) {
     switch (type) {
       case 'uv':
-        console.log('uv')
         this.material = this.uvMaterial
         break;
       case 'canvas':
-        console.log('canvas')
-
         let canvas = document.getElementById('drawing')
         this.canvasImage = new THREE.Texture(canvas)
         this.canvasImage.flipY = false
         this.canvasImage.minFilter = THREE.LinearFilter
         this.canvasImage.needsUpdate = true
-        this.canvasImage.wrapS = THREE.RepeatWrapping;
-        this.canvasImage.wrapT = THREE.RepeatWrapping;
+        // this.canvasImage.wrapS = THREE.RepeatWrapping;
+        // this.canvasImage.wrapT = THREE.RepeatWrapping;
         this.canvasImage.magFilter = THREE.NearestFilter
-        this.canvasImage.repeat.set(2, 2);
+        // this.canvasImage.repeat.set(2, 2);
         this.canvasMaterial = new THREE.MeshLambertMaterial({
           map: this.canvasImage,
           transparent: true
