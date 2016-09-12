@@ -19,6 +19,7 @@ class App {
     this.current = null
     this.mesh = null
     this.mode = null
+    this.count = 0
 
     this.scene = new THREE.Scene()
     this.camera = new THREE.PerspectiveCamera(70, width / height, 1, Number.MAX_SAFE_INTEGER)
@@ -114,6 +115,7 @@ class App {
     if (this.isAnimating) {
       requestAnimationFrame(this.render.bind(this))
     }
+    $('#mode').text(this.mode)
     switch (this.mode) {
       case 'CONTROL':
         this.controls.enabled = true
@@ -133,19 +135,22 @@ class App {
         break;
       case 'MOVE':
         this.controls.enabled = false
-        this.pattern.move()
         break;
       case 'COPY':
         this.controls.enabled = false
         copy()
         break;
+      case 'SCALE_INIT':
+        this.controls.enabled = false
+        break;
       case 'SCALE':
         this.controls.enabled = false
-        this.pattern.scale()
+        break;
+      case 'ROTATE_INIT':
+        this.controls.enabled = false
         break;
       case 'ROTATE':
         this.controls.enabled = false
-        this.pattern.rotate()
         break;
       default:
         this.controls.enabled = true
@@ -177,24 +182,69 @@ class App {
 
     console.log(event.type)
     switch (event.type) {
-      case 'dragstart':
-
-        break;
-      case 'dragend':
-        this.mode = null
-        break;
       case 'mousedown':
-        if (this.current.item) {
-          this.mode = 'MOVE'
+        switch (this.mode) {
+          case 'ROTATE_INIT':
+            this.mode = 'ROTATE'
+            break
+          case 'SCALE_INIT':
+            this.mode = 'SCALE'
+            break
+          default:
+            if (this.current.item) this.mode = 'MOVE'
+            break
         }
-        break
+        break;
       case 'mousemove':
-        break
+        switch (this.mode) {
+          case 'ROTATE':
+            this.pattern.rotate()
+            break
+          case 'SCALE':
+            this.pattern.scale()
+            break
+          case 'MOVE':
+            this.pattern.move()
+            break
+          default:
+            break
+        }
+        break;
       case 'mouseup':
-        this.mode = null
-        this.controls.restart()
-        break
+        switch (this.mode) {
+          case 'ROTATE':
+            this.mode = 'ROTATE_INIT'
+            break
+          case 'SCALE':
+            this.mode = 'SCALE_INIT'
+            break
+          case 'MOVE':
+            this.mode = null
+            this.controls.restart()
+            break
+          default:
+            break
+        }
+        break;
       case 'dblclick':
+        if (this.current.item && this.current.pos.isInside(this.current.item.bounds)) {
+          this.select = this.current.item
+        } else {
+          this.pattern.deselect()
+          this.select = null;
+          this.mode = null
+        }
+        if (this.select) {
+          if (this.count === 0 ) {
+            this.mode = 'SCALE_INIT'
+            this.plane.replace('scale')
+            this.count = 1
+          } else {
+            this.mode = 'ROTATE_INIT'
+            this.plane.replace('rotate')
+            this.count = 0
+          }
+        }
         this.plane.update()
         break;
       default:
@@ -210,32 +260,6 @@ class App {
     document.addEventListener('mousemove', this.update.bind(this), false)
     document.addEventListener('mouseup', this.update.bind(this), false)
     document.addEventListener('dblclick', this.update.bind(this), false)
-    document.addEventListener('dragstart', this.update.bind(this), false)
-    document.addEventListener('drag', this.update.bind(this), false)
-    document.addEventListener('dragend', this.update.bind(this), false)
-  }
-
-  rotate () {
-    if (!previous) window.previous = current
-      var center2d = getScreenPosition(planeCanvas.position)
-    var current2d = getScreenPosition(current.point)
-    var previous2d = getScreenPosition(previous.point)
-    var v = new THREE.Vector2()
-    var cv = v.clone().subVectors(current2d, center2d).normalize()
-    var pv = v.clone().subVectors(previous2d, center2d).normalize()
-    var angle = Math.acos(cv.dot(pv))
-    var sign = (current2d.x - center2d.x) * (previous2d.y - center2d.y) - (current2d.y - center2d.y) * (previous2d.x - center2d.x) > 0 ? 1 : -1
-    planeCanvas.rotateZ(sign*angle)
-    rotateMickey(sign*angle*90/Math.PI)
-    planeCanvas.material.map = rotateImage
-
-    var result = getSingedAngle(center2d, current2d, previous2d)
-    var sign = result.sign
-    var angle = result.angle
-    planeCanvas.rotateZ(sign*angle)
-    rotateMickey(sign*angle*90/Math.PI)
-    planeCanvas.material.map = rotateImage
-    window.previous = current
   }
 
   animate () {

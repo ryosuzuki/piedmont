@@ -57,6 +57,10 @@ class Pattern {
   }
 
   detect () {
+    if (this.app.select) {
+      this.select()
+      return false
+    }
     if (this.app.current.pos.isInside(this.item.bounds)) {
       this.select()
     } else {
@@ -86,6 +90,9 @@ class Pattern {
 
   scale () {
     let size = this.app.current.distance / this.app.previous.distance
+    if (isNaN(size)) return false
+    console.log(size)
+    // size = (size-1)*0.01 + 1
     this.drawing.activate()
     this.items.forEach( function (item) {
       item.scale(size)
@@ -100,8 +107,8 @@ class Pattern {
       - (this.app.current.point2d.y  - this.app.current.center2d.y)
       * (this.app.previous.point2d.x - this.app.current.center2d.x)
       > 0 ? 1 : -1
-    // this.app.plane.mesh.rotateZ(sign*angle)
-    // this.app.plane.mesh.material.map = rotateImage
+    this.app.plane.mesh.rotateZ(sign*angle)
+    // this.app.plane.mesh.material.map = this.app.plane.rotateImage
 
     let rotate = sign*angle*90/Math.PI
     this.drawing.activate()
