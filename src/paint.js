@@ -29,8 +29,7 @@ class Paint {
 
   initialize () {
     loadsvg(this.file, function (err, svg) {
-      this.paper = this.original
-      this.paper.activate()
+      this.original.activate()
       let d = $('path', svg).attr('d');
       let path = new Paper.Path(d)
       // var path = new paper.Path.Rectangle(new paper.Point(-100, -100), new paper.Point(100, 100))
@@ -40,7 +39,18 @@ class Paint {
       path.closed = true
       path.position = [0, 0]
       path.scale(1/5)
-      this.paper.view.draw()
+      this.original.view.draw()
+
+      var rect = new Paper.Path.Rectangle({
+        point: [-this.original.view.size.width/2, -this.original.view.size.height/2],
+        size: [this.original.view.size.width, this.original.view.size.height],
+        strokeColor: 'white',
+        selected: true
+      });
+      rect.sendToBack();
+      rect.fillColor = '#ff0000';
+      this.original.view.draw()
+
       // updateOriginal(path)
       var axis = {
         'horizontal': {
@@ -53,7 +63,7 @@ class Paint {
         }
       }
       path.scale(axis['horizontal'].x, axis['horizontal'].y)
-      this.paper.view.draw()
+      this.original.view.draw()
     }.bind(this))
   }
 

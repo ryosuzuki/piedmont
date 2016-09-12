@@ -55,37 +55,40 @@ class Mesh {
       this.uvImage.wrapS = THREE.RepeatWrapping;
       this.uvImage.wrapT = THREE.RepeatWrapping;
       this.uvMaterial = new THREE.MeshLambertMaterial({
-        color: 0xffffff,
+        color: '#fff',
         map: this.uvImage,
         transparent: true,
-        opacity: 0.5
       });
       this.uvMaterial.map.minFilter = THREE.LinearFilter
       this.uvMaterial.map.needsUpdate = true
-      this.replace('uv')
     }.bind(this));
 
-    let canvas = document.getElementById('drawing')
+    let canvas = document.getElementById('original')
     this.canvasImage = new THREE.Texture(canvas)
     this.canvasImage.flipY = false
     this.canvasImage.minFilter = THREE.LinearFilter
-    // this.canvasImage.magFilter = THREE.NearestFilter
-    // this.canvasImage.wrapS = THREE.RepeatWrapping;
-    // this.canvasImage.wrapT = THREE.RepeatWrapping;
+    this.canvasImage.needsUpdate = true
+    this.canvasImage.wrapS = THREE.RepeatWrapping;
+    this.canvasImage.wrapT = THREE.RepeatWrapping;
+    this.canvasImage.magFilter = THREE.NearestFilter
     // this.canvasImage.repeat.set(2, 2);
     this.canvasMaterial = new THREE.MeshLambertMaterial({
       map: this.canvasImage,
       transparent: true
     });
+
   }
 
   replace (type) {
     switch (type) {
-      case 'UV':
+      case 'uv':
+        console.log('uv')
         this.material = this.uvMaterial
         break;
-      case 'CANVAS':
+      case 'canvas':
+        console.log('canvas')
         this.material = this.canvasMaterial
+        break;
       default:
         this.material = this.defaultMaterial
         break;

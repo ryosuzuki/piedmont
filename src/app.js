@@ -186,7 +186,7 @@ class App {
     this.mouse.x = ( event.clientX / this.renderer.domElement.clientWidth ) * 2 - 1;
     this.mouse.y = - ( event.clientY / this.renderer.domElement.clientHeight ) * 2 + 1;
     this.raycaster.setFromCamera( this.mouse, this.camera );
-    let objects = [_.last(this.scene.children)]
+    let objects = [app.mesh.mesh]
     this.intersects = this.raycaster.intersectObjects(objects);
     if (this.intersects.length > 0) {
       this.current = this.intersects[0]
