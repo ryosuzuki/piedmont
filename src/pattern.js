@@ -26,17 +26,19 @@ class Pattern {
     this.unit.rotate(180)
     this.unit.closed = true
     // this.unit.scale()
-    this.unit.position = [0, 0]
+    this.unit.position = [30, 30]
 
     this.items = []
-    for (let i=1; i<30; i++) {
-      for (let j=1; j<30; j++) {
-        let item = this.unit.clone()
-        item.position = [10+(i-5)*30, 10+(j-5)*30]
-        item.sendToBack();
-        this.items.push(item)
-      }
-    }
+    this.item = this.unit
+    this.items.push(this.item)
+    // for (let i=1; i<30; i++) {
+    //   for (let j=1; j<30; j++) {
+    //     let item = this.unit.clone()
+    //     item.position = [10+(i-5)*30, 10+(j-5)*30]
+    //     item.sendToBack();
+    //     this.items.push(item)
+    //   }
+    // }
     this.update()
 
     const drawing = this.app.pattern.drawing
@@ -103,9 +105,9 @@ class Pattern {
   }
 
   scale () {
+    this.drawing.activate()
     let size = this.app.current.distance / this.app.previous.distance
     if (isNaN(size)) return false
-    this.drawing.activate()
     this.items.forEach( function (item) {
       item.scale(size)
     })
@@ -113,7 +115,7 @@ class Pattern {
   }
 
   rotate () {
-    try {
+    this.drawing.activate()
     let angle = Math.acos(this.app.current.vector2d.dot(this.app.previous.vector2d))
     let sign = (this.app.current.point2d.x - this.app.current.center2d.x)
       * (this.app.previous.point2d.y - this.app.current.center2d.y)
@@ -124,20 +126,51 @@ class Pattern {
     this.app.plane.mesh.rotateZ(sign*angle)
     // this.app.plane.mesh.material.map = this.app.plane.rotateImage
     let rotate = sign*angle*90/Math.PI
-    this.drawing.activate()
     this.items.forEach( function (item) {
       item.rotate(rotate)
     })
     this.update()
-    } catch (err) {
-      console.log(err)
+  }
+
+  copy () {
+    this.drawing.activate()
+    let item = this.app.item.clone()
+    item.position
+    this.items.push(item)
+
+    this.seeds = []
+    this.seeds.push(this.app.item)
+    this.seeds.push(item)
+
+    this.deselect()
+    this.app.item = item
+    this.select()
+    this.update()
+  }
+
+  repeat () {
+    let item_0 = this.seeds[0]
+    let item_1 = this.seeds[1]
+
+    let pos_0 = new THREE.Vector2(item_0.position.x, item_0.position.y)
+    let pos_1 = new THREE.Vector2(item_1.position.x, item_1.position.y)
+    let unit = new THREE.Vector2()
+    unit.subVectors(pos_1, pos_0).normalize()
+    let dist = pos_1.distanceTo(pos_0)
+
+    for (let i=-5; i<6; i++) {
+      if (i === 0 || i === 1) continue
+      this.drawing.activate()
+      var pos = new THREE.Vector2()
+      var vec = unit.clone().multiplyScalar(i*dist)
+      pos.addVectors(pos_0, vec)
+
+      let item = item_0.clone()
+      item.position = [pos.x, pos.y]
+      this.items.push(item)
+      this.update()
     }
-  }
-
-  copy (uv) {
-  }
-
-  repeate () {
+    this.seeds = []
   }
 
   update () {
