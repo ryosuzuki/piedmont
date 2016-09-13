@@ -60,6 +60,7 @@
     "lodash": "^3.10.1",
     "mesh-laplacian": "^1.0.0",
     "mesh-reindex": "^1.0.0",
+    "mousetrap": "^1.6.0",
     "ndarray": "^1.0.18",
     "ndarray-fill": "^1.0.1",
     "ndarray-stl": "^1.0.1",

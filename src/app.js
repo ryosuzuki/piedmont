@@ -17,7 +17,6 @@ class App {
     const width = App.WindowWidth
     const height = App.WindowHeight
     this.current = null
-    this.mesh = null
     this.mode = null
     this.count = 0
 
@@ -122,9 +121,9 @@ class App {
         break;
       case 'DRAG':
         if (this.current) {
-          this.mesh.mesh.material.color = new THREE.Color('gray')
+          this.mesh.material.color = new THREE.Color('gray')
         } else {
-          this.mesh.mesh.material.color = new THREE.Color('white')
+          this.mesh.material.color = new THREE.Color('white')
         }
         break;
       case 'DROP':
@@ -155,17 +154,18 @@ class App {
         break;
       default:
         this.controls.enabled = true
-        this.mesh.mesh.material.color = new THREE.Color('white')
+        this.mesh.material.color = new THREE.Color('white')
         break;
     }
   }
 
   update (event) {
     event.preventDefault()
+
     this.mouse.x = ( event.clientX / this.renderer.domElement.clientWidth ) * 2 - 1;
     this.mouse.y = - ( event.clientY / this.renderer.domElement.clientHeight ) * 2 + 1;
     this.raycaster.setFromCamera( this.mouse, this.camera );
-    let objects = [app.mesh.mesh]
+    let objects = [this.mesh]
     this.intersects = this.raycaster.intersectObjects(objects);
     if (this.intersects.length == 0) {
       this.current = null
@@ -254,12 +254,31 @@ class App {
     }
   }
 
+  command () {
+    event.preventDefault()
+    console.log(event)
+
+    if (!this.item) return false
+
+    switch(event.code) {
+      case 'KeyC':
+        this.pattern.copy()
+        break
+      default:
+        break
+    }
+
+  }
+
   listen () {
     this.paint.listen()
     document.addEventListener('mousedown', this.update.bind(this), false)
     document.addEventListener('mousemove', this.update.bind(this), false)
     document.addEventListener('mouseup', this.update.bind(this), false)
     document.addEventListener('dblclick', this.update.bind(this), false)
+
+    Mousetrap.bind('command+c', this.command.bind(this), 'keydown')
+    Mousetrap.bind('command+v', this.command.bind(this), 'keydown')
   }
 
   animate () {
@@ -278,8 +297,8 @@ class App {
     let vector = new THREE.Vector3();
     let canvas = this.renderer.domElement;
     vector.set(point.x, point.y, point.z);
-    this.mesh.mesh.updateMatrixWorld()
-    vector.applyMatrix4( this.mesh.mesh.matrixWorld )
+    this.mesh.updateMatrixWorld()
+    vector.applyMatrix4( this.mesh.matrixWorld )
     vector.project( this.camera );
     vector.x = Math.round( (   vector.x + 1 ) * canvas.width  / 2 ),
     vector.y = Math.round( ( - vector.y + 1 ) * canvas.height / 2 );

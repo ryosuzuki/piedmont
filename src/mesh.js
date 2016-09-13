@@ -4,10 +4,11 @@ import '../node_modules/three/examples/js/loaders/STLLoader.js'
 import '../node_modules/three/examples/js/loaders/BinaryLoader.js'
 
 import computeUniq from './modules/uniq'
+import Geometry from './geometry'
 
-
-class Mesh {
+class Mesh extends THREE.Mesh {
   constructor (app) {
+    super()
     this.app = app
     this.file = '../data/cone.obj'
     this.imageFile = '/public/assets/bunny_1k.png'
@@ -22,11 +23,12 @@ class Mesh {
   initialize () {
     this.loadImage()
     this.loadGeometry()
-    this.mesh = new THREE.Mesh(this.geometry, this.material);
-    this.mesh.geometry.verticesNeedUpdate = true;
-    this.mesh.dynamic = true;
-    this.mesh.castShadow = true;
-    this.app.scene.add(this.mesh)
+    this.updateMorphTargets();
+    // = new Mesh(this.geometry, this.material);
+    this.geometry.verticesNeedUpdate = true;
+    this.dynamic = true;
+    this.castShadow = true;
+    this.app.scene.add(this)
   }
 
   loadGeometry () {
@@ -89,12 +91,13 @@ class Mesh {
         this.material = this.defaultMaterial
         break;
     }
-    this.app.scene.remove(this.mesh)
-    this.mesh = new THREE.Mesh(this.geometry, this.material);
+    this.app.scene.remove(this)
+    this.updateMorphTargets()
+    // this.mesh = new Mesh(this.geometry, this.material);
     // this.mesh.scale.set(mesh.scale.x, mesh.scale.y, mesh.scale.z)
     // cm.position.set(mesh.position.x, mesh.position.y, mesh.position.z)
     // cm.rotation.set(mesh.rotation.x, mesh.rotation.y, mesh.rotation.z)
-    this.app.scene.add(this.mesh);
+    this.app.scene.add(this);
   }
 
   static getInitialUv (object, geometry) {
@@ -115,7 +118,7 @@ class Mesh {
 
   static convertPositionsToGeometry (positions) {
     var n = positions.length/9
-    var geometry = new THREE.Geometry()
+    var geometry = new Geometry()
     for (var i=0; i<n; i++) {
       var v1 = new THREE.Vector3(
         positions[9*i],

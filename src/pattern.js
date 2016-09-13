@@ -135,7 +135,7 @@ class Pattern {
   copy () {
     this.drawing.activate()
     let item = this.app.item.clone()
-    item.position
+    item.position = [item.position.x+2, item.position.y]
     this.items.push(item)
 
     this.seeds = []
