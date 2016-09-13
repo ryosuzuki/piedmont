@@ -10,7 +10,7 @@
     "node": "6.x"
   },
   "scripts": {
-    "start": "node --harmony app.js",
+    "start": "node --harmony server.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "repository": {
@@ -99,6 +99,7 @@
     "ref-array": "^1.1.2",
     "ref-struct": "^1.0.2",
     "semantic-ui-css": "^2.2.2",
+    "serve-favicon": "^2.3.0",
     "simplify-path": "^1.1.0",
     "socket.io": "^1.4.5",
     "socket.io-client": "^1.4.5",

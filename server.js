@@ -3,8 +3,9 @@ const fs = require('fs')
 const path = require('path')
 const http = require('http')
 const express = require('express')
-const config = require('./webpack.config.js')
 const webpack = require('webpack')
+const config = require('./webpack.config.js')
+const favicon = require('serve-favicon')
 const webpackDevMiddleware = require('webpack-dev-middleware')
 const webpackHotMiddleware = require('webpack-hot-middleware')
 
@@ -17,13 +18,13 @@ app.use(webpackDevMiddleware(compiler, {
   publicPath: config.output.publicPath
 }))
 app.use(webpackHotMiddleware(compiler))
-
+app.use(favicon(__dirname + '/public/assets/favicon.ico'))
 app.use(express.static(__dirname + '/dist'))
 app.use('/', express.static(__dirname + '/'))
 app.set('view engine', 'ejs')
 
 app.get('/', function (req, res) {
-  res.render('index')
+  res.sendFile(__dirname + '/public/index.html')
 })
 
 app.listen(port, function(error) {

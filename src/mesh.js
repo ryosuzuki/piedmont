@@ -11,7 +11,7 @@ class Mesh extends THREE.Mesh {
   constructor (app) {
     super()
     this.app = app
-    this.file = '../data/cone.obj'
+    this.file = '/public/data/cone.obj'
     this.imageFile = '/public/assets/bunny_1k.png'
     this.defaultMaterial = new THREE.MeshLambertMaterial({
       color: '#eee',
