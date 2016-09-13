@@ -1,4 +1,5 @@
 
+// "kruskal": "weltwinkel/kruskal",
 
 function getBoundary () {
   console.log('Start getMapping')

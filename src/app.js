@@ -19,6 +19,7 @@ class App {
     this.current = null
     this.mode = null
     this.count = 0
+    this.finish = false
 
     this.scene = new THREE.Scene()
     this.camera = new THREE.PerspectiveCamera(70, width / height, 1, Number.MAX_SAFE_INTEGER)
@@ -161,6 +162,7 @@ class App {
 
   update (event) {
     event.preventDefault()
+    if (this.finish) return false
 
     this.mouse.x = ( event.clientX / this.renderer.domElement.clientWidth ) * 2 - 1;
     this.mouse.y = - ( event.clientY / this.renderer.domElement.clientHeight ) * 2 + 1;

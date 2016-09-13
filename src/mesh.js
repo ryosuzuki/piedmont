@@ -2,7 +2,9 @@ import THREE from 'three'
 import '../node_modules/three/examples/js/loaders/OBJLoader.js'
 import '../node_modules/three/examples/js/loaders/STLLoader.js'
 import '../node_modules/three/examples/js/loaders/BinaryLoader.js'
+import '../node_modules/three/examples/js/exporters/STLExporter.js'
 
+import FileSaver from 'file-saver'
 import Geometry from './geometry'
 
 class Mesh extends THREE.Mesh {
@@ -162,11 +164,17 @@ class Mesh extends THREE.Mesh {
       }
 
       this.replace('wire')
-
+      this.app.finish = true
     }.bind(this)
     worker.postMessage(data);
   }
 
+  export () {
+    let exporter = new THREE.STLExporter();
+    let stlString = exporter.parse(this)
+    let blob = new Blob([stlString], {type: 'text/plain'});
+    FileSaver.saveAs(blob, `${Date.now()}.stl`);
+  }
 
   static getInitialUv (object, geometry) {
     var mappings = object.attributes.uv.array
