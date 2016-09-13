@@ -26,12 +26,18 @@ class Pattern {
     this.unit.rotate(180)
     this.unit.closed = true
     // this.unit.scale()
-    this.unit.position = [30, 30]
-    this.drawing.view.draw()
+    this.unit.position = [0, 0]
 
-    this.item = this.unit
-    this.items = [this.item]
-
+    this.items = []
+    for (let i=1; i<30; i++) {
+      for (let j=1; j<30; j++) {
+        let item = this.unit.clone()
+        item.position = [10+(i-5)*30, 10+(j-5)*30]
+        item.sendToBack();
+        this.items.push(item)
+      }
+    }
+    this.update()
 
     const drawing = this.app.pattern.drawing
     const size = drawing.view.size
@@ -61,30 +67,38 @@ class Pattern {
       this.select()
       return false
     }
-    if (this.app.current.pos.isInside(this.item.bounds)) {
-      this.select()
+    if (this.app.item) {
+      if (!this.app.current.pos.isInside(this.app.item.bounds)) {
+        this.deselect()
+      }
     } else {
-      this.deselect()
+      for (let i=0; i<this.items.length; i++) {
+        let item = this.items[i]
+        if (this.app.current.pos.isInside(item.bounds)) {
+          this.app.item = item
+          this.select()
+          break
+        }
+      }
     }
   }
 
   select () {
     this.drawing.activate()
-    this.item.fillColor = 'grey'
-    this.app.current.item = this.item
+    this.app.item.fillColor = 'grey'
     this.update()
   }
 
-  deselect (id) {
+  deselect () {
     this.drawing.activate()
-    this.item.fillColor = 'black'
-    this.app.current.item = null
+    this.app.item.fillColor = 'black'
+    this.app.item = null
     this.update()
   }
 
   move () {
     this.drawing.activate()
-    this.item.position = [this.app.current.pos.x, this.app.current.pos.y]
+    this.app.item.position = [this.app.current.pos.x, this.app.current.pos.y]
     this.update()
   }
 

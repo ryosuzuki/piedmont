@@ -162,8 +162,6 @@ class App {
 
   update (event) {
     event.preventDefault()
-    console.log(event.type)
-
     this.mouse.x = ( event.clientX / this.renderer.domElement.clientWidth ) * 2 - 1;
     this.mouse.y = - ( event.clientY / this.renderer.domElement.clientHeight ) * 2 + 1;
     this.raycaster.setFromCamera( this.mouse, this.camera );
@@ -184,6 +182,7 @@ class App {
 
     this.pattern.detect()
 
+    console.log(event.type)
     switch (event.type) {
       case 'mousedown':
         switch (this.mode) {
@@ -194,7 +193,7 @@ class App {
             this.mode = 'SCALE'
             break
           default:
-            if (this.current.item) this.mode = 'MOVE'
+            if (this.item) this.mode = 'MOVE'
             break
         }
         break;
@@ -229,8 +228,8 @@ class App {
         }
         break;
       case 'dblclick':
-        if (this.current.item && this.current.pos.isInside(this.current.item.bounds)) {
-          this.select = this.current.item
+        if (this.item && this.current.pos.isInside(this.item.bounds)) {
+          this.select = this.item
         } else {
           this.pattern.deselect()
           this.select = null;
@@ -253,7 +252,6 @@ class App {
         this.mode = null
         break;
     }
-
   }
 
   listen () {

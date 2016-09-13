@@ -90,7 +90,7 @@ class Plane {
   }
 
   update () {　
-    if (this.app.current && this.app.current.item) {
+    if (this.app.current && this.app.item) {
       let normal = this.app.current.face.normal
       let point = this.app.current.point
       let pos = point.clone().add(normal.clone().multiplyScalar(0.01))
