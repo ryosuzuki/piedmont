@@ -312,15 +312,15 @@ class App {
     const height = this.pattern.drawing.view.viewSize.height
     const x = (uv.x-0.5)*width
     const y = (uv.y-0.5)*height
-    let pos = new Paper.Point(x, y)
-    return pos
+    let position = new Paper.Point(x, y)
+    return position
     // return [ (uv.x)*width, (uv.y)*height]
   }
 
-  convertCanvasToUv (center) {
+  convertCanvasToUv (position) {
     var width = this.pattern.drawing.view.viewSize.width
     var height = this.pattern.drawing.view.viewSize.height
-    return [ (center.x/width)+0.5, (center.y/height)+0.5 ]
+    return [ (position.x/width)+0.5, (position.y/height)+0.5 ]
   }
 
 

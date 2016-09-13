@@ -3,13 +3,13 @@ var path = require('path')
 
 module.exports = {
   devtool: 'inline-source-map',
-  entry: [
-    'webpack-hot-middleware/client?reload=true',
-    path.join(__dirname, 'src/index.js')
-  ],
+  entry: {
+    bundle: ['./src/index.js', 'webpack-hot-middleware/client?reload=true'],
+    worker: ['./src/worker.js', 'webpack-hot-middleware/client?reload=true']
+  },
   output: {
     path: path.resolve('./dist'),
-    filename: 'bundle.js',
+    filename: '[name].js',
     publicPath: '/'
   },
   plugins: [
@@ -17,9 +17,6 @@ module.exports = {
     new webpack.HotModuleReplacementPlugin(),
     new webpack.NoErrorsPlugin()
   ],
-  node: {
-    fs: 'empty'
-  },
   module: {
     loaders: [
       {

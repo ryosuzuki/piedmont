@@ -7,42 +7,7 @@ class Geometry extends THREE.Geometry {
     super()
   }
 
-  replace () {
-    this.computeFaceNormals()
-    for (var i=0; i<this.uniq.length; i++) {
-      var v = this.uniq[i];
-      var vertex_normal = new THREE.Vector3();
-      var normals = [];
-      for (var j=0; j<v.faces.length; j++) {
-        var index = v.faces[j];
-        var face = this.faces[index];
-        var normal = face.normal;
-        vertex_normal.add(normal);
-        normals.push(normal);
-      }
-      vertex_normal.divideScalar(v.faces.length).normalize();
-      this.uniq[i].vertex_normal = vertex_normal;
-    }
-
-    let ng = new Geometry();
-    for (var i=0; i<this.faces.length; i++) {
-      // if (selectIndex.includes(i)) continue;
-      var face = this.faces[i];
-      var normal = face.normal;
-      var va  = this.vertices[face.a];
-      var vb  = this.vertices[face.b];
-      var vc  = this.vertices[face.c];
-      var num = ng.vertices.length;
-      ng.vertices.push(va);
-      ng.vertices.push(vb);
-      ng.vertices.push(vc);
-      ng.faces.push(new THREE.Face3(num, num+1, num+2))
-    }
-
-
-  }
-
-  computeVertexNormals (this) {
+  computeVertexNormals () {
     for (let i=0; i<this.uniq.length; i++) {
       let v = this.uniq[i];
       let vertex_normal = new THREE.Vector3();

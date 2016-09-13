@@ -49,6 +49,7 @@
     "extract-svg-path": "^2.1.0",
     "ffi": "^2.0.0",
     "gh-clipping-algorithm": "^0.6.1",
+    "greiner-hormann": "^1.3.1",
     "jquery": "^3.1.0",
     "koa": "^1.0.0",
     "koa-bodyparser": "^2.0.1",

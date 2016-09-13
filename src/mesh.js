@@ -99,6 +99,71 @@ class Mesh extends THREE.Mesh {
     this.app.scene.add(this);
   }
 
+  getNewMesh () {
+    this.geometry.computeUniq()
+    this.geometry.computeFaceNormals()
+    this.geometry.computeVertexNormals()
+    this.app.pattern.computeSvgPositions()
+
+    window.overlapIndex = []
+    let selectIndex = []
+    for (let i=0; i<this.geometry.faces.length; i++) {
+      selectIndex.push(i)
+    }
+
+    var json = {
+      hole: false,
+      svgPositions: this.app.pattern.svgPositions,
+      geometry: this.geometry,
+      selectIndex: selectIndex,
+      faces: this.geometry.faces,
+      faceVertexUvs: this.geometry.faceVertexUvs,
+      vertices: this.geometry.vertices,
+      uniq: this.geometry.uniq,
+      map: this.geometry.map,
+    }
+    window.json = json
+    // debugger
+    var data = JSON.stringify(json)
+    var worker = new Worker('/worker.js');
+    worker.onmessage = function(event) {
+      debugger
+      var data = event.data
+      console.log(data);
+      var g = data.ng
+      this.original = this.geometry.clone()
+      this.geometry = new Geometry()
+      for (var i=0; i<g.faces.length; i++) {
+        try {
+          var a = g.vertices[g.faces[i].a]
+          var b = g.vertices[g.faces[i].b]
+          var c = g.vertices[g.faces[i].c]
+
+          var va = new THREE.Vector3(a.x, a.y, a.z)
+          var vb = new THREE.Vector3(b.x, b.y, b.z)
+          var vc = new THREE.Vector3(c.x, c.y, c.z)
+
+          var num = this.geometry.vertices.length
+          this.geometry.vertices.push(va)
+          this.geometry.vertices.push(vb)
+          this.geometry.vertices.push(vc)
+          this.geometry.faces.push(new THREE.Face3(num, num+1, num+2))
+        }
+        catch (err) {
+          console.log(err)
+          continue
+        }
+      }
+
+      this.app.scene.remove(this)
+      this.updateMorphTargets()
+      this.app.scene.add(this)
+
+    };
+    worker.postMessage(data);
+  }
+
+
   static getInitialUv (object, geometry) {
     var mappings = object.attributes.uv.array
     var n = mappings.length/2
