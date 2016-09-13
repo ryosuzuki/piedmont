@@ -6,7 +6,6 @@ import Numeric from 'numeric'
 import GreinerHormann from 'greiner-hormann'
 import PolygonBoolean from '2d-polygon-boolean'
 
-// import Mesh from './mesh'
 import Geometry from './geometry'
 
 onmessage = (event) => {

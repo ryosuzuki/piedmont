@@ -1,10 +1,10 @@
 import THREE from 'three'
-import './libs/OrbitControls.js'
 
 import Mesh from './mesh'
 import Plane from './plane'
 import Paint from './paint'
 import Pattern from './pattern'
+import Controls from './controls'
 
 const unit = 1
 
@@ -42,7 +42,7 @@ class App {
     this.scene.add(grid);
     this.grid = grid
 
-    this.controls = new THREE.OrbitControls(this.camera, this.renderer.domElement)
+    this.controls = new Controls(this.camera, this.renderer.domElement)
     this.controls.enableDamping = true
     this.controls.rotateSpeed = 0.3
     this.controls.zoomSpeed = 0.3
