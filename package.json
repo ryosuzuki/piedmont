@@ -102,7 +102,7 @@
     "socket.io-client": "^1.4.5",
     "spatial-grid": "^0.1.1",
     "svg-intersections": "git://github.com/effektif/svg-intersections.git",
-    "svg-mesh-3d": "^1.0.1",
+    "svg-mesh-3d": "ryosuzuki/svg-mesh-3d",
     "svg-path-contours": "^2.0.0",
     "swig": "^1.4.2",
     "three": "^0.73.0",

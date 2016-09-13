@@ -23,8 +23,7 @@ class Mesh extends THREE.Mesh {
   initialize () {
     this.loadImage()
     this.loadGeometry()
-    this.updateMorphTargets();
-    // = new Mesh(this.geometry, this.material);
+    this.updateMorphTargets() // = new Mesh(this.geometry, this.material);
     this.geometry.verticesNeedUpdate = true;
     this.dynamic = true;
     this.castShadow = true;
@@ -144,8 +143,6 @@ class Mesh extends THREE.Mesh {
     geometry.computeFaceNormals()
     return geometry
   }
-
-
 }
 
 export default Mesh

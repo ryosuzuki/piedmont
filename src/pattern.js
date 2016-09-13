@@ -1,5 +1,7 @@
 import Paper from 'paper'
 
+import SvgMesh3d from 'svg-mesh-3d'
+
 class Pattern {
   constructor (app) {
     this.app = app
@@ -177,6 +179,34 @@ class Pattern {
     this.drawing.view.draw()
     this.app.mesh.replace('canvas')
   }
+
+  getSvgPositions () {
+    var d = this.unit.pathData
+    var svgMesh = SvgMesh3d(d, {
+      scale: 1,
+      simplify: Math.pow(10, -10),
+      normalize: true
+    })
+    let positions = svgMesh.positions
+    /*
+      1. scale: [x, y] -> scale * [x, y]
+      2. set center: [0, 0] -> [0.5, 0.5] + alpha
+    */
+    var s = window.scale / 10
+    positions = positions.map( (p) => {
+      return [ p[0]*s, p[1]*s ]
+    })
+    var svgPositions = []
+    window.mickeys.forEach( (mickey) => {
+      var uv = convertCanvasToUv(mickey.position)
+      var pos = positions.map( (p) => {
+        return [ p[0]+uv[0], p[1]+uv[1] ]
+      })
+      svgPositions.push(pos)
+    })
+    return svgPositions
+  }
+
 
 }
 
