@@ -135,6 +135,7 @@ class App {
         break;
       case 'MOVE':
         this.controls.enabled = false
+        this.pattern.move()
         break;
       case 'COPY':
         this.controls.enabled = false
@@ -160,6 +161,9 @@ class App {
   }
 
   update (event) {
+    event.preventDefault()
+    console.log(event.type)
+
     this.mouse.x = ( event.clientX / this.renderer.domElement.clientWidth ) * 2 - 1;
     this.mouse.y = - ( event.clientY / this.renderer.domElement.clientHeight ) * 2 + 1;
     this.raycaster.setFromCamera( this.mouse, this.camera );
@@ -180,7 +184,6 @@ class App {
 
     this.pattern.detect()
 
-    console.log(event.type)
     switch (event.type) {
       case 'mousedown':
         switch (this.mode) {
@@ -204,7 +207,6 @@ class App {
             this.pattern.scale()
             break
           case 'MOVE':
-            this.pattern.move()
             break
           default:
             break

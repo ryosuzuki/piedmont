@@ -91,8 +91,6 @@ class Pattern {
   scale () {
     let size = this.app.current.distance / this.app.previous.distance
     if (isNaN(size)) return false
-    console.log(size)
-    // size = (size-1)*0.01 + 1
     this.drawing.activate()
     this.items.forEach( function (item) {
       item.scale(size)
@@ -101,21 +99,25 @@ class Pattern {
   }
 
   rotate () {
+    try {
     let angle = Math.acos(this.app.current.vector2d.dot(this.app.previous.vector2d))
     let sign = (this.app.current.point2d.x - this.app.current.center2d.x)
       * (this.app.previous.point2d.y - this.app.current.center2d.y)
       - (this.app.current.point2d.y  - this.app.current.center2d.y)
       * (this.app.previous.point2d.x - this.app.current.center2d.x)
       > 0 ? 1 : -1
+    if (isNaN(angle)) return true
     this.app.plane.mesh.rotateZ(sign*angle)
     // this.app.plane.mesh.material.map = this.app.plane.rotateImage
-
     let rotate = sign*angle*90/Math.PI
     this.drawing.activate()
     this.items.forEach( function (item) {
       item.rotate(rotate)
     })
     this.update()
+    } catch (err) {
+      console.log(err)
+    }
   }
 
   copy (uv) {
