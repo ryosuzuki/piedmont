@@ -3,18 +3,34 @@ import THREE from 'three'
 import _ from 'lodash'
 import SvgMesh3d from 'svg-mesh-3d'
 import Numeric from 'numeric'
+import GreinerHormann from 'greiner-hormann'
+import PolygonBoolean from '2d-polygon-boolean'
 
-import Mesh from './mesh'
+// import Mesh from './mesh'
 import Geometry from './geometry'
 
+onmessage = (event) => {
+  var data = event.data
+  var json = JSON.parse(data)
+  hole = json.hole
+  if (hole) h = -h
+  svgPositions = json.svgPositions
 
+  geometry = json.geometry
+  selectIndex = json.selectIndex
 
+  geometry.faces = json.faces
+  geometry.faceVertexUvs = json.faceVertexUvs
+  geometry.vertices = json.vertices
+  geometry.uniq = json.uniq
+  geometry.map = json.map
 
+  // debugger
+  ng = fugafuga(svgPositions)
+  postMessage({ ng: ng});
+}
 
 var demo_video = true
-
-
-console.log('fwejofwjeojo')
 
 var h = 0.03
 
@@ -31,62 +47,11 @@ var overlapIndex = []
 var z = new THREE.Vector2(0, 0)
 var emptyUv = [z, z, z]
 
-
-
-var greinerHormann = window.greinerHormann
-
-var loadSvg = window.loadSvg
-var parsePath = window.parsePath
-var reindex = window.reindex
-var unindex = window.unindex
-var meshLaplacian = window.meshLaplacian
-var csrMatrix = window.csrMatrix
-var drawTriangles = window.drawTriangles
-var svgIntersections = window.svgIntersections
-var polygonBoolean = window.polygonBoolean
-var inside = window.inside
-var ghClip = window.ghClip
-var triangulate3D = window.triangulate3D
-var triangulateContours = window.triangulateContours
-var cdt2d = window.cdt2d
-var parseSVG = window.parseSVG
-var getContours = window.getContours
-var getBounds = window.getBounds
-var cleanPSLG = window.cleanPSLG
-var simplify = window.simplify
-var random = window.random
-var assign = window.assign
-var normalize = window.normalize
-var areaPolygon = window.areaPolygon
-var Dijkstra = window.Dijkstra
-
-
-
 var ng = new THREE.Geometry()
 var geometry
 var svgPositions
 var selectIndex
 var hole
-
-this.onmessage = function(event) {
-  var data = event.data
-  var json = JSON.parse(data)
-  hole = json.hole
-  if (hole) h = -h
-  svgPositions = json.svgPositions
-  geometry = json.geometry
-  selectIndex = json.selectIndex
-
-  geometry.faces = json.faces
-  geometry.faceVertexUvs = json.faceVertexUvs
-  geometry.vertices = json.vertices
-  geometry.uniq = json.uniq
-  geometry.map = json.map
-
-  // debugger
-  ng = fugafuga(svgPositions)
-  this.postMessage({ ng: ng});
-};
 
 
 function fugafuga (svgPositions) {
@@ -119,7 +84,7 @@ function fugafuga (svgPositions) {
       }
       */
 
-      var points = polygonBoolean(triangle, positions, 'not')
+      var points = PolygonBoolean(triangle, positions, 'not')
 
       if (points.length > 1) {
         points = (points[0].length < points[1].length) ? points[0] : points[1]
@@ -127,7 +92,7 @@ function fugafuga (svgPositions) {
         points = points[0]
       }
       if (points.length <= 3) {
-        var points = greinerHormann.intersection(positions, triangle)
+        var points = GreinerHormann.intersection(positions, triangle)
         if (points && points.length < 3) { // && va.y > 0) {
           var area = areaPolygon(points[0])
           var triArea = areaPolygon(triangle)
@@ -140,7 +105,7 @@ function fugafuga (svgPositions) {
           }
         }
       } else {
-        s = new Date().getTime();
+        var s = new Date().getTime();
         createHole(faceInfo, positions)
         // createHole(faceInfo, positions, true)
         console.log(new Date().getTime() - s)
@@ -291,9 +256,9 @@ function createHole (faceInfo, positions, hoge) {
     return [v.x, v.y];
   })
   triangle = round(triangle)
-  var diffs = greinerHormann.intersection(positions, triangle)
+  var diffs = GreinerHormann.intersection(positions, triangle)
   if (hole || hoge) {
-    diffs = greinerHormann.diff(triangle, positions)
+    diffs = GreinerHormann.diff(triangle, positions)
   }
   // if (!diffs) return false
   for (var i=0; i<diffs.length; i++) {
@@ -302,7 +267,7 @@ function createHole (faceInfo, positions, hoge) {
 
     var bndMesh
     var d = drawSVG(diff);
-    bndMesh = svgMesh3d(d, {
+    bndMesh = SvgMesh3d(d, {
       scale: 1,
       simplify: Math.pow(10, -5),
       customize: true,
@@ -432,7 +397,7 @@ function createCover () {
   try {
     var hoge = _.compact(bnd_2d)
     var d = drawSVG(hoge);
-    var bndMesh = svgMesh3d(d, {
+    var bndMesh = SvgMesh3d(d, {
       scale: 1,
       simplify: Math.pow(10, -5),
       // customize: true,

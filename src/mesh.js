@@ -3,7 +3,6 @@ import '../node_modules/three/examples/js/loaders/OBJLoader.js'
 import '../node_modules/three/examples/js/loaders/STLLoader.js'
 import '../node_modules/three/examples/js/loaders/BinaryLoader.js'
 
-import computeUniq from './modules/uniq'
 import Geometry from './geometry'
 
 class Mesh extends THREE.Mesh {
@@ -16,6 +15,11 @@ class Mesh extends THREE.Mesh {
       color: '#eee',
       vertexColors: THREE.FaceColors,
     });
+    this.wireMaterial = new THREE.MeshBasicMaterial({
+      color: '#ff0',
+      vertexColors: THREE.FaceColors,
+      wireframe: true
+    })
     this.material = this.defaultMaterial
     this.initialize()
   }
@@ -86,6 +90,9 @@ class Mesh extends THREE.Mesh {
 
         this.material = this.canvasMaterial
         break;
+      case 'wire':
+        this.material = this.wireMaterial
+        break;
       default:
         this.material = this.defaultMaterial
         break;
@@ -99,7 +106,7 @@ class Mesh extends THREE.Mesh {
     this.app.scene.add(this);
   }
 
-  getNewMesh () {
+  computeNewMesh () {
     this.geometry.computeUniq()
     this.geometry.computeFaceNormals()
     this.geometry.computeVertexNormals()
@@ -127,7 +134,6 @@ class Mesh extends THREE.Mesh {
     var data = JSON.stringify(json)
     var worker = new Worker('/worker.js');
     worker.onmessage = function(event) {
-      debugger
       var data = event.data
       console.log(data);
       var g = data.ng
@@ -155,11 +161,9 @@ class Mesh extends THREE.Mesh {
         }
       }
 
-      this.app.scene.remove(this)
-      this.updateMorphTargets()
-      this.app.scene.add(this)
+      this.replace('wire')
 
-    };
+    }.bind(this)
     worker.postMessage(data);
   }
 
