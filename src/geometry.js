@@ -1,23 +1,30 @@
 import THREE from 'three'
 import _ from 'lodash'
 
-import '../node_modules/three/examples/js/loaders/OBJLoader.js'
-import '../node_modules/three/examples/js/loaders/STLLoader.js'
-import '../node_modules/three/examples/js/loaders/BinaryLoader.js'
+import OBJLoader from './three/obj-loader'
 
 class Geometry extends THREE.Geometry {
   constructor () {
     super()
+    this.file = null
+    this.text = null
   }
 
-  load (file) {
-    this.file = file
-    let objLoader = new THREE.OBJLoader()
+  init () {
+    this.get()
+    this.load()
+  }
+
+  get () {
     var req = new XMLHttpRequest();
     req.open('GET', this.file, false);
     req.send(null);
-    let text = req.responseText
-    let res = objLoader.parse(text)
+    this.text = req.responseText
+  }
+
+  load () {
+    let objLoader = new OBJLoader()
+    let res = objLoader.parse(this.text)
     let object = res.children[0].geometry
     let positions = object.attributes.position.array
     this.convertPositionsToGeometry(positions)
@@ -159,11 +166,6 @@ class Geometry extends THREE.Geometry {
     this.uniq = uniq;
     this.map = map;
     this.edges = edges;
-
-    window.uniq = uniq;
-    window.map = map;
-    window.edges = edges;
-    window.faces = this.faces;
 
     console.log('Finish computeUniq')
   }

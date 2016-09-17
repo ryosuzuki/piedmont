@@ -1,8 +1,8 @@
 import THREE from 'three'
-import '../node_modules/three/examples/js/exporters/STLExporter.js'
-
 import FileSaver from 'file-saver'
+
 import Geometry from './geometry'
+import STLExporter from './three/stl-exporter'
 
 class Mesh extends THREE.Mesh {
   constructor (app) {
@@ -28,7 +28,8 @@ class Mesh extends THREE.Mesh {
   initialize () {
     this.loadImage()
     this.geometry = new Geometry()
-    this.geometry.load(this.file)
+    this.geometry.file = this.file
+    this.geometry.init()
     this.updateMorphTargets() // = new Mesh(this.geometry, this.material);
     this.geometry.verticesNeedUpdate = true;
     this.dynamic = true;
@@ -92,9 +93,9 @@ class Mesh extends THREE.Mesh {
   }
 
   computeNewMesh () {
-    this.geometry.computeUniq()
-    this.geometry.computeFaceNormals()
-    this.geometry.computeVertexNormals()
+    // this.geometry.computeUniq()
+    // this.geometry.computeFaceNormals()
+    // this.geometry.computeVertexNormals()
     this.app.pattern.computeSvgPositions()
 
     window.overlapIndex = []
@@ -107,14 +108,14 @@ class Mesh extends THREE.Mesh {
       hole: false,
       svgPositions: this.app.pattern.svgPositions,
       selectIndex: selectIndex,
-      file: this.file,
-      geometry: this.geometry,
-      faces: this.geometry.faces,
-      faceVertexUvs: this.geometry.faceVertexUvs,
-      vertices: this.geometry.vertices,
-      uniq: this.geometry.uniq,
-      map: this.geometry.map,
+      text: this.geometry.text,
+      // faces: this.geometry.faces,
+      // faceVertexUvs: this.geometry.faceVertexUvs,
+      // vertices: this.geometry.vertices,
+      // uniq: this.geometry.uniq,
+      // map: this.geometry.map,
     }
+
     window.json = json
     // debugger
     var data = JSON.stringify(json)
@@ -153,7 +154,7 @@ class Mesh extends THREE.Mesh {
   }
 
   export () {
-    let exporter = new THREE.STLExporter();
+    let exporter = new STLExporter();
     let stlString = exporter.parse(this)
     let blob = new Blob([stlString], {type: 'text/plain'});
     FileSaver.saveAs(blob, `${Date.now()}.stl`);

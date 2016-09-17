@@ -7,6 +7,8 @@ import GreinerHormann from 'greiner-hormann'
 import PolygonBoolean from '2d-polygon-boolean'
 import AreaPolygon from 'area-polygon'
 
+import Geometry from './geometry'
+
 onmessage = (event) => {
   let data = event.data
   let json = JSON.parse(data)
@@ -16,12 +18,19 @@ onmessage = (event) => {
   svgPositions = json.svgPositions
   selectIndex = json.selectIndex
 
-  geometry = json.geometry
-  geometry.faces = json.faces
-  geometry.faceVertexUvs = json.faceVertexUvs
-  geometry.vertices = json.vertices
-  geometry.uniq = json.uniq
-  geometry.map = json.map
+  geometry = new Geometry()
+  geometry.text = json.text
+  geometry.load()
+  geometry.computeFaceNormals()
+  geometry.computeUniq()
+  geometry.computeVertexNormals()
+
+  // geometry = json.geometry
+  // geometry.faces = json.faces
+  // geometry.faceVertexUvs = json.faceVertexUvs
+  // geometry.vertices = json.vertices
+  // geometry.uniq = json.uniq
+  // geometry.map = json.map
 
   // debugger
   ng = fugafuga(svgPositions)

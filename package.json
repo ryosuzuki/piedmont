@@ -68,7 +68,7 @@
     "spatial-grid": "^0.1.1",
     "svg-mesh-3d": "ryosuzuki/svg-mesh-3d",
     "svg-path-contours": "^2.0.0",
-    "three": "^0.73.0",
+    "three": "^0.74.0",
     "triangulate-contours": "^1.0.2",
     "unindex-mesh": "^2.0.0"
   },
