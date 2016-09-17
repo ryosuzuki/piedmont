@@ -6,7 +6,7 @@ import Numeric from 'numeric'
 import GreinerHormann from 'greiner-hormann'
 import PolygonBoolean from '2d-polygon-boolean'
 
-import Geometry from './geometry'
+// import Geometry from './geometry'
 // import Mesh from './mesh'
 
 onmessage = (event) => {
@@ -16,11 +16,11 @@ onmessage = (event) => {
   hole = json.hole
   if (hole) h = -h
   svgPositions = json.svgPositions
-  geometry = new Geometry()
-  geometry.load(json.file)
-  geometry.computeUniq()
-  geometry.computeFaceNormals()
-  geometry.computeVertexNormals()
+  // geometry = new Geometry()
+  // geometry.load(json.file)
+  // geometry.computeUniq()
+  // geometry.computeFaceNormals()
+  // geometry.computeVertexNormals()
   selectIndex = json.selectIndex
 
   // geometry.faces = json.faces
@@ -30,8 +30,8 @@ onmessage = (event) => {
   // geometry.map = json.map
 
   // debugger
-  ng = fugafuga(svgPositions)
-  postMessage({ ng: ng});
+  // ng = fugafuga(svgPositions)
+  // postMessage({ ng: ng});
 }
 
 var demo_video = true
