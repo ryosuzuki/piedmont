@@ -198,7 +198,7 @@ class Pattern {
     })
     this.svgPositions = []
     for (let i=0; i<this.items.length; i++) {
-      let item = this.items[0]
+      let item = this.items[i]
       let uv = this.app.convertCanvasToUv(item.position)
       let pos = positions.map( (p) => {
         return [ p[0]+uv[0], p[1]+uv[1] ]

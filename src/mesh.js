@@ -9,7 +9,7 @@ class Mesh extends THREE.Mesh {
     super()
     this.app = app
 
-    this.worker = new Worker('/worker.js');
+    this.worker = new Worker('./worker.js');
     this.file = '/public/data/cone.obj'
     this.imageFile = '/public/assets/bunny_1k.png'
     this.defaultMaterial = new THREE.MeshLambertMaterial({
@@ -92,6 +92,9 @@ class Mesh extends THREE.Mesh {
   }
 
   computeNewMesh () {
+    this.geometry.computeUniq()
+    this.geometry.computeFaceNormals()
+    this.geometry.computeVertexNormals()
     this.app.pattern.computeSvgPositions()
 
     window.overlapIndex = []
@@ -105,12 +108,12 @@ class Mesh extends THREE.Mesh {
       svgPositions: this.app.pattern.svgPositions,
       selectIndex: selectIndex,
       file: this.file,
-      // geometry: this.geometry,
-      // faces: this.geometry.faces,
-      // faceVertexUvs: this.geometry.faceVertexUvs,
-      // vertices: this.geometry.vertices,
-      // uniq: this.geometry.uniq,
-      // map: this.geometry.map,
+      geometry: this.geometry,
+      faces: this.geometry.faces,
+      faceVertexUvs: this.geometry.faceVertexUvs,
+      vertices: this.geometry.vertices,
+      uniq: this.geometry.uniq,
+      map: this.geometry.map,
     }
     window.json = json
     // debugger

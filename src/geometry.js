@@ -5,7 +5,6 @@ import '../node_modules/three/examples/js/loaders/OBJLoader.js'
 import '../node_modules/three/examples/js/loaders/STLLoader.js'
 import '../node_modules/three/examples/js/loaders/BinaryLoader.js'
 
-
 class Geometry extends THREE.Geometry {
   constructor () {
     super()

@@ -5,9 +5,7 @@ import SvgMesh3d from 'svg-mesh-3d'
 import Numeric from 'numeric'
 import GreinerHormann from 'greiner-hormann'
 import PolygonBoolean from '2d-polygon-boolean'
-
-// import Geometry from './geometry'
-// import Mesh from './mesh'
+import AreaPolygon from 'area-polygon'
 
 onmessage = (event) => {
   let data = event.data
@@ -16,22 +14,18 @@ onmessage = (event) => {
   hole = json.hole
   if (hole) h = -h
   svgPositions = json.svgPositions
-  // geometry = new Geometry()
-  // geometry.load(json.file)
-  // geometry.computeUniq()
-  // geometry.computeFaceNormals()
-  // geometry.computeVertexNormals()
   selectIndex = json.selectIndex
 
-  // geometry.faces = json.faces
-  // geometry.faceVertexUvs = json.faceVertexUvs
-  // geometry.vertices = json.vertices
-  // geometry.uniq = json.uniq
-  // geometry.map = json.map
+  geometry = json.geometry
+  geometry.faces = json.faces
+  geometry.faceVertexUvs = json.faceVertexUvs
+  geometry.vertices = json.vertices
+  geometry.uniq = json.uniq
+  geometry.map = json.map
 
   // debugger
-  // ng = fugafuga(svgPositions)
-  // postMessage({ ng: ng});
+  ng = fugafuga(svgPositions)
+  postMessage({ ng: ng});
 }
 
 var demo_video = true
@@ -98,8 +92,8 @@ function fugafuga (svgPositions) {
       if (points.length <= 3) {
         var points = GreinerHormann.intersection(positions, triangle)
         if (points && points.length < 3) { // && va.y > 0) {
-          var area = areaPolygon(points[0])
-          var triArea = areaPolygon(triangle)
+          var area = AreaPolygon(points[0])
+          var triArea = AreaPolygon(triangle)
           if (area/triArea > 0) {
             createHole(faceInfo, positions)
             // createHole(faceInfo, positions, true)
