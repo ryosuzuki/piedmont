@@ -2,7 +2,7 @@ import THREE from 'three'
 import _ from 'lodash'
 
 import OBJLoader from './three/obj-loader'
-import FaceInfo from './face-info'
+import Face from './face'
 
 class Geometry extends THREE.Geometry {
   constructor () {
@@ -42,10 +42,10 @@ class Geometry extends THREE.Geometry {
       var a = face.a
       var b = face.b
       var c = face.c
-      var uv_a = new THREE.Vector2(mappings[2*a], mappings[2*a+1])
-      var uv_b = new THREE.Vector2(mappings[2*b], mappings[2*b+1])
-      var uv_c = new THREE.Vector2(mappings[2*c], mappings[2*c+1])
-      this.faceVertexUvs[0][i] = [uv_a, uv_b, uv_c]
+      var uvA = new THREE.Vector2(mappings[2*a], mappings[2*a+1])
+      var uvB = new THREE.Vector2(mappings[2*b], mappings[2*b+1])
+      var uvC = new THREE.Vector2(mappings[2*c], mappings[2*c+1])
+      this.faceVertexUvs[0][i] = [uvA, uvB, uvC]
     }
   }
 
@@ -76,10 +76,10 @@ class Geometry extends THREE.Geometry {
     this.computeFaceNormals()
   }
 
-  computeFaceInfo () {
+  computeFaceVertexNormals () {
     for (let i=0; i<this.faces.length; i++) {
-      const faceIndex = i
-      const face = this.faces[faceIndex]
+      const index = i
+      const face = this.faces[index]
       var va  = this.vertices[face.a]
       var vb  = this.vertices[face.b]
       var vc  = this.vertices[face.c]
@@ -87,63 +87,63 @@ class Geometry extends THREE.Geometry {
       vb = new THREE.Vector3(vb.x, vb.y, vb.z)
       vc = new THREE.Vector3(vc.x, vc.y, vc.z)
       var normal = new THREE.Vector3(face.normal.x, face.normal.y, face.normal.z)
-      var faces_a = this.uniq[this.map[face.a]].faces
-      var faces_b = this.uniq[this.map[face.b]].faces
-      var faces_c = this.uniq[this.map[face.c]].faces
+      var facesA = this.uniq[this.map[face.a]].faces
+      var facesB = this.uniq[this.map[face.b]].faces
+      var facesC = this.uniq[this.map[face.c]].faces
 
-      var faces_ab = _.intersection(faces_a, faces_b)
-      var faces_bc = _.intersection(faces_b, faces_c)
-      var faces_ca = _.intersection(faces_c, faces_a)
+      var facesAB = _.intersection(facesA, facesB)
+      var facesBC = _.intersection(facesB, facesC)
+      var facesCA = _.intersection(facesC, facesA)
 
       var v = new THREE.Vector3()
-      var n1 = this.faces[faces_ab[0]].normal
-      var n2 = this.faces[faces_ab[1]].normal
-      var normal_ab = v.clone().addVectors(n1, n2).normalize()
+      var n1 = this.faces[facesAB[0]].normal
+      var n2 = this.faces[facesAB[1]].normal
+      var normalAB = v.clone().addVectors(n1, n2).normalize()
 
-      var n1 = this.faces[faces_bc[0]].normal
-      var n2 = this.faces[faces_bc[1]].normal
-      var normal_bc = v.clone().addVectors(n1, n2).normalize()
+      var n1 = this.faces[facesBC[0]].normal
+      var n2 = this.faces[facesBC[1]].normal
+      var normalBC = v.clone().addVectors(n1, n2).normalize()
 
-      var n1 = this.faces[faces_ca[0]].normal
-      var n2 = this.faces[faces_ca[1]].normal
-      var normal_ca = v.clone().addVectors(n1, n2).normalize()
+      var n1 = this.faces[facesCA[0]].normal
+      var n2 = this.faces[facesCA[1]].normal
+      var normalCA = v.clone().addVectors(n1, n2).normalize()
 
-      var normal_a = this.uniq[this.map[face.a]].vertex_normal
-      var normal_b = this.uniq[this.map[face.b]].vertex_normal
-      var normal_c = this.uniq[this.map[face.c]].vertex_normal
+      var normalA = this.uniq[this.map[face.a]].vertexNormal
+      var normalB = this.uniq[this.map[face.b]].vertexNormal
+      var normalC = this.uniq[this.map[face.c]].vertexNormal
 
       var hash = {
-        faceIndex: faceIndex,
+        index: index,
         va: va,
         vb: vb,
         vc: vc,
         normal: Geometry.roundVector3(normal),
-        normal_a: Geometry.roundVector3(normal_a),
-        normal_b: Geometry.roundVector3(normal_b),
-        normal_c: Geometry.roundVector3(normal_c),
-        normal_ab: Geometry.roundVector3(normal_ab),
-        normal_bc: Geometry.roundVector3(normal_bc),
-        normal_ca: Geometry.roundVector3(normal_ca),
+        normalA: Geometry.roundVector3(normalA),
+        normalB: Geometry.roundVector3(normalB),
+        normalC: Geometry.roundVector3(normalC),
+        normalAB: Geometry.roundVector3(normalAB),
+        normalBC: Geometry.roundVector3(normalBC),
+        normalCA: Geometry.roundVector3(normalCA),
       }
       hash = _.extend(hash, face)
-      this.faces[faceIndex] = new FaceInfo(this, hash)
+      this.faces[index] = new Face(this, hash)
     }
   }
 
   computeVertexNormals () {
     for (let i=0; i<this.uniq.length; i++) {
       let v = this.uniq[i];
-      let vertex_normal = new THREE.Vector3();
+      let vertexNormal = new THREE.Vector3();
       let normals = [];
       for (let j=0; j<v.faces.length; j++) {
         let index = v.faces[j];
         let face = this.faces[index];
         let normal = face.normal;
-        vertex_normal.add(normal);
+        vertexNormal.add(normal);
         normals.push(normal);
       }
-      vertex_normal.divideScalar(v.faces.length).normalize();
-      this.uniq[i].vertex_normal = vertex_normal;
+      vertexNormal.divideScalar(v.faces.length).normalize();
+      this.uniq[i].vertexNormal = vertexNormal;
     }
   }
 

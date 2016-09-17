@@ -9,28 +9,32 @@ class Texture extends Geometry {
   constructor () {
     super()
 
-    this.hole = true
-    this.bnd_points = []
-    this.bnd_normals = []
-    this.bnd_2d = []
+    this.enableHole = true
+    this.wallHeight = 0.03
+    this.boundaryPoints = []
+    this.boundaryNormals = []
+    this.boundary2d = []
+    this.boundaryOuterPoints = []
     this.overlapIndex = []
   }
 
   generate () {
-    let ng = new Geometry()
+    this.ng = new Texture()
 
-    for (let i=0; i<this.svgPositions.length; i++) {
-      let positions = this.svgPositions[i]
+    for (let i=0; i<this.svgMeshPositions.length; i++) {
+      let positions = this.svgMeshPositions[i]
 
       console.log(positions)
-      this.bnd_points = new Array(positions.length)
-      this.bnd_normals = new Array(positions.length)
-      this.bnd_2d = new Array(positions.length)
+      this.boundaryPoints = new Array(positions.length)
+      this.boundaryNormals = new Array(positions.length)
+      this.boundary2d = new Array(positions.length)
+
+      this.boundaryOuterPoints = new Array(positions.length)
 
       for (var i=0; i<this.selectIndex.length; i++) {
-        const faceIndex = this.selectIndex[i]
-        const faceInfo = this.faces[faceIndex]
-        const res = faceInfo.compute(positions)
+        const index = this.selectIndex[i]
+        const face = this.faces[index]
+        const res = face.compute(positions)
         if (!res) continue
       }
 
@@ -40,116 +44,93 @@ class Texture extends Geometry {
       }
     }
 
-
+    return false
     for (var i=0; i<this.faces.length; i++) {
-      const faceIndex = i
-      if (this.hole && this.overlapIndex.includes(faceIndex)) continue
-      const face = this.faces[faceIndex];
+      const index = i
+      if (this.hole && this.overlapIndex.includes(index)) continue
+      const face = this.faces[index];
       const normal = face.normal;
       var va  = this.vertices[face.a];
       var vb  = this.vertices[face.b];
       var vc  = this.vertices[face.c];
-      var num = ng.vertices.length;
-      ng.vertices.push(va);
-      ng.vertices.push(vb);
-      ng.vertices.push(vc);
+      var num = this.ng.vertices.length;
+      this.ng.vertices.push(va);
+      this.ng.vertices.push(vb);
+      this.ng.vertices.push(vc);
       var nf = new THREE.Face3(num, num+1, num+2)
       nf.normal = normal
-      ng.faces.push(nf)
-
-      /*
-      var h = -0.01;
-      var v = new THREE.Vector3();
-      var h_normal = normal.clone().multiplyScalar(h);
-      var outer_a = v.clone().addVectors(va, h_normal)
-      var outer_b = v.clone().addVectors(vb, h_normal)
-      var outer_c = v.clone().addVectors(vc, h_normal)
-      var num = ng.vertices.length;
-      ng.vertices.push(outer_a)
-      ng.vertices.push(outer_b)
-      ng.vertices.push(outer_c)
-      // ng.faces.push(new THREE.Face3(num, num+1, num+2))
-      // ng.faces.push(new THREE.Face3(num+2, num+1, num+1))
-      */
+      this.ng.faces.push(nf)
     }
 
     console.log({
-      outer_bnd_length: this.outer_bnd_points.length,
-      outer_length: this.outer_points.length,
-      outer_bnd_points: this.outer_bnd_points,
-      outer_points: this.outer_points
+      boundaryOuterPoints: this.boundaryOuterPoints,
+      outerPoints: this.outerPoints
     })
   }
 
   createWall () {
-    try {
-      this.outer_bnd_points = this.bnd_points.map( (inner, index) => {
-        if (!inner) return undefined
-        var normal = this.bnd_normals[index]
-        var v = new THREE.Vector3();
-        var h_normal = normal.clone().multiplyScalar(h);
-        var outer = v.clone().addVectors(inner, h_normal)
-        return outer
-      })
+    console.log('Create wall')
+    for (let i=0; i<this.boundaryPoints.length; i++) {
+      let inner = this.boundaryPoints[i]
+      if (!inner) continue
+      let normal = this.boundaryNormals[i]
+      let v = new THREE.Vector3();
+      let wallNormal = normal.clone().multiplyScalar(this.wallHeight);
+      let outer = v.clone().addVectors(inner, wallNormal)
+      this.boundaryOuterPoints[i] = outer
+    }
 
-      this.inner_points = _.compact(this.bnd_points)
-      this.outer_points = _.compact(this.outer_bnd_points)
+    this.innerPoints = _.compact(this.boundaryPoints)
+    this.outerPoints = _.compact(this.boundaryOuterPoints)
 
-      // debugger
-      for (var i=0; i<this.inner_points.length; i++) {
-        var ni = (i+1)%this.inner_points.length
-        var c_inner = this.inner_points[i]
-        var n_inner = this.inner_points[ni]
-        var c_outer = this.outer_points[i]
-        var n_outer = this.outer_points[ni]
+    // debugger
+    for (var i=0; i<this.innerPoints.length; i++) {
+      var ni = (i+1)%this.innerPoints.length
+      var innerPointCurrent = this.innerPoints[i]
+      var innerPointNext = this.innerPoints[ni]
+      var outerPointCurrent = this.outerPoints[i]
+      var outerPointNext = this.outerPoints[ni]
 
-        var num = this.vertices.length;
-        this.vertices.push(c_inner);
-        this.vertices.push(c_outer);
-        this.vertices.push(n_inner);
-        // For inner wall
-        this.faces.push(new THREE.Face3(num, num+1, num+2))
-        // For outer wall
+      var num = this.ng.vertices.length;
+      this.ng.vertices.push(innerPointCurrent);
+      this.ng.vertices.push(outerPointCurrent);
+      this.ng.vertices.push(innerPointNext);
+      // For inner wall
+      this.ng.faces.push(new THREE.Face3(num, num+1, num+2))
+      // For outer wall
 
-        this.faces.push(new THREE.Face3(num+2, num+1, num))
+      this.ng.faces.push(new THREE.Face3(num+2, num+1, num))
 
-        var num = this.vertices.length;
-        this.vertices.push(c_outer);
-        this.vertices.push(n_outer);
-        this.vertices.push(n_inner);
-        this.faces.push(new THREE.Face3(num, num+1, num+2))
+      var num = this.ng.vertices.length;
+      this.ng.vertices.push(outerPointCurrent);
+      this.ng.vertices.push(outerPointNext);
+      this.ng.vertices.push(innerPointNext);
+      this.ng.faces.push(new THREE.Face3(num, num+1, num+2))
 
-        this.faces.push(new THREE.Face3(num+2, num+1, num))
-      }
-    } catch (err) {
-      console.log(err)
+      this.ng.faces.push(new THREE.Face3(num+2, num+1, num))
     }
   }
 
   createCover () {
-    try {
-      var points = _.compact(this.bnd_2d)
-      var d = Geometry.drawSVG(points);
-      var bndMesh = SvgMesh3d(d, {
-        scale: 1,
-        simplify: Math.pow(10, -5),
-        // customize: true,
-      })
-      var cells = bndMesh.cells
+    console.log('Create cover')
+    var points = _.compact(this.boundary2d)
+    var d = Geometry.drawSVG(points);
+    var boundaryMesh = SvgMesh3d(d, {
+      scale: 1,
+      simplify: Math.pow(10, -5),
+      // customize: true,
+    })
+    var cells = boundaryMesh.cells
 
-      for (var i=0; i<cells.length; i++) {
-        // debugger
-        var a_outer = this.outer_points[cells[i][0]]
-        var b_outer = this.outer_points[cells[i][1]]
-        var c_outer = this.outer_points[cells[i][2]]
-        var num = this.vertices.length;
-        this.vertices.push(a_outer);
-        this.vertices.push(b_outer);
-        this.vertices.push(c_outer);
-        this.faces.push(new THREE.Face3(num, num+1, num+2))
-      }
-    } catch (err) {
-      console.log(err)
+    for (var i=0; i<cells.length; i++) {
+      var outerPointA = this.outerPoints[cells[i][0]]
+      var outerPointB = this.outerPoints[cells[i][1]]
+      var outerPointC = this.outerPoints[cells[i][2]]
+      var num = this.ng.vertices.length;
+      this.ng.vertices.push(outerPointA);
+      this.ng.vertices.push(outerPointB);
+      this.ng.vertices.push(outerPointC);
+      this.ng.faces.push(new THREE.Face3(num, num+1, num+2))
     }
   }
 

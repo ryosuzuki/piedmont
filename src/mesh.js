@@ -93,31 +93,18 @@ class Mesh extends THREE.Mesh {
   }
 
   computeNewMesh () {
-    // this.geometry.computeUniq()
-    // this.geometry.computeFaceNormals()
-    // this.geometry.computeVertexNormals()
-    this.app.pattern.computeSvgPositions()
-
-    window.overlapIndex = []
+    this.app.pattern.computeSvgMeshPositions()
     let selectIndex = []
     for (let i=0; i<this.geometry.faces.length; i++) {
       selectIndex.push(i)
     }
-
     var json = {
       hole: false,
-      svgPositions: this.app.pattern.svgPositions,
+      svgMeshPositions: this.app.pattern.svgMeshPositions,
       selectIndex: selectIndex,
       text: this.geometry.text,
-      // faces: this.geometry.faces,
-      // faceVertexUvs: this.geometry.faceVertexUvs,
-      // vertices: this.geometry.vertices,
-      // uniq: this.geometry.uniq,
-      // map: this.geometry.map,
     }
 
-    window.json = json
-    // debugger
     var data = JSON.stringify(json)
     this.worker.postMessage(data);
     this.worker.onmessage = function(event) {

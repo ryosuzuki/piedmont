@@ -150,23 +150,23 @@ class Pattern {
   }
 
   repeat () {
-    let item_0 = this.seeds[0]
-    let item_1 = this.seeds[1]
+    let item0 = this.seeds[0]
+    let item1 = this.seeds[1]
 
-    let pos_0 = new THREE.Vector2(item_0.position.x, item_0.position.y)
-    let pos_1 = new THREE.Vector2(item_1.position.x, item_1.position.y)
+    let pos0 = new THREE.Vector2(item0.position.x, item0.position.y)
+    let pos1 = new THREE.Vector2(item1.position.x, item1.position.y)
     let unit = new THREE.Vector2()
-    unit.subVectors(pos_1, pos_0).normalize()
-    let dist = pos_1.distanceTo(pos_0)
+    unit.subVectors(pos1, pos0).normalize()
+    let dist = pos1.distanceTo(pos0)
 
     for (let i=-5; i<6; i++) {
       if (i === 0 || i === 1) continue
       this.drawing.activate()
       var pos = new THREE.Vector2()
       var vec = unit.clone().multiplyScalar(i*dist)
-      pos.addVectors(pos_0, vec)
+      pos.addVectors(pos0, vec)
 
-      let item = item_0.clone()
+      let item = item0.clone()
       item.position = [pos.x, pos.y]
       this.items.push(item)
       this.update()
@@ -179,7 +179,7 @@ class Pattern {
     this.app.mesh.replace('canvas')
   }
 
-  computeSvgPositions () {
+  computeSvgMeshPositions () {
     var svgPath = this.unit.pathData
     var svgMesh = SvgMesh3d(svgPath, {
       scale: 1,
@@ -196,14 +196,14 @@ class Pattern {
     positions = positions.map( (p) => {
       return [ p[0]*s, p[1]*s ]
     })
-    this.svgPositions = []
+    this.svgMeshPositions = []
     for (let i=0; i<this.items.length; i++) {
       let item = this.items[i]
       let uv = this.app.convertCanvasToUv(item.position)
       let pos = positions.map( (p) => {
         return [ p[0]+uv[0], p[1]+uv[1] ]
       })
-      this.svgPositions.push(pos)
+      this.svgMeshPositions.push(pos)
     }
   }
 

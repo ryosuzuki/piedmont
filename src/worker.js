@@ -10,24 +10,21 @@ onmessage = (event) => {
 
   let texture = new Texture()
   texture.text = json.text
-  texture.hole = json.hole
   texture.load()
   texture.computeFaceNormals()
   texture.computeUniq()
   texture.computeVertexNormals()
-  texture.computeFaceInfo()
+  texture.computeFaceVertexNormals()
 
-  texture.svgPositions = json.svgPositions
+  texture.enableHole = false
+  texture.wallHeight = 0.03
+  texture.svgMeshPositions = json.svgMeshPositions
   texture.selectIndex = json.selectIndex
   console.log(texture)
   texture.generate()
 
-  // var h = 0.03
-  // var ng = new THREE.Geometry()
+  postMessage({ ng: texture.ng })
 
-  // debugger
-  // ng = fugafuga(svgPositions)
-  // postMessage({ ng: ng});
 }
 
 

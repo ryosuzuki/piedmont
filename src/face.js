@@ -8,7 +8,7 @@ import AreaPolygon from 'area-polygon'
 
 import Geometry from './geometry'
 
-class FaceInfo extends THREE.Face3 {
+class Face extends THREE.Face3 {
   constructor (geometry, hash) {
     super()
 
@@ -22,8 +22,8 @@ class FaceInfo extends THREE.Face3 {
       this[key] = hash[key]
     }
 
-    this.ouv = this.geometry.faceVertexUvs[0][this.faceIndex];
-    if (this.ouv) this.ouv = this.emptyUv
+    this.ouv = this.geometry.faceVertexUvs[0][this.index];
+    if (!this.ouv) this.ouv = this.emptyUv
     this.triangle = this.ouv.map( function (v) {
       return [v.x, v.y];
     })
@@ -47,7 +47,7 @@ class FaceInfo extends THREE.Face3 {
         if (area/triArea > 0) {
           this.createHole()
           // createHole(faceInfo, positions, true)
-          this.geometry.overlapIndex = _.union(this.geometry.overlapIndex, [this.faceIndex])
+          this.geometry.overlapIndex = _.union(this.geometry.overlapIndex, [this.index])
           console.log(area/triArea)
           return false
         }
@@ -57,11 +57,13 @@ class FaceInfo extends THREE.Face3 {
       this.createHole()
       // createHole(faceInfo, positions, true)
       console.log(new Date().getTime() - s)
-      this.geometry.overlapIndex = _.union(this.geometry.overlapIndex, [this.faceIndex])
+      this.geometry.overlapIndex = _.union(this.geometry.overlapIndex, [this.index])
     }
   }
 
   createHole () {
+    console.log('Create hole')
+    console.log(this.triangle)
     this.diffs = GreinerHormann.intersection(this.positions, this.triangle)
     if (this.geometry.hole) {
       this.diffs = GreinerHormann.diff(this.triangle, this.positions)
@@ -82,57 +84,57 @@ class FaceInfo extends THREE.Face3 {
 
       var nf = bndMesh.cells;
       var nxyz = this.uvTo3D(nuv);
-      var inner_points = [];
-      var outer_points = [];
+      var innerPoints = [];
+      var outerPoints = [];
 
       for (var j=0; j<nf.length; j++) {
-        var num = this.geometry.vertices.length;
+        var num = this.geometry.ng.vertices.length;
         var a = nxyz[nf[j][0]]
         var b = nxyz[nf[j][1]]
         var c = nxyz[nf[j][2]]
-        this.geometry.vertices.push(a.vertex)
-        this.geometry.vertices.push(b.vertex)
-        this.geometry.vertices.push(c.vertex)
-        if (this.geometry.geometry.hole || hoge) {
-          this.geometry.faces.push(new THREE.Face3(num, num+1, num+2))
+        this.geometry.ng.vertices.push(a.vertex)
+        this.geometry.ng.vertices.push(b.vertex)
+        this.geometry.ng.vertices.push(c.vertex)
+        if (this.geometry.hole) {
+          this.geometry.ng.faces.push(new THREE.Face3(num, num+1, num+2))
         } else {
-          this.geometry.faces.push(new THREE.Face3(num+2, num+1, num))
+          this.geometry.ng.faces.push(new THREE.Face3(num+2, num+1, num))
         }
 
         var auv = nuv[nf[j][0]]
         var buv = nuv[nf[j][1]]
         var cuv = nuv[nf[j][2]]
 
-        var ai = Geometry.getIndex(positions, auv)
-        var bi = Geometry.getIndex(positions, buv)
-        var ci = Geometry.getIndex(positions, cuv)
+        var ai = Geometry.getIndex(this.positions, auv)
+        var bi = Geometry.getIndex(this.positions, buv)
+        var ci = Geometry.getIndex(this.positions, cuv)
 
         if (ai && ai.equal) {
           var index = ai.index
-          if (! this.geometry.bnd_points[index]) {
-            this.geometry.bnd_points[index] = a.vertex
-            this.geometry.bnd_normals[index] = a.normal
-            this.geometry.bnd_2d[index] = auv
+          if (! this.geometry.boundaryPoints[index]) {
+            this.geometry.boundaryPoints[index] = a.vertex
+            this.geometry.boundaryNormals[index] = a.normal
+            this.geometry.boundary2d[index] = auv
           }
         } else {
           // debugger
         }
         if (bi  && bi.equal) {
           var index = bi.index
-          if (! this.geometry.bnd_points[index]) {
-            this.geometry.bnd_points[index] = b.vertex
-            this.geometry.bnd_normals[index] = b.normal
-            this.geometry.bnd_2d[index] = buv
+          if (! this.geometry.boundaryPoints[index]) {
+            this.geometry.boundaryPoints[index] = b.vertex
+            this.geometry.boundaryNormals[index] = b.normal
+            this.geometry.boundary2d[index] = buv
           }
         } else {
           // debugger
         }
         if (ci && ci.equal) {
           var index = ci.index
-          if (! this.geometry.bnd_points[index]) {
-            this.geometry.bnd_points[index] = c.vertex
-            this.geometry.bnd_normals[index] = c.normal
-            this.geometry.bnd_2d[index] = cuv
+          if (! this.geometry.boundaryPoints[index]) {
+            this.geometry.boundaryPoints[index] = c.vertex
+            this.geometry.boundaryNormals[index] = c.normal
+            this.geometry.boundary2d[index] = cuv
           }
         } else {
           // debugger
@@ -149,15 +151,17 @@ class FaceInfo extends THREE.Face3 {
 
 
   uvTo3D (nuv) {
-    var nxyz = nuv.map(function (uv) {
-      var uv_a = this.triangle[0];
-      var uv_b = this.triangle[1];
-      var uv_c = this.triangle[2];
+    var nxyz = []
+    for (let i=0; i<nuv.length; i++) {
+      let uv = nuv[i]
+      var uvA = this.triangle[0];
+      var uvB = this.triangle[1];
+      var uvC = this.triangle[2];
       var A = [
-        [uv_a[0] - uv_c[0], uv_b[0] - uv_c[0]],
-        [uv_a[1] - uv_c[1], uv_b[1] - uv_c[1]]
+        [uvA[0] - uvC[0], uvB[0] - uvC[0]],
+        [uvA[1] - uvC[1], uvB[1] - uvC[1]]
       ];
-      var B = [uv[0] - uv_c[0], uv[1] - uv_c[1]];
+      var B = [uv[0] - uvC[0], uv[1] - uvC[1]];
       var x = Numeric.solve(A, B)
       var a = x[0], b = x[1], c = 1-x[0]-x[1];
 
@@ -176,37 +180,38 @@ class FaceInfo extends THREE.Face3 {
       v.z = a*this.va.z + b*this.vb.z + c*this.vc.z;
 
       if (a !== 0 && b !== 0 && c == 0) {
-        this.normal = this.normal_ab
+        this.normal = this.normalAB
       }
       if (a == 0 && b !== 0 && c !== 0) {
-        this.normal = this.normal_bc
+        this.normal = this.normalBC
       }
       if (a !== 0 && b == 0 && c !== 0) {
-        this.normal = this.normal_ca
+        this.normal = this.normalCA
       }
       if (a !== 0 && b == 0 && c == 0) {
-        this.normal = this.normal_a
+        this.normal = this.normalA
       }
       if (a == 0 && b !== 0 && c == 0) {
-        this.normal = this.normal_b
+        this.normal = this.normalB
       }
       if (a == 0 && b == 0 && c !== 0) {
-        this.normal = this.normal_c
+        this.normal = this.normalC
       }
 
       v = Geometry.roundVector3(v)
 
-      if (demo_video) {
-        return { vertex: v, normal: this.normal};
+      let enableDemoVideo = true
+      if (enableDemoVideo) {
+        nxyz.push({ vertex: v, normal: this.normal})
       } else {
-        return { vertex: v, normal: normal};
+        nxyz.push({ vertex: v, normal: normal})
       }
 
-    })
+    }
     return nxyz;
   }
 
 
 }
 
-export default FaceInfo
+export default Face
