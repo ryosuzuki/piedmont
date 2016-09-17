@@ -1,10 +1,72 @@
 import THREE from 'three'
 import _ from 'lodash'
 
+import '../node_modules/three/examples/js/loaders/OBJLoader.js'
+import '../node_modules/three/examples/js/loaders/STLLoader.js'
+import '../node_modules/three/examples/js/loaders/BinaryLoader.js'
+
 
 class Geometry extends THREE.Geometry {
   constructor () {
     super()
+  }
+
+  load (file) {
+    this.file = file
+    let objLoader = new THREE.OBJLoader()
+    var req = new XMLHttpRequest();
+    req.open('GET', this.file, false);
+    req.send(null);
+    let text = req.responseText
+    let res = objLoader.parse(text)
+    let object = res.children[0].geometry
+    let positions = object.attributes.position.array
+    this.convertPositionsToGeometry(positions)
+    if (object.attributes.uv) {
+      this.getInitialUv(object)
+    }
+  }
+
+  getInitialUv (object) {
+    var mappings = object.attributes.uv.array
+    var n = mappings.length/2
+    for (var i=0; i<this.faces.length; i++) {
+      var face = this.faces[i]
+      var a = face.a
+      var b = face.b
+      var c = face.c
+      var uv_a = new THREE.Vector2(mappings[2*a], mappings[2*a+1])
+      var uv_b = new THREE.Vector2(mappings[2*b], mappings[2*b+1])
+      var uv_c = new THREE.Vector2(mappings[2*c], mappings[2*c+1])
+      this.faceVertexUvs[0][i] = [uv_a, uv_b, uv_c]
+    }
+  }
+
+  convertPositionsToGeometry (positions) {
+    var n = positions.length/9
+    for (var i=0; i<n; i++) {
+      var v1 = new THREE.Vector3(
+        positions[9*i],
+        positions[9*i+1],
+        positions[9*i+2]
+      )
+      var v2 = new THREE.Vector3(
+        positions[9*i+3],
+        positions[9*i+4],
+        positions[9*i+5]
+      )
+      var v3 = new THREE.Vector3(
+        positions[9*i+6],
+        positions[9*i+7],
+        positions[9*i+8]
+      )
+      var num = this.vertices.length
+      this.vertices.push(v1)
+      this.vertices.push(v2)
+      this.vertices.push(v3)
+      this.faces.push(new THREE.Face3(num, num+1, num+2))
+    }
+    this.computeFaceNormals()
   }
 
   computeVertexNormals () {

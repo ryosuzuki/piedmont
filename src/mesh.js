@@ -1,7 +1,4 @@
 import THREE from 'three'
-import '../node_modules/three/examples/js/loaders/OBJLoader.js'
-import '../node_modules/three/examples/js/loaders/STLLoader.js'
-import '../node_modules/three/examples/js/loaders/BinaryLoader.js'
 import '../node_modules/three/examples/js/exporters/STLExporter.js'
 
 import FileSaver from 'file-saver'
@@ -11,6 +8,8 @@ class Mesh extends THREE.Mesh {
   constructor (app) {
     super()
     this.app = app
+
+    this.worker = new Worker('/worker.js');
     this.file = '/public/data/cone.obj'
     this.imageFile = '/public/assets/bunny_1k.png'
     this.defaultMaterial = new THREE.MeshLambertMaterial({
@@ -28,29 +27,13 @@ class Mesh extends THREE.Mesh {
 
   initialize () {
     this.loadImage()
-    this.loadGeometry()
+    this.geometry = new Geometry()
+    this.geometry.load(this.file)
     this.updateMorphTargets() // = new Mesh(this.geometry, this.material);
     this.geometry.verticesNeedUpdate = true;
     this.dynamic = true;
     this.castShadow = true;
     this.app.scene.add(this)
-  }
-
-  loadGeometry () {
-    let objLoader = new THREE.OBJLoader()
-    var req = new XMLHttpRequest();
-    req.open('GET', this.file, false);
-    req.send(null);
-    let text = req.responseText
-    let res = objLoader.parse(text)
-    let object = res.children[0].geometry
-    let positions = object.attributes.position.array
-    let geometry = Mesh.convertPositionsToGeometry(positions)
-    if (object.attributes.uv) {
-      geometry = Mesh.getInitialUv(object, geometry)
-    }
-    this.geometry = geometry
-    // this.geometry = computeUniq(geometry)
   }
 
   loadImage () {
@@ -109,9 +92,6 @@ class Mesh extends THREE.Mesh {
   }
 
   computeNewMesh () {
-    this.geometry.computeUniq()
-    this.geometry.computeFaceNormals()
-    this.geometry.computeVertexNormals()
     this.app.pattern.computeSvgPositions()
 
     window.overlapIndex = []
@@ -123,19 +103,20 @@ class Mesh extends THREE.Mesh {
     var json = {
       hole: false,
       svgPositions: this.app.pattern.svgPositions,
-      geometry: this.geometry,
       selectIndex: selectIndex,
-      faces: this.geometry.faces,
-      faceVertexUvs: this.geometry.faceVertexUvs,
-      vertices: this.geometry.vertices,
-      uniq: this.geometry.uniq,
-      map: this.geometry.map,
+      file: this.file,
+      // geometry: this.geometry,
+      // faces: this.geometry.faces,
+      // faceVertexUvs: this.geometry.faceVertexUvs,
+      // vertices: this.geometry.vertices,
+      // uniq: this.geometry.uniq,
+      // map: this.geometry.map,
     }
     window.json = json
     // debugger
     var data = JSON.stringify(json)
-    var worker = new Worker('/worker.js');
-    worker.onmessage = function(event) {
+    this.worker.postMessage(data);
+    this.worker.onmessage = function(event) {
       var data = event.data
       console.log(data);
       var g = data.ng
@@ -166,7 +147,6 @@ class Mesh extends THREE.Mesh {
       this.replace('wire')
       this.app.finish = true
     }.bind(this)
-    worker.postMessage(data);
   }
 
   export () {
@@ -176,50 +156,7 @@ class Mesh extends THREE.Mesh {
     FileSaver.saveAs(blob, `${Date.now()}.stl`);
   }
 
-  static getInitialUv (object, geometry) {
-    var mappings = object.attributes.uv.array
-    var n = mappings.length/2
-    for (var i=0; i<geometry.faces.length; i++) {
-      var face = geometry.faces[i]
-      var a = face.a
-      var b = face.b
-      var c = face.c
-      var uv_a = new THREE.Vector2(mappings[2*a], mappings[2*a+1])
-      var uv_b = new THREE.Vector2(mappings[2*b], mappings[2*b+1])
-      var uv_c = new THREE.Vector2(mappings[2*c], mappings[2*c+1])
-      geometry.faceVertexUvs[0][i] = [uv_a, uv_b, uv_c]
-    }
-    return geometry
-  }
 
-  static convertPositionsToGeometry (positions) {
-    var n = positions.length/9
-    var geometry = new Geometry()
-    for (var i=0; i<n; i++) {
-      var v1 = new THREE.Vector3(
-        positions[9*i],
-        positions[9*i+1],
-        positions[9*i+2]
-      )
-      var v2 = new THREE.Vector3(
-        positions[9*i+3],
-        positions[9*i+4],
-        positions[9*i+5]
-      )
-      var v3 = new THREE.Vector3(
-        positions[9*i+6],
-        positions[9*i+7],
-        positions[9*i+8]
-      )
-      var num = geometry.vertices.length
-      geometry.vertices.push(v1)
-      geometry.vertices.push(v2)
-      geometry.vertices.push(v3)
-      geometry.faces.push(new THREE.Face3(num, num+1, num+2))
-    }
-    geometry.computeFaceNormals()
-    return geometry
-  }
 }
 
 export default Mesh
