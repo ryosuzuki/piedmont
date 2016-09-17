@@ -2,6 +2,7 @@ import THREE from 'three'
 import _ from 'lodash'
 
 import OBJLoader from './three/obj-loader'
+import FaceInfo from './face-info'
 
 class Geometry extends THREE.Geometry {
   constructor () {
@@ -73,6 +74,60 @@ class Geometry extends THREE.Geometry {
       this.faces.push(new THREE.Face3(num, num+1, num+2))
     }
     this.computeFaceNormals()
+  }
+
+  computeFaceInfo () {
+    for (let i=0; i<this.faces.length; i++) {
+      const faceIndex = i
+      const face = this.faces[faceIndex]
+      var va  = this.vertices[face.a]
+      var vb  = this.vertices[face.b]
+      var vc  = this.vertices[face.c]
+      va = new THREE.Vector3(va.x, va.y, va.z)
+      vb = new THREE.Vector3(vb.x, vb.y, vb.z)
+      vc = new THREE.Vector3(vc.x, vc.y, vc.z)
+      var normal = new THREE.Vector3(face.normal.x, face.normal.y, face.normal.z)
+      var faces_a = this.uniq[this.map[face.a]].faces
+      var faces_b = this.uniq[this.map[face.b]].faces
+      var faces_c = this.uniq[this.map[face.c]].faces
+
+      var faces_ab = _.intersection(faces_a, faces_b)
+      var faces_bc = _.intersection(faces_b, faces_c)
+      var faces_ca = _.intersection(faces_c, faces_a)
+
+      var v = new THREE.Vector3()
+      var n1 = this.faces[faces_ab[0]].normal
+      var n2 = this.faces[faces_ab[1]].normal
+      var normal_ab = v.clone().addVectors(n1, n2).normalize()
+
+      var n1 = this.faces[faces_bc[0]].normal
+      var n2 = this.faces[faces_bc[1]].normal
+      var normal_bc = v.clone().addVectors(n1, n2).normalize()
+
+      var n1 = this.faces[faces_ca[0]].normal
+      var n2 = this.faces[faces_ca[1]].normal
+      var normal_ca = v.clone().addVectors(n1, n2).normalize()
+
+      var normal_a = this.uniq[this.map[face.a]].vertex_normal
+      var normal_b = this.uniq[this.map[face.b]].vertex_normal
+      var normal_c = this.uniq[this.map[face.c]].vertex_normal
+
+      var hash = {
+        faceIndex: faceIndex,
+        va: va,
+        vb: vb,
+        vc: vc,
+        normal: Geometry.roundVector3(normal),
+        normal_a: Geometry.roundVector3(normal_a),
+        normal_b: Geometry.roundVector3(normal_b),
+        normal_c: Geometry.roundVector3(normal_c),
+        normal_ab: Geometry.roundVector3(normal_ab),
+        normal_bc: Geometry.roundVector3(normal_bc),
+        normal_ca: Geometry.roundVector3(normal_ca),
+      }
+      hash = _.extend(hash, face)
+      this.faces[faceIndex] = new FaceInfo(this, hash)
+    }
   }
 
   computeVertexNormals () {
@@ -168,6 +223,65 @@ class Geometry extends THREE.Geometry {
     this.edges = edges;
 
     console.log('Finish computeUniq')
+  }
+
+  static roundVector3 (v) {
+    if (!v) return new THREE.Vector3(0, 0, 0)
+    var vec = [v.x, v.y, v.z]
+    vec = vec.map( function (val) {
+      return val // parseFloat(val.toFixed(5))
+    })
+    return new THREE.Vector3(vec[0], vec[1], vec[2])
+  }
+
+  static round (array) {
+    return array.map( function (a) {
+      return a.map( function (val) {
+        return val // parseFloat(val.toFixed(5))
+      })
+    })
+  }
+
+  static getIndex (positions, uv) {
+    var epsilon = Math.pow(10, -2)
+    var ui = _.map(positions, 0).indexOf(uv[0])
+    var vi = _.map(positions, 1).indexOf(uv[1])
+    if (ui == -1 || vi == -1) {
+      var diff = positions.map( function (pos) {
+        return Math.abs(pos[0] - uv[0]) + Math.abs(pos[1] - uv[1])
+      })
+      var min = _.min(diff)
+      var index = diff.indexOf(min)
+      return { index: index, equal: false }
+      /*
+      if (min < epsilon) {
+        return { index: index, equal: false }
+      } else {
+        return false
+      }
+      */
+    }
+    if (ui == vi) {
+      return { index: ui, equal: true }
+    } else {
+      if (positions[ui][0] == uv[0] && positions[ui][1] == uv[1]) {
+        return { index: ui, equal: true }
+      }
+      if (positions[vi][0] == uv[0] && positions[vi][1] == uv[1]) {
+        return { index: vi, equal: true }
+      }
+      // debugger
+      return false
+    }
+  }
+
+  static drawSVG (points) {
+    var path = '';
+    for (var i=0; i<points.length; i++){
+      path += (i && 'L' || 'M') + points[i]
+    }
+    var d = path
+    return d;
   }
 
 }
