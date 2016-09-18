@@ -2,6 +2,7 @@ import THREE from 'three'
 import _ from 'lodash'
 
 import OBJLoader from './three/obj-loader'
+
 import Face from './face'
 
 class Geometry extends THREE.Geometry {
@@ -76,7 +77,29 @@ class Geometry extends THREE.Geometry {
     this.computeFaceNormals()
   }
 
+  computeVertexNormals () {
+    for (let i=0; i<this.uniq.length; i++) {
+      let v = this.uniq[i];
+      let vertexNormal = new THREE.Vector3();
+      let normals = [];
+      for (let j=0; j<v.faces.length; j++) {
+        let index = v.faces[j];
+        let face = this.faces[index];
+        let normal = face.normal;
+        vertexNormal.add(normal);
+        normals.push(normal);
+      }
+      vertexNormal.divideScalar(v.faces.length).normalize();
+      this.uniq[i].vertexNormal = vertexNormal;
+    }
+  }
+
   computeFaceVertexNormals () {
+    if (!this.uniq) {
+      this.computeUniq()
+      this.computeFaceNormals()
+      this.computeVertexNormals()
+    }
     for (let i=0; i<this.faces.length; i++) {
       const index = i
       const face = this.faces[index]
@@ -127,23 +150,6 @@ class Geometry extends THREE.Geometry {
       }
       hash = _.extend(hash, face)
       this.faces[index] = new Face(this, hash)
-    }
-  }
-
-  computeVertexNormals () {
-    for (let i=0; i<this.uniq.length; i++) {
-      let v = this.uniq[i];
-      let vertexNormal = new THREE.Vector3();
-      let normals = [];
-      for (let j=0; j<v.faces.length; j++) {
-        let index = v.faces[j];
-        let face = this.faces[index];
-        let normal = face.normal;
-        vertexNormal.add(normal);
-        normals.push(normal);
-      }
-      vertexNormal.divideScalar(v.faces.length).normalize();
-      this.uniq[i].vertexNormal = vertexNormal;
     }
   }
 

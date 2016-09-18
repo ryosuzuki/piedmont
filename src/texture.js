@@ -4,13 +4,17 @@ import GreinerHormann from 'greiner-hormann'
 import SvgMesh3d from 'svg-mesh-3d'
 
 import Geometry from './geometry'
+import Face from './face'
+// import ThreeCSG from './three/three-csg'
 
 class Texture extends Geometry {
   constructor () {
     super()
 
-    this.enableHole = true
-    this.wallHeight = 0.03
+    this.enableCover = false
+    this.type = 'BUMP' // 'BUMP'
+
+    this.wallHeight = 0.1
     this.boundaryPoints = []
     this.boundaryNormals = []
     this.boundary2d = []
@@ -24,30 +28,33 @@ class Texture extends Geometry {
     for (let i=0; i<this.svgMeshPositions.length; i++) {
       let positions = this.svgMeshPositions[i]
 
-      console.log(positions)
       this.boundaryPoints = new Array(positions.length)
       this.boundaryNormals = new Array(positions.length)
       this.boundary2d = new Array(positions.length)
 
       this.boundaryOuterPoints = new Array(positions.length)
 
-      for (var i=0; i<this.selectIndex.length; i++) {
-        const index = this.selectIndex[i]
+      for (var j=0; j<this.selectIndex.length; j++) {
+        const index = this.selectIndex[j]
         const face = this.faces[index]
-        const res = face.compute(positions)
-        if (!res) continue
+        const overlap = face.compute(positions)
+        if (!overlap) continue
       }
 
-      if (!this.hole) {
-        this.createWall()
-        this.createCover()
-      }
+      this.type = 'BUMP'
+      this.createWall()
+      this.createCover()
+
+      this.type = 'HOLE'
+      this.createWall()
+      this.createCover()
+
     }
 
     return false
     for (var i=0; i<this.faces.length; i++) {
       const index = i
-      if (this.hole && this.overlapIndex.includes(index)) continue
+      if (this.overlapIndex.includes(index)) continue
       const face = this.faces[index];
       const normal = face.normal;
       var va  = this.vertices[face.a];
@@ -75,7 +82,15 @@ class Texture extends Geometry {
       if (!inner) continue
       let normal = this.boundaryNormals[i]
       let v = new THREE.Vector3();
-      let wallNormal = normal.clone().multiplyScalar(this.wallHeight);
+      let wallNormal
+      switch (this.type) {
+        case 'BUMP':
+          wallNormal = normal.clone().multiplyScalar(this.wallHeight);
+          break;
+        case 'HOLE':
+          wallNormal = normal.clone().multiplyScalar(-this.wallHeight);
+          break;
+      }
       let outer = v.clone().addVectors(inner, wallNormal)
       this.boundaryOuterPoints[i] = outer
     }
@@ -98,7 +113,6 @@ class Texture extends Geometry {
       // For inner wall
       this.ng.faces.push(new THREE.Face3(num, num+1, num+2))
       // For outer wall
-
       this.ng.faces.push(new THREE.Face3(num+2, num+1, num))
 
       var num = this.ng.vertices.length;
@@ -106,10 +120,10 @@ class Texture extends Geometry {
       this.ng.vertices.push(outerPointNext);
       this.ng.vertices.push(innerPointNext);
       this.ng.faces.push(new THREE.Face3(num, num+1, num+2))
-
       this.ng.faces.push(new THREE.Face3(num+2, num+1, num))
     }
   }
+
 
   createCover () {
     console.log('Create cover')
@@ -131,8 +145,11 @@ class Texture extends Geometry {
       this.ng.vertices.push(outerPointB);
       this.ng.vertices.push(outerPointC);
       this.ng.faces.push(new THREE.Face3(num, num+1, num+2))
+      this.ng.faces.push(new THREE.Face3(num+2, num+1, num))
     }
   }
+
+
 
 }
 

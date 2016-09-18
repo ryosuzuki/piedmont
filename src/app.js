@@ -1,10 +1,13 @@
 import THREE from 'three'
+import PointInTriangle from 'point-in-triangle'
 
 import Mesh from './mesh'
 import Plane from './plane'
 import Paint from './paint'
 import Pattern from './pattern'
 import OrbitControls from './three/orbit-controls'
+
+import Face from './face'
 
 const unit = 1
 
@@ -59,7 +62,7 @@ class App {
 
     let pointLight = new THREE.PointLight('#fff')
     pointLight.position.set(10*unit, 20*unit, 30*unit)
-    pointLight.intensity = 0.3
+    pointLight.intensity = 0.1
     pointLight.castShadow = true
     this.scene.add(pointLight)
 
@@ -97,6 +100,23 @@ class App {
   start () {
     this.isAnimating = true
     this.mesh = new Mesh(this)
+
+    /*
+    this.mesh2 = new Mesh(this)
+    this.mesh2.file = '/public/data/sphere.obj'
+    this.mesh2.initialize()
+
+    this.mesh4 = new Mesh(this)
+    this.mesh4.file = '/public/data/cylinder.obj'
+    this.mesh4.initialize()
+
+    let geometry = new ThreeCSG(this.mesh3)
+    let texture = new ThreeCSG(this.mesh4)
+    let result = geometry.union(texture)
+    this.mesh.geometry = result.toGeometry()
+    this.mesh.replace('wire')
+    */
+
     this.plane = new Plane(this)
     this.paint = new Paint(this)
     this.pattern = new Pattern(this)
@@ -307,6 +327,26 @@ class App {
     vector.z = 0;
     let pos = new THREE.Vector2(vector.x, vector.y)
     return pos
+  }
+
+  convertUvTo3d (uv) {
+    let faceVertexUvs = this.mesh.geometry.faceVertexUvs[0]
+    for (let i=0; i<faceVertexUvs.length; i++) {
+      let faceVertexUv = faceVertexUvs[i]
+      let triangle = faceVertexUv.map( (vec) => {
+        return [vec.x, vec.y]
+      })
+      let inside = PointInTriangle(uv, triangle)
+      console.log(inside)
+      if (inside) {
+        let face = this.mesh.geometry.faces[i]
+        if (face instanceof Face === false) {
+          this.mesh.geometry.computeFaceVertexNormals()
+          face = this.mesh.geometry.faces[i]
+        }
+        return face.uvTo3D([uv])[0]
+      }
+    }
   }
 
   convertUvToCanvas (uv) {

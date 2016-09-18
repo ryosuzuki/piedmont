@@ -9,10 +9,10 @@ import AreaPolygon from 'area-polygon'
 import Geometry from './geometry'
 
 class Face extends THREE.Face3 {
-  constructor (geometry, hash) {
+  constructor (texture, hash) {
     super()
 
-    this.geometry = geometry
+    this.texture = texture
     this.emptyUv = [
       new THREE.Vector2(0, 0),
       new THREE.Vector2(0, 0),
@@ -22,12 +22,13 @@ class Face extends THREE.Face3 {
       this[key] = hash[key]
     }
 
-    this.ouv = this.geometry.faceVertexUvs[0][this.index];
+    this.ouv = this.texture.faceVertexUvs[0][this.index];
     if (!this.ouv) this.ouv = this.emptyUv
     this.triangle = this.ouv.map( function (v) {
       return [v.x, v.y];
     })
     this.triangle = Geometry.round(this.triangle)
+
   }
 
   compute (positions) {
@@ -35,7 +36,9 @@ class Face extends THREE.Face3 {
     this.points = PolygonBoolean(this.triangle, this.positions, 'not')
 
     if (this.points.length > 1) {
-      this.points = (this.points[0].length < this.points[1].length) ? this.points[0] : this.points[1]
+      this.points = (this.points[0].length < this.points[1].length)
+                    ? this.points[0]
+                    : this.points[1]
     } else {
       this.points = this.points[0]
     }
@@ -45,28 +48,31 @@ class Face extends THREE.Face3 {
         let area = AreaPolygon(this.points[0])
         let triArea = AreaPolygon(this.triangle)
         if (area/triArea > 0) {
-          this.createHole()
-          // createHole(faceInfo, positions, true)
-          this.geometry.overlapIndex = _.union(this.geometry.overlapIndex, [this.index])
+          this.createBoundary()
+          this.texture.overlapIndex = _.union(this.texture.overlapIndex, [this.index])
           console.log(area/triArea)
           return false
         }
       }
     } else {
       var s = new Date().getTime();
-      this.createHole()
-      // createHole(faceInfo, positions, true)
+      this.createBoundary()
+      // createBoundary(faceInfo, positions, true)
       console.log(new Date().getTime() - s)
-      this.geometry.overlapIndex = _.union(this.geometry.overlapIndex, [this.index])
+      this.texture.overlapIndex = _.union(this.texture.overlapIndex, [this.index])
     }
   }
 
-  createHole () {
-    console.log('Create hole')
+  createBoundary () {
+    console.log('Create boundary')
     console.log(this.triangle)
-    this.diffs = GreinerHormann.intersection(this.positions, this.triangle)
-    if (this.geometry.hole) {
-      this.diffs = GreinerHormann.diff(this.triangle, this.positions)
+    switch (this.texture.type) {
+      case 'BUMP':
+        this.diffs = GreinerHormann.intersection(this.positions, this.triangle)
+        break;
+      case 'HOLE':
+        this.diffs = GreinerHormann.diff(this.triangle, this.positions)
+        break;
     }
     // if (!diffs) return false
     for (var i=0; i<this.diffs.length; i++) {
@@ -88,19 +94,23 @@ class Face extends THREE.Face3 {
       var outerPoints = [];
 
       for (var j=0; j<nf.length; j++) {
-        var num = this.geometry.ng.vertices.length;
+        var num = this.texture.ng.vertices.length;
         var a = nxyz[nf[j][0]]
         var b = nxyz[nf[j][1]]
         var c = nxyz[nf[j][2]]
-        this.geometry.ng.vertices.push(a.vertex)
-        this.geometry.ng.vertices.push(b.vertex)
-        this.geometry.ng.vertices.push(c.vertex)
-        if (this.geometry.hole) {
-          this.geometry.ng.faces.push(new THREE.Face3(num, num+1, num+2))
-        } else {
-          this.geometry.ng.faces.push(new THREE.Face3(num+2, num+1, num))
+        /*
+        this.texture.ng.vertices.push(a.vertex)
+        this.texture.ng.vertices.push(b.vertex)
+        this.texture.ng.vertices.push(c.vertex)
+        switch (this.texture.type) {
+          case 'BUMP':
+            this.texture.ng.faces.push(new THREE.Face3(num+2, num+1, num))
+            break;
+          case 'HOLE':
+            this.texture.ng.faces.push(new THREE.Face3(num, num+1, num+2))
+            break;
         }
-
+        */
         var auv = nuv[nf[j][0]]
         var buv = nuv[nf[j][1]]
         var cuv = nuv[nf[j][2]]
@@ -111,30 +121,30 @@ class Face extends THREE.Face3 {
 
         if (ai && ai.equal) {
           var index = ai.index
-          if (! this.geometry.boundaryPoints[index]) {
-            this.geometry.boundaryPoints[index] = a.vertex
-            this.geometry.boundaryNormals[index] = a.normal
-            this.geometry.boundary2d[index] = auv
+          if (! this.texture.boundaryPoints[index]) {
+            this.texture.boundaryPoints[index] = a.vertex
+            this.texture.boundaryNormals[index] = a.normal
+            this.texture.boundary2d[index] = auv
           }
         } else {
           // debugger
         }
         if (bi  && bi.equal) {
           var index = bi.index
-          if (! this.geometry.boundaryPoints[index]) {
-            this.geometry.boundaryPoints[index] = b.vertex
-            this.geometry.boundaryNormals[index] = b.normal
-            this.geometry.boundary2d[index] = buv
+          if (! this.texture.boundaryPoints[index]) {
+            this.texture.boundaryPoints[index] = b.vertex
+            this.texture.boundaryNormals[index] = b.normal
+            this.texture.boundary2d[index] = buv
           }
         } else {
           // debugger
         }
         if (ci && ci.equal) {
           var index = ci.index
-          if (! this.geometry.boundaryPoints[index]) {
-            this.geometry.boundaryPoints[index] = c.vertex
-            this.geometry.boundaryNormals[index] = c.normal
-            this.geometry.boundary2d[index] = cuv
+          if (! this.texture.boundaryPoints[index]) {
+            this.texture.boundaryPoints[index] = c.vertex
+            this.texture.boundaryNormals[index] = c.normal
+            this.texture.boundary2d[index] = cuv
           }
         } else {
           // debugger

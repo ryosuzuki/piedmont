@@ -54,6 +54,7 @@
     "paper": "^0.10.2",
     "parse-svg-path": "^0.1.1",
     "point-in-triangle": "^1.0.1",
+    "point-inside-triangle": "^1.0.1",
     "poly-bool": "^1.0.0",
     "q": "^1.4.1",
     "radium": "^0.17.1",
