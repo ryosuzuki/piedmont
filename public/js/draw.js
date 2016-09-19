@@ -44,7 +44,7 @@ function drawGeometry () {
       loadObj('/data/bunny.obj', drawStl);
       break
     case 7:
-      loadStl('/data/tower-1.stl', drawStl);
+      loadStl('/tactile.stl', drawStl);
       break
     case 8:
       // loadStl('/data/demo-2.stl', drawStl);

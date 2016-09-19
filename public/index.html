@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Tabby</title>
+
+    <link rel="stylesheet" href="bower_components/semantic-ui/dist/semantic.css">
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/font-awesome/4.5.0/css/font-awesome.min.css">
+    <link rel="stylesheet" href="/public/css/main.css">
+
+    <script src="bower_components/jquery/dist/jquery.js"></script>
+    <script src="bower_components/jquery-ui/jquery-ui.js"></script>
+    <script src="bower_components/semantic-ui/dist/semantic.js"></script>
+
+  </head>
+  <body>
+    <div class="top-buttons">
+      <button class="ui grey button" id="mode">
+        View Mode
+      </button>
+    </div>
+    <div class="bottom-left-buttons">
+      <button class="ui pink button" onclick="restartMesh()">
+        <i class="fa fa-fw fa-undo"></i>&nbsp; Undo
+      </button>
+    </div>
+
+    <div class="bottom-right-buttons">
+      <button class="ui teal button" onclick="app.pattern.repeat()">Repeat Pattern</button>
+      <button class="ui teal button" onclick="app.mesh.computeNewMesh()">
+        <i class="fa fa-fw fa-magic"></i>&nbsp; Generate Texture
+      </button>
+      <button class="ui grey button" onclick="app.mesh.export()">
+        <i class="fa fa-fw fa-download"></i>&nbsp; STL Export
+      </button>
+    </div>
+
+    <canvas id="original"></canvas>
+    <canvas id="drawing"></canvas>
+    <canvas id="viewport"></canvas>
+
+    <script src="bundle.js"></script>
+
+  </body>
+</html>

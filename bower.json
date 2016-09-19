@@ -16,25 +16,6 @@
   "dependencies": {
     "jquery": "~2.1.4",
     "semantic-ui": "~2.1.4",
-    "three.js": "mrdoob/three.js#r73",
-    "d3": "~3.5.14",
-    "FileSaver.js": "eligrey/FileSaver.js",
-    "numericjs": "~1.2.6",
-    "mousetrap": "~1.5.3",
-    "q": "~1.4.1",
-    "lodash": "~4.6.1",
-    "paper": "~0.9.25",
-    "greiner-hormann": "~1.3.0",
-    "delaunay-fast": "~1.0.1",
-    "poly2tri": "~1.3.5",
-    "graph.js": "devenbhooshan/graph.js",
-    "kruskal": "weltwinkel/kruskal",
-    "draggabilly": "~2.1.0",
-    "dragula": "~3.6.8",
-    "interact": "~1.2.6",
-    "jquery-ui": "~1.11.4",
-    "async": "~1.5.2",
-    "requirejs": "~2.2.0",
-    "watch": "*"
+    "jquery-ui": "~1.11.4"
   }
 }

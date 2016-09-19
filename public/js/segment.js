@@ -36,8 +36,7 @@ function initialCheck() {
     return false
   }
   console.log('Start initialCheck')
-  // window.selectIndex = check(0.003)
-  window.selectIndex = check(0.003)
+  window.selectIndex = check(0.03)
   if (window.task && window.task <= 3) {
     showSelectIndex()
   } else if (selectIndex.length < 5) {
@@ -67,7 +66,7 @@ function showSelectIndex () {
   checkerMark = false
   var m = new THREE.MeshLambertMaterial({
     color: 0xdddddd,
-    // color: 0x00ffff,
+    color: 0x00ffff,
     map: image,
     transparent: true,
     opacity: 0.7
@@ -97,7 +96,7 @@ function getMeshSegmentation () {
       g.vertices.push(geometry.uniq[i].vertex)
     }
   }
-  // showPoints(g)
+  showPoints(g)
   var json = { size: size, p_edges: p_edges, q_edges: q_edges }
   socket.emit('update-harmonic', json)
 }
