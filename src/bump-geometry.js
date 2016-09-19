@@ -40,10 +40,9 @@ class BumpGeometry extends Geometry {
       this.createCover()
     }
 
-    return false
     for (var i=0; i<this.faces.length; i++) {
       const index = i
-      if (this.overlapIndex.includes(index)) continue
+      // if (this.overlapIndex.includes(index)) continue
       const face = this.faces[index];
       const normal = face.normal;
       var va  = this.vertices[face.a];
@@ -76,7 +75,7 @@ class BumpGeometry extends Geometry {
         case 'BUMP':
           wallNormal = normal.clone().multiplyScalar(this.wallHeight);
           break;
-        case 'HOLE':
+        case 'DIP':
           wallNormal = normal.clone().multiplyScalar(-this.wallHeight);
           break;
       }

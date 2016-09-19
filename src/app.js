@@ -23,7 +23,7 @@ class App {
     this.mode = null
     this.count = 0
     this.finish = false
-    this.file = '/public/data/test.obj'
+    this.file = '/public/data/simple-vase.obj'
     this.debugging = true
 
     this.scene = new THREE.Scene()

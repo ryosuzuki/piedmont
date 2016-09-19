@@ -10,7 +10,7 @@ class Mesh extends THREE.Mesh {
   constructor (app) {
     super()
     this.app = app
-    this.textureType = 'HOLLOW'
+    this.textureType = 'BUMP'
 
     this.worker = new Worker('./worker.js');
     this.imageFile = '/public/assets/bunny_1k.png'
@@ -50,8 +50,8 @@ class Mesh extends THREE.Mesh {
     loader.load(this.imageFile, function (image) {
       this.uvImage = image
       this.uvImage.minFilter = THREE.LinearFilter;
-      this.uvImage.wrapS = THREE.RepeatWrapping;
-      this.uvImage.wrapT = THREE.RepeatWrapping;
+      // this.uvImage.wrapS = THREE.RepeatWrapping;
+      // this.uvImage.wrapT = THREE.RepeatWrapping;
       this.uvImage.needsUpdate = true
       this.uvMaterial = new THREE.MeshLambertMaterial({
         color: '#fff',
@@ -73,8 +73,8 @@ class Mesh extends THREE.Mesh {
         this.canvasImage.flipY = false
         this.canvasImage.minFilter = THREE.LinearFilter
         this.canvasImage.needsUpdate = true
-        this.canvasImage.wrapS = THREE.RepeatWrapping;
-        this.canvasImage.wrapT = THREE.RepeatWrapping;
+        // this.canvasImage.wrapS = THREE.RepeatWrapping;
+        // this.canvasImage.wrapT = THREE.RepeatWrapping;
         this.canvasImage.magFilter = THREE.NearestFilter
         // this.canvasImage.repeat.set(2, 2);
         this.canvasMaterial = new THREE.MeshLambertMaterial({
@@ -98,7 +98,11 @@ class Mesh extends THREE.Mesh {
 
 
   computeNewMesh () {
-    this.computeHollowMesh()
+    if (this.textureType === 'BUMP') {
+      this.computeBumpMesh()
+    } else {
+      this.computeHollowMesh()
+    }
   }
 
   computeHollowMesh () {

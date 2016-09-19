@@ -57,7 +57,6 @@ class Face extends THREE.Face3 {
     } else {
       var s = new Date().getTime();
       this.createBoundary()
-      // createBoundary(faceInfo, positions, true)
       console.log(new Date().getTime() - s)
       this.texture.overlapIndex = _.union(this.texture.overlapIndex, [this.index])
     }
@@ -70,7 +69,7 @@ class Face extends THREE.Face3 {
       case 'BUMP':
         this.diffs = GreinerHormann.intersection(this.positions, this.triangle)
         break;
-      case 'HOLE':
+      case 'DIP':
         this.diffs = GreinerHormann.diff(this.triangle, this.positions)
         break;
     }
@@ -98,19 +97,12 @@ class Face extends THREE.Face3 {
         var a = nxyz[nf[j][0]]
         var b = nxyz[nf[j][1]]
         var c = nxyz[nf[j][2]]
-        /*
         this.texture.ng.vertices.push(a.vertex)
         this.texture.ng.vertices.push(b.vertex)
         this.texture.ng.vertices.push(c.vertex)
-        switch (this.texture.type) {
-          case 'BUMP':
-            this.texture.ng.faces.push(new THREE.Face3(num+2, num+1, num))
-            break;
-          case 'HOLE':
-            this.texture.ng.faces.push(new THREE.Face3(num, num+1, num+2))
-            break;
-        }
-        */
+        this.texture.ng.faces.push(new THREE.Face3(num+2, num+1, num))
+        // DIP
+        this.texture.ng.faces.push(new THREE.Face3(num, num+1, num+2))
         var auv = nuv[nf[j][0]]
         var buv = nuv[nf[j][1]]
         var cuv = nuv[nf[j][2]]
