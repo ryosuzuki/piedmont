@@ -13,7 +13,7 @@ class Mesh extends THREE.Mesh {
     this.app = app
 
     this.worker = new Worker('./worker.js');
-    this.file = '/public/data/cone.obj'
+    this.file = '/public/data/sphere.obj'
     this.imageFile = '/public/assets/bunny_1k.png'
     this.defaultMaterial = new THREE.MeshLambertMaterial({
       color: '#eee',

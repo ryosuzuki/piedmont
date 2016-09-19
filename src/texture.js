@@ -4,7 +4,6 @@ import GreinerHormann from 'greiner-hormann'
 import SvgMesh3d from 'svg-mesh-3d'
 
 import Geometry from './geometry'
-import Face from './face'
 // import ThreeCSG from './three/three-csg'
 
 class Texture extends Geometry {
@@ -123,7 +122,6 @@ class Texture extends Geometry {
       this.ng.faces.push(new THREE.Face3(num+2, num+1, num))
     }
   }
-
 
   createCover () {
     console.log('Create cover')
