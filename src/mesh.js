@@ -10,6 +10,7 @@ class Mesh extends THREE.Mesh {
   constructor (app) {
     super()
     this.app = app
+    this.textureType = 'HOLLOW'
 
     this.worker = new Worker('./worker.js');
     this.file = '/public/data/cone.obj'
@@ -114,7 +115,7 @@ class Mesh extends THREE.Mesh {
       items.push(hash)
     }
     const json = {
-      type: 'HOLLOW',
+      type: this.textureType,
       text: this.geometry.text,
       items: items,
       pathData: this.app.paint.path.pathData

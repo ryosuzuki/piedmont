@@ -17,20 +17,36 @@ class HollowGeometry extends Geometry {
   }
 
   generate () {
+    if (this.type === 'BUMP') {
+      this.wallHeight = 0.2
+    }
+    console.log(`Texture type is ${this.type}`)
     this.createPreMesh()
     this.createItemMesh()
     this.outerMeshCSG = new ThreeCSG(this.outerMesh)
     this.innerMeshCSG = new ThreeCSG(this.innerMesh)
     console.log('Start creating meshCSG')
-    this.meshCSG = this.outerMeshCSG.subtract(this.innerMeshCSG)
-    this.itemMeshCSG = new ThreeCSG(this.items[0].mesh)
-    for (let i=1; i<this.items.length; i++) {
-      console.log('Start updating meshCSG')
-      let itemMeshCSG = new ThreeCSG(this.items[i].mesh)
-      this.itemMeshCSG = this.itemMeshCSG.union(itemMeshCSG)
+    if (this.type === 'BUMP') {
+      this.meshCSG = this.outerMeshCSG
+      this.itemMeshCSG = new ThreeCSG(this.items[0].mesh)
+      for (let i=1; i<this.items.length; i++) {
+        console.log('Start updating meshCSG')
+        let itemMeshCSG = new ThreeCSG(this.items[i].mesh)
+        this.itemMeshCSG = this.itemMeshCSG.union(itemMeshCSG)
+      }
+      console.log('Start subtracting meshCSG')
+      this.meshCSG = this.meshCSG.union(this.itemMeshCSG)
+    } else {
+      this.meshCSG = this.outerMeshCSG.subtract(this.innerMeshCSG)
+      this.itemMeshCSG = new ThreeCSG(this.items[0].mesh)
+      for (let i=1; i<this.items.length; i++) {
+        console.log('Start updating meshCSG')
+        let itemMeshCSG = new ThreeCSG(this.items[i].mesh)
+        this.itemMeshCSG = this.itemMeshCSG.union(itemMeshCSG)
+      }
+      console.log('Start subtracting meshCSG')
+      this.meshCSG = this.meshCSG.subtract(this.itemMeshCSG)
     }
-    console.log('Start subtracting meshCSG')
-    this.meshCSG = this.meshCSG.subtract(this.itemMeshCSG)
     this.ng = this.meshCSG.toGeometry()
   }
 
