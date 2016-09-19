@@ -16,7 +16,9 @@ class Pattern {
   }
 
   initialize (path) {
-    this.app.mesh.replace('canvas') // for debugging
+    if (this.app.debugging) {
+      this.app.mesh.replace('canvas') // for debugging
+    }
 
     const scale = 0.2
     this.drawing.activate()
@@ -27,7 +29,7 @@ class Pattern {
     this.unit.rotate(180)
     this.unit.closed = true
     // this.unit.scale()
-    this.unit.position = [30, 30]
+    this.unit.position = [50, 50]
 
     this.items = []
     this.item = this.unit
@@ -42,27 +44,49 @@ class Pattern {
     // }
     this.update()
 
-    const drawing = this.app.pattern.drawing
-    const size = drawing.view.size
-    let rect = new Paper.Path.Rectangle({
-      point: [-size.width, -size.height],
-      size: [size.width, size.height],
-      strokeColor: 'white',
-      selected: true
-    });
-    rect.sendToBack();
-    rect.fillColor = '#ff0000';
-    drawing.view.draw()
+    if (this.app.debugging) {
+      const drawing = this.app.pattern.drawing
+      const size = drawing.view.size
+      let rect = new Paper.Path.Rectangle({
+        point: [-size.width*0.5, -size.height*0.5],
+        size: [size.width*0.25, size.height*0.25],
+        strokeColor: 'white',
+        selected: true
+      });
+      rect.sendToBack();
+      rect.fillColor = '#ffffff';
+      drawing.view.draw()
 
-    let rect2 = new Paper.Path.Rectangle({
-      point: [-size.width, -size.height],
-      size: [size.width*2, size.height*2],
-      strokeColor: 'white',
-      selected: true
-    });
-    rect2.sendToBack();
-    rect2.fillColor = '#0000ff';
-    drawing.view.draw()
+      rect = new Paper.Path.Rectangle({
+        point: [-size.width*0.5, -size.height*0.5],
+        size: [size.width*0.5, size.height*0.5],
+        strokeColor: 'white',
+        selected: true
+      });
+      rect.sendToBack();
+      rect.fillColor = '#ff0000';
+      drawing.view.draw()
+
+      rect = new Paper.Path.Rectangle({
+        point: [-size.width*0.5, -size.height*0.5],
+        size: [size.width*0.75, size.height*0.75],
+        strokeColor: 'white',
+        selected: true
+      });
+      rect.sendToBack();
+      rect.fillColor = '#00ff00';
+      drawing.view.draw()
+
+      rect = new Paper.Path.Rectangle({
+        point: [-size.width*0.5, -size.height*0.5],
+        size: [size.width, size.height],
+        strokeColor: 'white',
+        selected: true
+      });
+      rect.sendToBack();
+      rect.fillColor = '#0000ff';
+      drawing.view.draw()
+    }
   }
 
   detect () {

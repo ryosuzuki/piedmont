@@ -23,6 +23,8 @@ class App {
     this.mode = null
     this.count = 0
     this.finish = false
+    this.file = '/public/data/bunny_ARAP.obj'
+    this.debugging = true
 
     this.scene = new THREE.Scene()
     this.camera = new THREE.PerspectiveCamera(70, width / height, 1, Number.MAX_SAFE_INTEGER)
@@ -100,23 +102,6 @@ class App {
   start () {
     this.isAnimating = true
     this.mesh = new Mesh(this)
-
-    /*
-    this.mesh2 = new Mesh(this)
-    this.mesh2.file = '/public/data/sphere.obj'
-    this.mesh2.initialize()
-
-    this.mesh4 = new Mesh(this)
-    this.mesh4.file = '/public/data/cylinder.obj'
-    this.mesh4.initialize()
-
-    let geometry = new ThreeCSG(this.mesh3)
-    let texture = new ThreeCSG(this.mesh4)
-    let result = geometry.union(texture)
-    this.mesh.geometry = result.toGeometry()
-    this.mesh.replace('wire')
-    */
-
     this.plane = new Plane(this)
     this.paint = new Paint(this)
     this.pattern = new Pattern(this)

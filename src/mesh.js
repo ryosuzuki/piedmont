@@ -13,7 +13,6 @@ class Mesh extends THREE.Mesh {
     this.textureType = 'HOLLOW'
 
     this.worker = new Worker('./worker.js');
-    this.file = '/public/data/cone.obj'
     this.imageFile = '/public/assets/bunny_1k.png'
     this.defaultMaterial = new THREE.MeshLambertMaterial({
       color: '#eee',
@@ -31,7 +30,7 @@ class Mesh extends THREE.Mesh {
   initialize () {
     this.loadImage()
     this.geometry = new Geometry()
-    this.geometry.file = this.file
+    this.geometry.file = this.app.file
     this.geometry.init()
     this.updateMorphTargets()
     this.geometry.verticesNeedUpdate = true;
@@ -74,8 +73,8 @@ class Mesh extends THREE.Mesh {
         this.canvasImage.flipY = false
         this.canvasImage.minFilter = THREE.LinearFilter
         this.canvasImage.needsUpdate = true
-        // this.canvasImage.wrapS = THREE.RepeatWrapping;
-        // this.canvasImage.wrapT = THREE.RepeatWrapping;
+        this.canvasImage.wrapS = THREE.RepeatWrapping;
+        this.canvasImage.wrapT = THREE.RepeatWrapping;
         this.canvasImage.magFilter = THREE.NearestFilter
         // this.canvasImage.repeat.set(2, 2);
         this.canvasMaterial = new THREE.MeshLambertMaterial({

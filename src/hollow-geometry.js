@@ -17,9 +17,6 @@ class HollowGeometry extends Geometry {
   }
 
   generate () {
-    if (this.type === 'BUMP') {
-      this.wallHeight = 0.2
-    }
     console.log(`Texture type is ${this.type}`)
     this.createPreMesh()
     this.createItemMesh()
