@@ -26,6 +26,10 @@ app.set('view engine', 'ejs')
 app.get('/', function (req, res) {
   res.sendFile(__dirname + '/public/index.html')
 })
+app.get('/:id', function (req, res) {
+  res.sendFile(__dirname + '/public/index.html')
+})
+
 
 app.listen(port, function(error) {
   if (error) throw error

@@ -23,7 +23,13 @@ class App {
     this.mode = null
     this.count = 0
     this.finish = false
-    this.file = '/public/data/house.obj'
+
+    this.model = window.location.pathname.split('/')[1]
+    if (_.isEmpty(this.model)) {
+      this.file = '/public/data/cone.obj'
+    } else {
+      this.file = `/public/demo/${this.model}.obj`
+    }
     this.debugging = true
 
     this.scene = new THREE.Scene()
