@@ -34,7 +34,8 @@ class HollowGeometry extends Geometry {
       console.log('Start subtracting meshCSG')
       this.meshCSG = this.meshCSG.union(this.itemMeshCSG)
     } else {
-      this.meshCSG = this.outerMeshCSG.subtract(this.innerMeshCSG)
+      // this.meshCSG = this.outerMeshCSG.subtract(this.innerMeshCSG)
+      this.meshCSG = this.outerMeshCSG
       this.itemMeshCSG = new ThreeCSG(this.items[0].mesh)
       for (let i=1; i<this.items.length; i++) {
         console.log('Start updating meshCSG')
@@ -42,8 +43,9 @@ class HollowGeometry extends Geometry {
         this.itemMeshCSG = this.itemMeshCSG.union(itemMeshCSG)
       }
       console.log('Start subtracting meshCSG')
-      this.meshCSG = this.meshCSG.subtract(this.itemMeshCSG)
+      this.meshCSG = this.itemMeshCSG.union(this.meshCS)
     }
+    // this.ng = this.itemMeshCSG.toGeometry()
     this.ng = this.meshCSG.toGeometry()
   }
 
@@ -58,7 +60,7 @@ class HollowGeometry extends Geometry {
       item.normal = new THREE.Vector3(normal.x, normal.y, normal.z)
       let start = vec.clone().addVectors(
         item.center,
-        item.normal.clone().multiplyScalar(-this.wallHeight)
+        item.normal.clone().multiplyScalar(-0.01)
       )
       let end = vec.clone().addVectors(
         item.center,

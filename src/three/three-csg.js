@@ -19,7 +19,8 @@ class ThreeCSG {
     this.Vertex = Vertex;
     this.Node = Node;
     if (geometry instanceof THREE.Geometry) {
-      this.matrix = new THREE.Matrix4;
+      geometry.updateMatrix()
+      this.matrix = geometry.matrix.clone() // new THREE.Matrix4;
     } else if (geometry instanceof THREE.Mesh) {
       // #todo: add hierarchy support
       geometry.updateMatrix();

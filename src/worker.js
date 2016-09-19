@@ -8,11 +8,14 @@ import ThreeCSG from './three/three-csg'
 
 onmessage = (event) => {
   let data = JSON.parse(event.data)
+  self.createBumpGeometry(data)
+  /*
   if (data.type === 'BUMP') {
     self.createBumpGeometry(data)
   } else {
     self.createHollowGeometry(data)
   }
+  */
 }
 
 self.createHollowGeometry = function (data) {
@@ -30,7 +33,7 @@ self.createHollowGeometry = function (data) {
 self.createBumpGeometry = function (data) {
   let bumpGeometry = new BumpGeometry()
   bumpGeometry.text = data.text
-  bumpGeometry.enableCover = data.enableCover
+  bumpGeometry.type = data.type
   bumpGeometry.svgMeshPositions = data.svgMeshPositions
   bumpGeometry.selectIndex = data.selectIndex
   bumpGeometry.load()

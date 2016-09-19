@@ -10,7 +10,7 @@ class Mesh extends THREE.Mesh {
   constructor (app) {
     super()
     this.app = app
-    this.textureType = 'BUMP'
+    this.textureType = 'HOLLOW'
 
     this.worker = new Worker('./worker.js');
     this.imageFile = '/public/assets/bunny_1k.png'
@@ -33,8 +33,10 @@ class Mesh extends THREE.Mesh {
     this.geometry.file = this.app.file
     this.geometry.init()
     this.updateMorphTargets()
-    this.geometry.verticesNeedUpdate = true;
+    this.normalize()
     this.original = this.geometry.clone()
+    this.originalMesh = new THREE.Mesh(this.original, this.material)
+
     this.dynamic = true;
     this.castShadow = true;
     this.app.scene.add(this)
@@ -43,6 +45,33 @@ class Mesh extends THREE.Mesh {
     for (let i=0; i<this.geometry.faces.length; i++) {
       this.selectIndex.push(i)
     }
+  }
+
+  createHollow () {
+    this.outerMesh = this.originalMesh.clone()
+    this.innerMesh = this.originalMesh.clone()
+    this.innerMesh.scale.set(0.9, 0.9, 0.9)
+    this.innerMesh.position.set(0, 0.1, 0)
+    this.outerMeshCSG = new ThreeCSG(this.outerMesh)
+    this.innerMeshCSG = new ThreeCSG(this.innerMesh)
+    this.meshCSG = this.outerMeshCSG.subtract(this.innerMeshCSG)
+    this.geometry = this.meshCSG.toGeometry()
+  }
+
+  normalize () {
+    this.geometry.verticesNeedUpdate = true;
+    this.geometry.rotateX(-Math.PI/2)
+    this.geometry.computeBoundingBox()
+    let min = this.geometry.boundingBox.min
+    let max = this.geometry.boundingBox.max
+    let sizeX = max.x - min.x
+    let sizeY = max.y - min.y
+    let sizeZ = max.z - min.z
+    let size = _.max([sizeX, sizeY, sizeZ])
+    let scale = 2.5/size
+    this.originalScale = scale
+    this.geometry.scale(scale, scale, scale)
+    this.position.setY(-this.geometry.boundingBox.min.y)
   }
 
   loadImage () {
@@ -98,11 +127,14 @@ class Mesh extends THREE.Mesh {
 
 
   computeNewMesh () {
+    this.computeBumpMesh()
+    /*
     if (this.textureType === 'BUMP') {
       this.computeBumpMesh()
     } else {
       this.computeHollowMesh()
     }
+    */
   }
 
   computeHollowMesh () {
@@ -136,7 +168,7 @@ class Mesh extends THREE.Mesh {
   computeBumpMesh () {
     this.app.pattern.computeSvgMeshPositions()
     const json = {
-      type: 'BUMP',
+      type: this.textureType,
       text: this.geometry.text,
       selectIndex: this.selectIndex,
       svgMeshPositions: this.app.pattern.svgMeshPositions,
@@ -171,8 +203,12 @@ class Mesh extends THREE.Mesh {
 
     this.geometry = this.ng
     this.geometry.computeFaceNormals()
+    this.normalize()
     this.replace()
     this.app.finish = true
+
+    this.originalMesh = new THREE.Mesh(this.original, this.material)
+    // this.app.scene.add(this.originalMesh)
   }
 
   export () {

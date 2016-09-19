@@ -10,7 +10,7 @@ class BumpGeometry extends Geometry {
     super()
 
     this.type = 'BUMP' // 'BUMP'
-    this.wallHeight = 0.1
+    this.wallHeight = 10
     this.boundaryPoints = []
     this.boundaryNormals = []
     this.boundary2d = []
@@ -37,12 +37,14 @@ class BumpGeometry extends Geometry {
       }
 
       this.createWall()
-      this.createCover()
+      if (this.type === 'BUMP') {
+        this.createCover()
+      }
     }
 
     for (var i=0; i<this.faces.length; i++) {
       const index = i
-      // if (this.overlapIndex.includes(index)) continue
+      if (this.type !== 'BUMP' && this.overlapIndex.includes(index)) continue
       const face = this.faces[index];
       const normal = face.normal;
       var va  = this.vertices[face.a];
@@ -71,13 +73,10 @@ class BumpGeometry extends Geometry {
       let normal = this.boundaryNormals[i]
       let v = new THREE.Vector3();
       let wallNormal
-      switch (this.type) {
-        case 'BUMP':
-          wallNormal = normal.clone().multiplyScalar(this.wallHeight);
-          break;
-        case 'DIP':
-          wallNormal = normal.clone().multiplyScalar(-this.wallHeight);
-          break;
+      if (this.type === 'BUMP') {
+        wallNormal = normal.clone().multiplyScalar(this.wallHeight);
+      } else {
+        wallNormal = normal.clone().multiplyScalar(this.wallHeight);
       }
       let outer = v.clone().addVectors(inner, wallNormal)
       this.boundaryOuterPoints[i] = outer

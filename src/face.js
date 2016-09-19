@@ -65,11 +65,12 @@ class Face extends THREE.Face3 {
   createBoundary () {
     console.log('Create boundary')
     console.log(this.triangle)
+    console.log(this.texture.type)
     switch (this.texture.type) {
       case 'BUMP':
         this.diffs = GreinerHormann.intersection(this.positions, this.triangle)
         break;
-      case 'DIP':
+      case 'HOLLOW':
         this.diffs = GreinerHormann.diff(this.triangle, this.positions)
         break;
     }
@@ -100,9 +101,11 @@ class Face extends THREE.Face3 {
         this.texture.ng.vertices.push(a.vertex)
         this.texture.ng.vertices.push(b.vertex)
         this.texture.ng.vertices.push(c.vertex)
-        this.texture.ng.faces.push(new THREE.Face3(num+2, num+1, num))
-        // DIP
-        this.texture.ng.faces.push(new THREE.Face3(num, num+1, num+2))
+        if (this.texture.type === 'BUMP') {
+          this.texture.ng.faces.push(new THREE.Face3(num+2, num+1, num))
+        } else {
+          this.texture.ng.faces.push(new THREE.Face3(num, num+1, num+2))
+        }
         var auv = nuv[nf[j][0]]
         var buv = nuv[nf[j][1]]
         var cuv = nuv[nf[j][2]]
@@ -115,7 +118,7 @@ class Face extends THREE.Face3 {
           var index = ai.index
           if (! this.texture.boundaryPoints[index]) {
             this.texture.boundaryPoints[index] = a.vertex
-            this.texture.boundaryNormals[index] = a.normal
+            this.texture.boundaryNormals[index] = this.normal
             this.texture.boundary2d[index] = auv
           }
         } else {
@@ -125,7 +128,7 @@ class Face extends THREE.Face3 {
           var index = bi.index
           if (! this.texture.boundaryPoints[index]) {
             this.texture.boundaryPoints[index] = b.vertex
-            this.texture.boundaryNormals[index] = b.normal
+            this.texture.boundaryNormals[index] = this.normal
             this.texture.boundary2d[index] = buv
           }
         } else {
@@ -135,7 +138,7 @@ class Face extends THREE.Face3 {
           var index = ci.index
           if (! this.texture.boundaryPoints[index]) {
             this.texture.boundaryPoints[index] = c.vertex
-            this.texture.boundaryNormals[index] = c.normal
+            this.texture.boundaryNormals[index] = this.normal
             this.texture.boundary2d[index] = cuv
           }
         } else {
