@@ -4,15 +4,12 @@ import GreinerHormann from 'greiner-hormann'
 import SvgMesh3d from 'svg-mesh-3d'
 
 import Geometry from './geometry'
-// import ThreeCSG from './three/three-csg'
 
-class Texture extends Geometry {
+class BumpGeometry extends Geometry {
   constructor () {
     super()
 
-    this.enableCover = false
     this.type = 'BUMP' // 'BUMP'
-
     this.wallHeight = 0.1
     this.boundaryPoints = []
     this.boundaryNormals = []
@@ -22,7 +19,7 @@ class Texture extends Geometry {
   }
 
   generate () {
-    this.ng = new Texture()
+    this.ng = new BumpGeometry()
 
     for (let i=0; i<this.svgMeshPositions.length; i++) {
       let positions = this.svgMeshPositions[i]
@@ -30,7 +27,6 @@ class Texture extends Geometry {
       this.boundaryPoints = new Array(positions.length)
       this.boundaryNormals = new Array(positions.length)
       this.boundary2d = new Array(positions.length)
-
       this.boundaryOuterPoints = new Array(positions.length)
 
       for (var j=0; j<this.selectIndex.length; j++) {
@@ -40,14 +36,8 @@ class Texture extends Geometry {
         if (!overlap) continue
       }
 
-      this.type = 'BUMP'
       this.createWall()
       this.createCover()
-
-      this.type = 'HOLE'
-      this.createWall()
-      this.createCover()
-
     }
 
     return false
@@ -151,4 +141,4 @@ class Texture extends Geometry {
 
 }
 
-export default Texture
+export default BumpGeometry

@@ -4,7 +4,7 @@ import Paper from 'paper'
 class Paint {
   constructor (app) {
     this.app = app
-    this.file = '/public/assets/donald.svg'
+    this.file = '/public/assets/star-2.svg'
 
     let canvas = document.getElementById('original')
     canvas.width = 256

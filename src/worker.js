@@ -1,33 +1,46 @@
 import THREE from 'three'
 
 import Geometry from './geometry'
-import Texture from './texture'
+import BumpGeometry from './bump-geometry'
+import HollowGeometry from './hollow-geometry'
 
 import ThreeCSG from './three/three-csg'
 
 onmessage = (event) => {
-  let data = event.data
-  let json = JSON.parse(data)
-  console.log(json)
+  let data = JSON.parse(event.data)
 
-  let texture = new Texture()
-  texture.text = json.text
-  texture.load()
-  texture.computeFaceNormals()
-  texture.computeUniq()
-  texture.computeVertexNormals()
-  texture.computeFaceVertexNormals()
-
-  texture.enableCover = json.enableCover
-  texture.svgMeshPositions = json.svgMeshPositions
-  texture.selectIndex = json.selectIndex
-  console.log(texture)
-  texture.generate()
-
-  postMessage({ ng: texture.ng })
+  if (data.type === 'BUMP') {
+    self.createBumpGeometry(data)
+  } else {
+    self.createHollowTexture(data)
+  }
 }
 
+self.createHollowTexture = function (data) {
+  let hollowGeometry = new HollowGeometry()
+  hollowGeometry.text = data.text
+  hollowGeometry.items = data.items
+  hollowGeometry.pathData = data.pathData
+  hollowGeometry.load()
+  hollowGeometry.generate()
 
+  postMessage({ ng: hollowGeometry.ng })
+}
 
+self.createBumpGeometry = function (data) {
+  let bumpGeometry = new BumpGeometry()
+  bumpGeometry.text = data.text
+  bumpGeometry.enableCover = data.enableCover
+  bumpGeometry.svgMeshPositions = data.svgMeshPositions
+  bumpGeometry.selectIndex = data.selectIndex
+  bumpGeometry.load()
+  bumpGeometry.computeFaceNormals()
+  bumpGeometry.computeUniq()
+  bumpGeometry.computeVertexNormals()
+  bumpGeometry.computeFaceVertexNormals()
+  bumpGeometry.generate()
+
+  postMessage({ ng: bumpGeometry.ng })
+}
 
 
