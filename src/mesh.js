@@ -32,6 +32,108 @@ class Mesh extends THREE.Mesh {
     this.initialize()
   }
 
+  computeNewMesh () {
+    switch (this.app.model) {
+      case 'house':
+        this.size = 0.1
+        break
+      case 'speaker':
+        this.size = 0.12
+        break
+      default:
+        this.size = 0.1
+        break
+    }
+
+    this.items = []
+    for (let i=0; i<this.app.pattern.items.length; i++) {
+      let item = this.app.pattern.items[i]
+      item.uv = this.app.convertCanvasToUv(item.bounds.center)
+      let center = this.app.convertUvTo3d(item.uv)
+      if (!center) continue
+      let hash = {}
+      hash.center = center.vertex
+      hash.normal = center.normal
+      this.items.push(hash)
+    }
+    this.unit = SvgToShape.transform(this.app.pattern.unit.pathData)
+    this.createBumpMesh()
+  }
+
+  showInnerMesh () {
+    this.innerMesh = new THREE.Mesh(this.geometry, this.material)
+    this.innerMesh.scale.set(0.9, 0.9, 0.9)
+    let x = 0 + this.position.x
+    let y = 0.05 + this.position.y
+    let z = 0 + this.position.z
+    this.innerMesh.position.set(x, y, z)
+    this.app.scene.add(this.innerMesh)
+    this.app.scene.remove(this)
+  }
+
+  createBumpMesh () {
+    this.textureType = 'HOLLOW'
+    console.log('Start createBumpMesh')
+    for (let i=0; i<this.items.length; i++) {
+      let item = this.items[i]
+      let x = item.center.x + this.position.x
+      let y = item.center.y + this.position.y
+      let z = item.center.z + this.position.z
+      let center = new THREE.Vector3(x, y, z)
+      let normal = new THREE.Vector3(item.normal.x, item.normal.y, item.normal.z)
+      let vec = new THREE.Vector3()
+      let start = vec.clone().addVectors(
+        center,
+        normal.clone().multiplyScalar(-10)
+      )
+      let end = vec.clone().addVectors(
+        center,
+        normal.clone().multiplyScalar(10)
+      )
+      let spline = new THREE.CatmullRomCurve3([start, end]);
+      let extrudeSettings = { amount: 1, bevelEnabled: false, extrudePath: spline };
+      let geometry = new THREE.ExtrudeGeometry(this.unit, extrudeSettings);
+      geometry.normalize()
+      item.mesh = new THREE.Mesh(geometry, this.defaultMaterial)
+      item.mesh.position.set(x, y, z)
+      let scale = this.size
+      item.mesh.scale.set(scale, scale, scale)
+      this.items[i] = item
+    }
+
+    console.log('Start createMeshCSG')
+    this.meshCSG = new ThreeCSG(this)
+    this.itemMeshCSG = new ThreeCSG(this.items[0].mesh)
+    for (let i=1; i<this.items.length; i++) {
+      console.log('Start updating meshCSG')
+      let itemMeshCSG = new ThreeCSG(this.items[i].mesh)
+      this.itemMeshCSG = this.itemMeshCSG.union(itemMeshCSG)
+    }
+    if (this.textureType === 'BUMP') {
+      console.log('BUMP: Union the all CSG meshes')
+      this.meshCSG = this.meshCSG.union(this.itemMeshCSG)
+    } else {
+      console.log('HOLLOW: Subtract the all CSG meshes')
+      this.innerMesh = new THREE.Mesh(this.geometry, this.material)
+      this.innerMesh.scale.set(0.9, 0.9, 0.9)
+      let x = 0 + this.position.x
+      let y = 0.05 + this.position.y
+      let z = 0 + this.position.z
+      this.innerMesh.position.set(x, y, z)
+      this.innerMeshCSG = new ThreeCSG(this.innerMesh)
+      console.log('Inner mesh subtraction')
+      this.meshCSG = this.meshCSG.subtract(this.innerMeshCSG)
+      console.log('Item mesh subtraction')
+      this.meshCSG = this.meshCSG.subtract(this.itemMeshCSG)
+    }
+    this.geometry = this.meshCSG.toGeometry()
+    this.geometry.computeFaceNormals()
+    this.replace()
+    this.app.finish = true
+  }
+
+
+
   initialize () {
     this.loadImage()
     this.geometry = new Geometry()
@@ -122,7 +224,7 @@ class Mesh extends THREE.Mesh {
     this.app.scene.add(this);
   }
 
-
+  /*
   computeNewMesh () {
 
     switch (this.app.model) {
@@ -139,7 +241,6 @@ class Mesh extends THREE.Mesh {
 
     this.createEggMesh()
 
-    /*
     if (this.app.model === 'house') {
       this.createEggMesh()
       // this.createHouseMesh()
@@ -153,52 +254,6 @@ class Mesh extends THREE.Mesh {
     } else {
       this.computeHollowMesh()
     }
-    */
-  }
-
-  createEggMesh () {
-    let items = []
-    for (let i=0; i<this.app.pattern.items.length; i++) {
-      let item = this.app.pattern.items[i]
-      item.uv = this.app.convertCanvasToUv(item.bounds.center)
-      let center = this.app.convertUvTo3d(item.uv)
-      if (!center) continue
-      let hash = {}
-      hash.center = center.vertex
-      hash.normal = center.normal
-      items.push(hash)
-    }
-
-    this.unit = SvgToShape.transform(this.app.pattern.unit.pathData)
-    let box = new THREE.BoxGeometry(0.1, 0.05, 0.05)
-    for (let i=0; i<items.length; i++) {
-      let item = items[i]
-      let x = item.center.x + this.position.x
-      let y = item.center.y + this.position.y
-      let z = item.center.z + this.position.z
-      let center = new THREE.Vector3(x, y, z)
-      let normal = new THREE.Vector3(item.normal.x, item.normal.y, item.normal.z)
-      let vec = new THREE.Vector3()
-      let start = center
-      let end = vec.clone().addVectors(
-        center,
-        normal.clone().multiplyScalar(10)
-      )
-      let spline = new THREE.CatmullRomCurve3([start, end]);
-      let extrudeSettings = { amount: 1, bevelEnabled: false, extrudePath: spline };
-      let geometry = new THREE.ExtrudeGeometry(this.unit, extrudeSettings);
-      geometry.normalize()
-      let mesh = new THREE.Mesh(geometry, this.defaultMaterial)
-      mesh.position.set(x, y, z)
-
-      let scale = this.size
-      mesh.scale.set(scale, scale, scale)
-      // let angle = Math.atan(item.normal.y/item.normal.z)
-      // mesh.rotation.set(-angle, 0, 0)
-      this.app.scene.add(mesh)
-      this.hoge = mesh
-    }
-
   }
 
   createHouseMesh () {
@@ -254,6 +309,7 @@ class Mesh extends THREE.Mesh {
       this.showNewMesh(geometry)
     }.bind(this)
   }
+  */
 
   computeBumpMesh () {
     this.app.pattern.computeSvgMeshPositions()
