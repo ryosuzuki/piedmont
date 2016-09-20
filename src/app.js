@@ -33,14 +33,14 @@ class App {
     this.debugging = false
 
     this.scene = new THREE.Scene()
-    this.camera = new THREE.PerspectiveCamera(70, width / height, 1, Number.MAX_SAFE_INTEGER)
+    this.camera = new THREE.PerspectiveCamera(70, width / height, 0.01*unit, 1000)
     this.camera.position.set(unit*1.9, unit*1.4, unit*1.8)
+    this.camera.lookAt(new THREE.Vector3(0, 1*unit, 0));
     this.scene.add(this.camera)
 
-    this.lookAt = new THREE.Object3D()
-    this.scene.add(this.lookAt)
-    this.lookAt.add(this.camera)
-    this.camera.lookAt(this.lookAt.position)
+    // this.scene.add(this.lookAt)
+    // this.lookAt.add(this.camera)
+    // this.camera.lookAt(this.lookAt.position)
 
     this.renderer = new THREE.WebGLRenderer(options)
     this.renderer.setClearColor('#eee')
@@ -54,12 +54,12 @@ class App {
     this.grid = grid
 
     this.controls = new OrbitControls(this.camera, this.renderer.domElement)
-    // this.controls.enableDamping = true
+    this.controls.enableDamping = true
     this.controls.rotateSpeed = 0.3
     this.controls.zoomSpeed = 0.3
     this.controls.panSpeed = 0.3
     this.controls.damping = 0.2;
-    // this.controls.dampingFactor = 0.25
+    this.controls.dampingFactor = 0.25
     this.controls.enableZoom = true
 
     this.raycaster = new THREE.Raycaster()
@@ -146,6 +146,7 @@ class App {
         break;
       case 'MOVE':
         this.controls.enabled = false
+        this.pattern.move()
         break;
       case 'COPY':
         this.controls.enabled = false
@@ -204,7 +205,9 @@ class App {
     this.current.distance = this.convert2dToDistance(this.current.point2d)
     this.current.vector2d = this.convert2dToVector(this.current.point2d)
 
-    this.pattern.detect()
+    if (this.mode !== 'MOVE') {
+      this.pattern.detect()
+    }
 
     console.log(event.type)
     switch (event.type) {
@@ -242,7 +245,6 @@ class App {
             this.pattern.line()
             break
           case 'MOVE':
-            this.pattern.move()
             break
           default:
             break

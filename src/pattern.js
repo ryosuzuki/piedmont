@@ -342,6 +342,7 @@ class Pattern {
 
   update () {
     this.drawing.view.draw()
+    // this.app.mesh.material.map.needsUpdate = true
     this.app.mesh.replace('canvas')
   }
 
