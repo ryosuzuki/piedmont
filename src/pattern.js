@@ -1,18 +1,21 @@
 import Paper from 'paper'
 import SvgMesh3d from 'svg-mesh-3d'
 
+
 class Pattern {
   constructor (app) {
     this.app = app
 
+    this.resolution = 10
+    this.size = 256 * this.resolution
     let drawing = document.getElementById('drawing')
-    drawing.width = 256 // 1280 // 256
-    drawing.height = 256 //1280 // 256
+    drawing.width = this.size // 1280 // 256
+    drawing.height = this.size //1280 // 256
 
     this.drawing = new Paper.PaperScope()
     this.drawing.setup($('#drawing')[0])
     this.drawing.view.center = [0, 0]
-    this.drawing.view.viewSize = [256, 256] // [1280, 1280] // new paper.Size(256, 256)
+    this.drawing.view.viewSize = [this.size, this.size] // [1280, 1280] // new paper.Size(256, 256)
     this.repeatCount = 0
   }
 
@@ -21,7 +24,7 @@ class Pattern {
       this.app.mesh.replace('canvas') // for debugging
     }
 
-    const scale = 0.2
+    const scale = 0.2 * this.resolution
     this.drawing.activate()
     this.unit = new Paper.Path(path.pathData)
     this.unit.scale(scale)
@@ -38,7 +41,7 @@ class Pattern {
         this.unit.position = [0, 0]
         break
       default:
-        this.unit.position = [50, 50]
+        this.unit.position = [50*this.resolution, 50*this.resolution]
         break
     }
 
@@ -182,7 +185,8 @@ class Pattern {
   copy () {
     this.drawing.activate()
     let item = this.app.item.clone()
-    item.position = [item.position.x+2, item.position.y]
+    let offset = { x: 2*this.resolution, y: 0.5*this.resolution}
+    item.position = [item.position.x+offset.x, item.position.y+offset.y]
     this.items.push(item)
 
     this.seeds = []
@@ -200,7 +204,7 @@ class Pattern {
     this.app.mode = 'LINE_INIT'
     this.draftLine = new Paper.Path({
       strokeColor: 'red',
-      strokeWidth: 5,
+      strokeWidth: 5*this.resolution,
       fullySelected: true
     })
     this.update()

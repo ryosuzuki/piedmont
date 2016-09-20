@@ -321,9 +321,16 @@ class App {
     document.addEventListener('mousemove', this.update.bind(this), false)
     document.addEventListener('mouseup', this.update.bind(this), false)
     document.addEventListener('dblclick', this.update.bind(this), false)
+    window.addEventListener('resize', this.onWindowResize, false);
 
     Mousetrap.bind('command+c', this.command.bind(this), 'keydown')
     Mousetrap.bind('command+v', this.command.bind(this), 'keydown')
+  }
+
+  onWindowResize () {
+    this.camera.aspect = window.innerWidth / window.innerHeight;
+    this.camera.updateProjectionMatrix();
+    this.renderer.setSize( window.innerWidth, window.innerHeight );
   }
 
   animate () {
