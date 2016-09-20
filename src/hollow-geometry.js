@@ -68,7 +68,7 @@ class HollowGeometry extends Geometry {
       let extrudeSettings = { amount: 1, bevelEnabled: false, extrudePath: spline };
       let geometry = new THREE.ExtrudeGeometry(this.unit, extrudeSettings);
       geometry.normalize()
-      let scale = 0.1 // this.size
+      let scale = 0.05 // this.size
       geometry.scale(scale, scale, scale)
       item.mesh = new THREE.Mesh(geometry, this.material)
       item.mesh.position.set(x, y, z)
