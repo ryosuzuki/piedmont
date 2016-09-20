@@ -10,7 +10,7 @@ class BumpGeometry extends Geometry {
     super()
 
     this.type = 'BUMP' // 'BUMP'
-    this.wallHeight = 0.02
+    this.wallHeight = 1
     this.boundaryPoints = []
     this.boundaryNormals = []
     this.boundary2d = []

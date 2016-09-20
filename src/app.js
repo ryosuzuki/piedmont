@@ -354,18 +354,21 @@ class App {
 
   convertUvTo3d (uv) {
     let faceVertexUvs = this.mesh.geometry.faceVertexUvs[0]
-    for (let i=0; i<faceVertexUvs.length; i++) {
-      let faceVertexUv = faceVertexUvs[i]
+    for (let i=0; i<this.mesh.selectIndex.length; i++) {
+      let index = this.mesh.selectIndex[i]
+      let faceVertexUv = faceVertexUvs[index]
+      if (!faceVertexUv) continue
       let triangle = faceVertexUv.map( (vec) => {
         return [vec.x, vec.y]
       })
+      if (_.isEqual([[0,0],[0,0],[0,0]], triangle)) continue
       let inside = PointInTriangle(uv, triangle)
-      console.log(inside)
       if (inside) {
-        let face = this.mesh.geometry.faces[i]
+        console.log(inside, index, i)
+        let face = this.mesh.geometry.faces[index]
         if (face instanceof Face === false) {
           this.mesh.geometry.computeFaceVertexNormals()
-          face = this.mesh.geometry.faces[i]
+          face = this.mesh.geometry.faces[index]
         }
         return face.uvTo3D([uv])[0]
       }

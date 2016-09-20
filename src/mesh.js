@@ -55,7 +55,7 @@ class Mesh extends THREE.Mesh {
       return false
     }
     if (this.app.model === 'house') {
-      this.textureType = 'HOLLOW'
+      this.textureType = 'BUMP'
     }
     this.computeHollowMesh()
   }
@@ -101,6 +101,24 @@ class Mesh extends THREE.Mesh {
       position: this.position,
       pathData: this.app.paint.path.pathData
     }
+
+    if (app.debugging || false) {
+      let hollowGeometry = new HollowGeometry()
+      hollowGeometry.model = json.model
+      hollowGeometry.text = json.text
+      hollowGeometry.items = json.items
+      hollowGeometry.type = json.type
+      hollowGeometry.pathData = json.pathData
+      hollowGeometry.position = json.position
+      hollowGeometry.load()
+      hollowGeometry.generate()
+      this.nm = hollowGeometry.itemMeshCSG.toMesh()
+      this.app.scene.add(this.nm)
+      this.cm = hollowGeometry.meshCSG.toMesh()
+      this.app.scene.add(this.cm)
+      return false
+    }
+
     const data = JSON.stringify(json)
     this.worker.postMessage(data);
     this.worker.onmessage = function(event) {

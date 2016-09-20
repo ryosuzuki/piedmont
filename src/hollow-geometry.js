@@ -31,15 +31,14 @@ class HollowGeometry extends Geometry {
     }
 
     if (this.type === 'BUMP') {
-      console.log('BUMP: Union the all CSG meshes')
-      this.meshCSG = this.meshCSG.intersect(this.itemMeshCSG)
+      console.log('Union the all CSG meshes')
+      this.meshCSG = this.meshCSG.union(this.itemMeshCSG)
     } else {
-      console.log('HOLLOW: Subtract the all CSG meshes')
-      console.log('Inner mesh subtraction')
+      console.log('Subtract inner mesh')
       this.createInnerMesh()
       // this.innerMeshCSG = new ThreeCSG(this.innerMesh)
       // this.meshCSG = this.meshCSG.subtract(this.innerMeshCSG)
-      console.log('Item mesh subtraction')
+      console.log('Subtract item mesh')
       this.meshCSG = this.meshCSG.subtract(this.itemMeshCSG)
     }
     this.ng = this.meshCSG.toGeometry()
@@ -56,7 +55,7 @@ class HollowGeometry extends Geometry {
       let center = new THREE.Vector3(x, y, z)
       let normal = new THREE.Vector3(item.normal.x, item.normal.y, item.normal.z)
       let vec = new THREE.Vector3()
-      let scalar = (this.type === 'HOLLOW') ? 10 : 1
+      let scalar = 10 // (this.type === 'HOLLOW') ? 10 : 1
       let start = vec.clone().addVectors(
         center,
         normal.clone().multiplyScalar(-scalar)
