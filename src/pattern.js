@@ -194,7 +194,46 @@ class Pattern {
     this.update()
   }
 
+  lineInit () {
+    this.drawing.activate()
+    this.app.mode = 'LINE_INIT'
+    this.draftLine = new Paper.Path({
+      strokeColor: 'red',
+      strokeWidth: 5,
+      fullySelected: true
+    })
+    this.update()
+  }
+
+  line () {
+    this.drawing.activate()
+    this.draftLine.add([this.app.current.pos.x, this.app.current.pos.y])
+    this.update()
+  }
+
+  lineFinish () {
+    this.draftLine.simplify(0.1)
+    this.update()
+  }
+
+  lineRepeat () {
+    this.drawing.activate()
+    let segments = this.draftLine.segments
+    for (let i=0; i<segments.length; i++) {
+      let segment = segments[i]
+      let item = this.item.clone()
+      item.position = [segment.point.x, segment.point.y]
+      this.items.push(item)
+    }
+    this.draftLine.remove()
+    this.update()
+  }
+
   repeat () {
+    if (this.app.mode === 'LINE_FINISH') {
+      this.lineRepeat()
+      return false
+    }
     let item0 = this.seeds[0]
     let item1 = this.seeds[1]
 

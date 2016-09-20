@@ -11,10 +11,10 @@ class Mesh extends THREE.Mesh {
     super()
     this.app = app
 
-    if (_.includes(['lamp', 'speaker'], this.app.model)) {
-      this.textureType = 'HOLLOW'
-    } else {
+    if (_.includes(['grip', 'house'], this.app.model)) {
       this.textureType = 'BUMP'
+    } else {
+      this.textureType = 'HOLLOW'
     }
 
     this.worker = new Worker('./worker.js');
@@ -45,6 +45,11 @@ class Mesh extends THREE.Mesh {
         break
     }
 
+    if (this.app.model === 'grip') {
+      this.computeBumpMesh()
+      return false
+    }
+
     this.items = []
     for (let i=0; i<this.app.pattern.items.length; i++) {
       let item = this.app.pattern.items[i]
@@ -72,7 +77,6 @@ class Mesh extends THREE.Mesh {
   }
 
   createBumpMesh () {
-    this.textureType = 'HOLLOW'
     console.log('Start createBumpMesh')
     for (let i=0; i<this.items.length; i++) {
       let item = this.items[i]
@@ -82,13 +86,14 @@ class Mesh extends THREE.Mesh {
       let center = new THREE.Vector3(x, y, z)
       let normal = new THREE.Vector3(item.normal.x, item.normal.y, item.normal.z)
       let vec = new THREE.Vector3()
+      let scalar = (this.textureType === 'HOLLOW') ? 10 : 1
       let start = vec.clone().addVectors(
         center,
-        normal.clone().multiplyScalar(-10)
+        normal.clone().multiplyScalar(-scalar)
       )
       let end = vec.clone().addVectors(
         center,
-        normal.clone().multiplyScalar(10)
+        normal.clone().multiplyScalar(scalar)
       )
       let spline = new THREE.CatmullRomCurve3([start, end]);
       let extrudeSettings = { amount: 1, bevelEnabled: false, extrudePath: spline };
@@ -122,7 +127,9 @@ class Mesh extends THREE.Mesh {
       this.innerMesh.position.set(x, y, z)
       this.innerMeshCSG = new ThreeCSG(this.innerMesh)
       console.log('Inner mesh subtraction')
-      this.meshCSG = this.meshCSG.subtract(this.innerMeshCSG)
+      if (this.app.model !== 'lamp') {
+        this.meshCSG = this.meshCSG.subtract(this.innerMeshCSG)
+      }
       console.log('Item mesh subtraction')
       this.meshCSG = this.meshCSG.subtract(this.itemMeshCSG)
     }

@@ -146,7 +146,6 @@ class App {
         break;
       case 'MOVE':
         this.controls.enabled = false
-        this.pattern.move()
         break;
       case 'COPY':
         this.controls.enabled = false
@@ -162,6 +161,12 @@ class App {
         this.controls.enabled = false
         break;
       case 'ROTATE':
+        this.controls.enabled = false
+        break;
+      case 'LINE_INIT':
+        this.controls.enabled = false
+        break;
+      case 'LINE':
         this.controls.enabled = false
         break;
       default:
@@ -205,6 +210,9 @@ class App {
           case 'SCALE_INIT':
             this.mode = 'SCALE'
             break
+          case 'LINE_INIT':
+            this.mode = 'LINE'
+            break
           default:
             if (this.item) this.mode = 'MOVE'
             break
@@ -218,7 +226,11 @@ class App {
           case 'SCALE':
             this.pattern.scale()
             break
+          case 'LINE':
+            this.pattern.line()
+            break
           case 'MOVE':
+            this.pattern.move()
             break
           default:
             break
@@ -231,6 +243,10 @@ class App {
             break
           case 'SCALE':
             this.mode = 'SCALE_INIT'
+            break
+          case 'LINE':
+            this.mode = 'LINE_FINISH'
+            this.pattern.lineFinish()
             break
           case 'MOVE':
             this.mode = null
