@@ -163,6 +163,12 @@ class App {
       case 'ROTATE':
         this.controls.enabled = false
         break;
+      case 'EDIT_INIT':
+        this.controls.enabled = true
+        break;
+      case 'EDIT':
+        this.controls.enabled = false
+        break;
       case 'LINE_INIT':
         this.controls.enabled = false
         break;
@@ -210,6 +216,9 @@ class App {
           case 'SCALE_INIT':
             this.mode = 'SCALE'
             break
+          case 'EDIT_INIT':
+            this.mode = 'EDIT'
+            break
           case 'LINE_INIT':
             this.mode = 'LINE'
             break
@@ -225,6 +234,9 @@ class App {
             break
           case 'SCALE':
             this.pattern.scale()
+            break
+          case 'EDIT':
+            this.pattern.edit()
             break
           case 'LINE':
             this.pattern.line()
@@ -243,6 +255,10 @@ class App {
             break
           case 'SCALE':
             this.mode = 'SCALE_INIT'
+            break
+          case 'EDIT':
+            this.mode = 'EDIT_INIT'
+            this.controls.restart()
             break
           case 'LINE':
             this.mode = 'LINE_FINISH'

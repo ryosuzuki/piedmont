@@ -239,11 +239,10 @@ class Pattern {
 
     let pos0 = new THREE.Vector2(item0.position.x, item0.position.y)
     let pos1 = new THREE.Vector2(item1.position.x, item1.position.y)
-    let unit = new THREE.Vector2()
-    unit.subVectors(pos1, pos0).normalize()
+    let unit = new THREE.Vector2().subVectors(pos1, pos0).normalize()
     let dist = pos1.distanceTo(pos0)
 
-    for (let i=-5; i<6; i++) {
+    for (let i=-10; i<10; i++) {
       if (i === 0 || i === 1) continue
       this.drawing.activate()
       var pos = new THREE.Vector2()
@@ -252,10 +251,49 @@ class Pattern {
 
       let item = item0.clone()
       item.position = [pos.x, pos.y]
+      item.opacity = 0.3
+      item.number = i
       this.items.push(item)
       this.update()
     }
+    this.app.mode = 'EDIT_INIT'
+    $('#edit-finish').addClass('orange')
+  }
+
+  edit () {
+    this.drawing.activate()
+    this.app.item.position = [this.app.current.pos.x, this.app.current.pos.y]
+    for (let i=0; i<this.seeds.length; i++) {
+      if (this.seeds[i] === this.app.item) {
+        this.origin = this.seeds[(i+1)%2]
+      }
+    }
+    let pos0 = new THREE.Vector2(this.origin.position.x, this.origin.position.y)
+    let pos1 = new THREE.Vector2(this.app.item.position.x, this.app.item.position.y)
+    let unit = new THREE.Vector2().subVectors(pos1, pos0).normalize()
+    let dist = pos1.distanceTo(pos0)
+    for (let i=0; i<this.items.length; i++) {
+      let item = this.items[i]
+      if (_.includes(this.seeds, item)) continue
+      let vec = new THREE.Vector2(item.position.x, item.position.y)
+      var pos = new THREE.Vector2()
+      var vec = unit.clone().multiplyScalar(item.number*dist)
+      pos.addVectors(pos0, vec)
+      item.position = [pos.x, pos.y]
+    }
+    this.update()
+  }
+
+  editFinish () {
+    for (let i=0; i<this.items.length; i++) {
+      let item = this.items[i]
+      item.opacity = 1
+    }
+    this.update()
     this.seeds = []
+    this.app.mode = null
+    this.app.controls.restart()
+    $('#edit-finish').removeClass('orange')
   }
 
   update () {

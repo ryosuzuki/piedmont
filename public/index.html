@@ -15,11 +15,18 @@
 
   </head>
   <body>
-    <div class="top-buttons">
+    <div class="top-left-buttons">
       <button class="ui grey button" id="mode">
         View Mode
       </button>
     </div>
+
+    <div class="top-right-buttons">
+      <button class="ui button" id="edit-finish" onclick="app.pattern.editFinish()">
+        Finish Editing
+      </button>
+    </div>
+
     <div class="bottom-left-buttons">
       <button class="ui pink button" onclick="restartMesh()">
         <i class="fa fa-fw fa-undo"></i>&nbsp; Undo
