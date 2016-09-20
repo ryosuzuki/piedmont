@@ -34,7 +34,7 @@ class App {
 
     this.scene = new THREE.Scene()
     this.camera = new THREE.PerspectiveCamera(70, width / height, 1, Number.MAX_SAFE_INTEGER)
-    this.camera.position.set(unit*1.5, unit*1.5, unit*1.5)
+    this.camera.position.set(unit*1.9, unit*1.4, unit*1.8)
     this.scene.add(this.camera)
 
     this.lookAt = new THREE.Object3D()
@@ -54,12 +54,12 @@ class App {
     this.grid = grid
 
     this.controls = new OrbitControls(this.camera, this.renderer.domElement)
-    this.controls.enableDamping = true
+    // this.controls.enableDamping = true
     this.controls.rotateSpeed = 0.3
     this.controls.zoomSpeed = 0.3
     this.controls.panSpeed = 0.3
     this.controls.damping = 0.2;
-    this.controls.dampingFactor = 0.25
+    // this.controls.dampingFactor = 0.25
     this.controls.enableZoom = true
 
     this.raycaster = new THREE.Raycaster()

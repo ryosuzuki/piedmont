@@ -92,8 +92,8 @@ class Mesh extends THREE.Mesh {
       hash.normal = center.normal
 
       if (this.app.model === 'house') {
-        let face1 = this.geometry.faces[1847]
-        let face2 = this.geometry.faces[1804]
+        let face = this.geometry.faces[1847]
+        hash.normal = face.normal
       }
 
       this.items.push(hash)
