@@ -20,6 +20,7 @@ onmessage = (event) => {
 
 self.createHollowGeometry = function (data) {
   let hollowGeometry = new HollowGeometry()
+  hollowGeometry.model = data.model
   hollowGeometry.text = data.text
   hollowGeometry.items = data.items
   hollowGeometry.type = data.type
@@ -32,6 +33,7 @@ self.createHollowGeometry = function (data) {
 
 self.createBumpGeometry = function (data) {
   let bumpGeometry = new BumpGeometry()
+  bumpGeometry.model = data.model
   bumpGeometry.text = data.text
   bumpGeometry.type = data.type
   bumpGeometry.svgMeshPositions = data.svgMeshPositions

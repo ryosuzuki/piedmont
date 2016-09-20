@@ -4,7 +4,14 @@ import Paper from 'paper'
 class Paint {
   constructor (app) {
     this.app = app
-    this.file = '/public/assets/star-2.svg'
+
+    if (this.app.model === 'lamp') {
+      this.file = '/public/assets/fish.svg'
+      this.scale = 1
+    } else {
+      this.file = '/public/assets/star-2.svg'
+      this.scale = 1/5
+    }
 
     let canvas = document.getElementById('original')
     canvas.width = 256
@@ -19,7 +26,35 @@ class Paint {
   }
 
   initialize () {
+
     loadsvg(this.file, function (err, svg) {
+      if (this.app.model === 'house') {
+        this.original.activate()
+        let rect = new Paper.Path.Rectangle({
+          point: [-25, -10],
+          size: [50, 20],
+          fillColor: 'black'
+        });
+        this.path = rect
+        this.path.position = [0, 0]
+        this.original.view.draw()
+        this.update()
+        return false
+      } else if (this.app.model === 'lamp') {
+        this.original.activate()
+        let circle = new Paper.Path.Circle({
+          center: [0, 0],
+          radius: 50,
+          fillColor: 'black'
+        });
+        this.path = circle
+        this.path.position = [0, 0]
+        this.original.view.draw()
+        this.update()
+        return false
+      }
+
+
       this.original.activate()
       let d = $('path', svg).attr('d');
       this.path = new Paper.Path(d)
@@ -29,7 +64,7 @@ class Paint {
       this.path.fillColor = 'black'
       this.path.closed = true
       this.path.position = [0, 0]
-      this.path.scale(1/5)
+      this.path.scale(this.scale)
       this.original.view.draw()
 
       // updateOriginal(path)

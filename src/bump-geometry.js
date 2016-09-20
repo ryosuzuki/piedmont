@@ -10,7 +10,7 @@ class BumpGeometry extends Geometry {
     super()
 
     this.type = 'BUMP' // 'BUMP'
-    this.wallHeight = 10
+    this.wallHeight = 1
     this.boundaryPoints = []
     this.boundaryNormals = []
     this.boundary2d = []
@@ -76,7 +76,7 @@ class BumpGeometry extends Geometry {
       if (this.type === 'BUMP') {
         wallNormal = normal.clone().multiplyScalar(this.wallHeight);
       } else {
-        wallNormal = normal.clone().multiplyScalar(this.wallHeight);
+        wallNormal = normal.clone().multiplyScalar(-this.wallHeight);
       }
       let outer = v.clone().addVectors(inner, wallNormal)
       this.boundaryOuterPoints[i] = outer

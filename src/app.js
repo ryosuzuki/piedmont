@@ -30,11 +30,11 @@ class App {
     } else {
       this.file = `/public/demo/${this.model}.obj`
     }
-    this.debugging = true
+    this.debugging = false
 
     this.scene = new THREE.Scene()
     this.camera = new THREE.PerspectiveCamera(70, width / height, 1, Number.MAX_SAFE_INTEGER)
-    this.camera.position.set(unit*3, unit*3, unit*3)
+    this.camera.position.set(unit*1.5, unit*1.5, unit*1.5)
     this.scene.add(this.camera)
 
     this.lookAt = new THREE.Object3D()

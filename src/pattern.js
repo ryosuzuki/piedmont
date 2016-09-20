@@ -29,7 +29,17 @@ class Pattern {
     this.unit.rotate(180)
     this.unit.closed = true
     // this.unit.scale()
-    this.unit.position = [50, 50]
+    switch (this.app.model) {
+      case 'house':
+        this.unit.position = [0, 0]
+        break
+      case 'lamp':
+        this.unit.position = [0, 0]
+        break
+      default:
+        this.unit.position = [50, 50]
+        break
+    }
 
     this.items = []
     this.item = this.unit
@@ -44,7 +54,18 @@ class Pattern {
     // }
     this.update()
 
-    if (this.app.debugging) {
+    if (!this.app.debugging) {
+      const drawing = this.app.pattern.drawing
+      const size = drawing.view.size
+      let rect = new Paper.Path.Rectangle({
+        point: [-size.width*0.5, -size.height*0.5],
+        size: [size.width, size.height],
+        strokeColor: '#eee',
+      });
+      rect.sendToBack();
+      rect.fillColor = '#ffffff';
+      drawing.view.draw()
+    } else {
       const drawing = this.app.pattern.drawing
       const size = drawing.view.size
       let rect = new Paper.Path.Rectangle({

@@ -10,7 +10,12 @@ class Mesh extends THREE.Mesh {
   constructor (app) {
     super()
     this.app = app
-    this.textureType = 'HOLLOW'
+
+    if (_.includes(['lamp', 'speaker'], this.app.model)) {
+      this.textureType = 'HOLLOW'
+    } else {
+      this.textureType = 'BUMP'
+    }
 
     this.worker = new Worker('./worker.js');
     this.imageFile = '/public/assets/bunny_1k.png'
@@ -60,17 +65,9 @@ class Mesh extends THREE.Mesh {
 
   normalize () {
     this.geometry.verticesNeedUpdate = true;
+    this.geometry.normalize()
     this.geometry.rotateX(-Math.PI/2)
     this.geometry.computeBoundingBox()
-    let min = this.geometry.boundingBox.min
-    let max = this.geometry.boundingBox.max
-    let sizeX = max.x - min.x
-    let sizeY = max.y - min.y
-    let sizeZ = max.z - min.z
-    let size = _.max([sizeX, sizeY, sizeZ])
-    let scale = 2.5/size
-    this.originalScale = scale
-    this.geometry.scale(scale, scale, scale)
     this.position.setY(-this.geometry.boundingBox.min.y)
   }
 
@@ -127,14 +124,106 @@ class Mesh extends THREE.Mesh {
 
 
   computeNewMesh () {
-    this.computeBumpMesh()
+
+    switch (this.app.model) {
+      case 'house':
+        this.size = 0.1
+        break
+      case 'speaker':
+        this.size = 0.12
+        break
+      default:
+        this.size = 0.1
+        break
+    }
+
+    this.createEggMesh()
+
     /*
+    if (this.app.model === 'house') {
+      this.createEggMesh()
+      // this.createHouseMesh()
+    } else if (this.app.model === 'speaker') {
+      this.createEggMesh()
+    } else {
+      this.computeBumpMesh()
+    }
     if (this.textureType === 'BUMP') {
       this.computeBumpMesh()
     } else {
       this.computeHollowMesh()
     }
     */
+  }
+
+  createEggMesh () {
+    let items = []
+    for (let i=0; i<this.app.pattern.items.length; i++) {
+      let item = this.app.pattern.items[i]
+      item.uv = this.app.convertCanvasToUv(item.bounds.center)
+      let center = this.app.convertUvTo3d(item.uv)
+      if (!center) continue
+      let hash = {}
+      hash.center = center.vertex
+      hash.normal = center.normal
+      items.push(hash)
+    }
+
+    this.unit = SvgToShape.transform(this.app.pattern.unit.pathData)
+    let box = new THREE.BoxGeometry(0.1, 0.05, 0.05)
+    for (let i=0; i<items.length; i++) {
+      let item = items[i]
+      let x = item.center.x + this.position.x
+      let y = item.center.y + this.position.y
+      let z = item.center.z + this.position.z
+      let center = new THREE.Vector3(x, y, z)
+      let normal = new THREE.Vector3(item.normal.x, item.normal.y, item.normal.z)
+      let vec = new THREE.Vector3()
+      let start = center
+      let end = vec.clone().addVectors(
+        center,
+        normal.clone().multiplyScalar(10)
+      )
+      let spline = new THREE.CatmullRomCurve3([start, end]);
+      let extrudeSettings = { amount: 1, bevelEnabled: false, extrudePath: spline };
+      let geometry = new THREE.ExtrudeGeometry(this.unit, extrudeSettings);
+      geometry.normalize()
+      let mesh = new THREE.Mesh(geometry, this.defaultMaterial)
+      mesh.position.set(x, y, z)
+
+      let scale = this.size
+      mesh.scale.set(scale, scale, scale)
+      // let angle = Math.atan(item.normal.y/item.normal.z)
+      // mesh.rotation.set(-angle, 0, 0)
+      this.app.scene.add(mesh)
+      this.hoge = mesh
+    }
+
+  }
+
+  createHouseMesh () {
+    let items = []
+    for (let i=0; i<this.app.pattern.items.length; i++) {
+      let item = this.app.pattern.items[i]
+      item.uv = this.app.convertCanvasToUv(item.bounds.center)
+      let center = this.app.convertUvTo3d(item.uv)
+      if (!center) continue
+      let hash = {}
+      hash.center = center.vertex
+      hash.normal = center.normal
+      items.push(hash)
+    }
+
+    let box = new THREE.BoxGeometry(0.1, 0.05, 0.05)
+    for (let i=0; i<items.length; i++) {
+      let item = items[i]
+      let mesh = new THREE.Mesh(box, this.defaultMaterial)
+      mesh.position.set(item.center.x, item.center.y, item.center.z)
+      let angle = Math.atan(item.normal.y/item.normal.z)
+      mesh.rotation.set(-angle, 0, 0)
+      this.app.scene.add(mesh)
+    }
+
   }
 
   computeHollowMesh () {
@@ -150,6 +239,7 @@ class Mesh extends THREE.Mesh {
       items.push(hash)
     }
     const json = {
+      model: this.app.model,
       type: this.textureType,
       text: this.geometry.text,
       items: items,
@@ -168,6 +258,7 @@ class Mesh extends THREE.Mesh {
   computeBumpMesh () {
     this.app.pattern.computeSvgMeshPositions()
     const json = {
+      model: this.app.model,
       type: this.textureType,
       text: this.geometry.text,
       selectIndex: this.selectIndex,

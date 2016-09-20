@@ -118,7 +118,7 @@ class Face extends THREE.Face3 {
           var index = ai.index
           if (! this.texture.boundaryPoints[index]) {
             this.texture.boundaryPoints[index] = a.vertex
-            this.texture.boundaryNormals[index] = this.normal
+            this.texture.boundaryNormals[index] = a.normal
             this.texture.boundary2d[index] = auv
           }
         } else {
@@ -128,7 +128,7 @@ class Face extends THREE.Face3 {
           var index = bi.index
           if (! this.texture.boundaryPoints[index]) {
             this.texture.boundaryPoints[index] = b.vertex
-            this.texture.boundaryNormals[index] = this.normal
+            this.texture.boundaryNormals[index] = b.normal
             this.texture.boundary2d[index] = buv
           }
         } else {
@@ -138,12 +138,18 @@ class Face extends THREE.Face3 {
           var index = ci.index
           if (! this.texture.boundaryPoints[index]) {
             this.texture.boundaryPoints[index] = c.vertex
-            this.texture.boundaryNormals[index] = this.normal
+            this.texture.boundaryNormals[index] = c.normal
             this.texture.boundary2d[index] = cuv
           }
         } else {
           // debugger
         }
+
+        if (this.texture.model === 'house') {
+          this.texture.boundaryNormals[index] = this.normal
+        }
+
+
         // outer_faces.push({
         //   ai: ai,
         //   bi: bi,
