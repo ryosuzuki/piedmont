@@ -13,6 +13,7 @@ class Pattern {
     this.drawing.setup($('#drawing')[0])
     this.drawing.view.center = [0, 0]
     this.drawing.view.viewSize = [256, 256] // [1280, 1280] // new paper.Size(256, 256)
+    this.repeatCount = 0
   }
 
   initialize (path) {
@@ -234,6 +235,8 @@ class Pattern {
       this.lineRepeat()
       return false
     }
+
+    this.drawing.activate()
     let item0 = this.seeds[0]
     let item1 = this.seeds[1]
 
@@ -242,22 +245,45 @@ class Pattern {
     let unit = new THREE.Vector2().subVectors(pos1, pos0).normalize()
     let dist = pos1.distanceTo(pos0)
 
-    for (let i=-10; i<10; i++) {
-      if (i === 0 || i === 1) continue
-      this.drawing.activate()
-      var pos = new THREE.Vector2()
-      var vec = unit.clone().multiplyScalar(i*dist)
-      pos.addVectors(pos0, vec)
+    if (this.repeatCount % 2 < 1) {
+      for (let i=-10; i<10; i++) {
+        if (i === 0 || i === 1) continue
+        var pos = new THREE.Vector2()
+        var vec = unit.clone().multiplyScalar(i*dist)
+        pos.addVectors(pos0, vec)
 
-      let item = item0.clone()
-      item.position = [pos.x, pos.y]
-      item.opacity = 0.3
-      item.number = i
-      this.items.push(item)
+        let item = item0.clone()
+        item.position = [pos.x, pos.y]
+        item.opacity = 0.3
+        item.scalar = i
+        this.items.push(item)
+      }
       this.update()
+      this.app.mode = 'EDIT_INIT'
+      $('#edit-finish').addClass('orange')
+    } else {
+      let existItems = _.clone(this.items)
+      for (let i=0; i<existItems.length; i++) {
+        let existItem = existItems[i]
+        if (existItem === this.app.item) continue
+        for (let j=-10; j<10; j++) {
+          if (j === 0) continue
+          let origin = new THREE.Vector2(existItem.position.x, existItem.position.y)
+          var pos = new THREE.Vector2()
+          var vec = unit.clone().multiplyScalar(j*dist)
+          pos.addVectors(origin, vec)
+
+          let item = item0.clone()
+          item.position = [pos.x, pos.y]
+          item.opacity = 0.3
+          item.scalar = j
+          this.items.push(item)
+        }
+      }
+      this.update()
+      this.app.mode = 'EDIT_INIT'
+      $('#edit-finish').addClass('orange')
     }
-    this.app.mode = 'EDIT_INIT'
-    $('#edit-finish').addClass('orange')
   }
 
   edit () {
@@ -277,7 +303,7 @@ class Pattern {
       if (_.includes(this.seeds, item)) continue
       let vec = new THREE.Vector2(item.position.x, item.position.y)
       var pos = new THREE.Vector2()
-      var vec = unit.clone().multiplyScalar(item.number*dist)
+      var vec = unit.clone().multiplyScalar(item.scalar*dist)
       pos.addVectors(pos0, vec)
       item.position = [pos.x, pos.y]
     }
@@ -294,6 +320,7 @@ class Pattern {
     this.app.mode = null
     this.app.controls.restart()
     $('#edit-finish').removeClass('orange')
+    this.repeatCount++
   }
 
   update () {

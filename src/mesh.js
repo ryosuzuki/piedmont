@@ -231,6 +231,127 @@ class Mesh extends THREE.Mesh {
     this.app.scene.add(this);
   }
 
+  segment (epsilon) {
+    // if (selectIndex.includes(current.faceIndex)) return false
+
+    var face = current.face
+    var a = geometry.uniq[face.a]
+    var b = geometry.uniq[face.b]
+    var c = geometry.uniq[face.c]
+
+    window.selectIndex = [current.faceIndex]
+    var queue = [current.faceIndex]
+    var finished = []
+    while (queue.length > 0) {
+      var faceIndex = queue.shift()
+      var face = geometry.faces[faceIndex]
+      var normal = face.normal
+      var nextFaces = getNextFaces(faceIndex)
+      var cos = nextFaces.map( function (index) {
+        var nextFace = geometry.faces[index]
+        return normal.dot(nextFace.normal)
+      })
+      for (var i=0; i<3; i++) {
+        var cos_a = cos[i]
+        var cos_b = cos[(i+1)%3]
+        var cos_c = cos[(i+2)%3]
+
+        var bool = false
+        switch (window.task) {
+          case 1:
+            bool = Math.abs(cos_a-1) < epsilon
+            break
+          case 2:
+            epsilon = 0.1
+            bool = Math.abs(cos_a-1) < epsilon
+                || Math.abs(cos_a-cos_b) < epsilon
+                || Math.abs(cos_a-cos_c) < epsilon
+            break
+          case 3:
+            epsilon = 0.01
+            bool = Math.abs(cos_a-1) < epsilon
+                || Math.abs(cos_a-cos_b) < epsilon
+                || Math.abs(cos_a-cos_c) < epsilon
+            break
+          case 4:
+            epsilon = 0.1
+            bool = Math.abs(cos_a-1) < epsilon
+                || Math.abs(cos_a-cos_b) < epsilon
+                || Math.abs(cos_a-cos_c) < epsilon
+            break
+          default:
+            bool = Math.abs(cos_a-1) < epsilon
+                || Math.abs(cos_a-cos_b) < epsilon
+                || Math.abs(cos_a-cos_c) < epsilon
+        }
+        if (bool) {
+          if (!finished.includes(nextFaces[i])) {
+            queue = _.union(queue, [nextFaces[i]])
+          }
+          selectIndex.push(nextFaces[i])
+        }
+      }
+      selectIndex = _.uniq(selectIndex)
+      finished.push(faceIndex)
+    }
+    return selectIndex
+  }
+
+  computeBumpMesh () {
+    this.app.pattern.computeSvgMeshPositions()
+    const json = {
+      model: this.app.model,
+      type: this.textureType,
+      text: this.geometry.text,
+      selectIndex: this.selectIndex,
+      svgMeshPositions: this.app.pattern.svgMeshPositions,
+    }
+    const data = JSON.stringify(json)
+    this.worker.postMessage(data);
+    this.worker.onmessage = function(event) {
+      const data = event.data
+      console.log(data);
+      var geometry = data.ng
+      this.showNewMesh(geometry)
+    }.bind(this)
+  }
+
+  showNewMesh (geometry) {
+    this.ng = new Geometry()
+    for (var i=0; i<geometry.faces.length; i++) {
+      var a = geometry.vertices[geometry.faces[i].a]
+      var b = geometry.vertices[geometry.faces[i].b]
+      var c = geometry.vertices[geometry.faces[i].c]
+
+      var va = new THREE.Vector3(a.x, a.y, a.z)
+      var vb = new THREE.Vector3(b.x, b.y, b.z)
+      var vc = new THREE.Vector3(c.x, c.y, c.z)
+
+      var num = this.ng.vertices.length
+      this.ng.vertices.push(va)
+      this.ng.vertices.push(vb)
+      this.ng.vertices.push(vc)
+      this.ng.faces.push(new THREE.Face3(num, num+1, num+2))
+    }
+
+    this.geometry = this.ng
+    this.geometry.computeFaceNormals()
+    this.normalize()
+    this.replace()
+    this.app.finish = true
+
+    this.originalMesh = new THREE.Mesh(this.original, this.material)
+    // this.app.scene.add(this.originalMesh)
+  }
+
+  export () {
+    let exporter = new STLExporter();
+    let stlString = exporter.parse(this)
+    let blob = new Blob([stlString], {type: 'text/plain'});
+    FileSaver.saveAs(blob, `${Date.now()}.stl`);
+  }
+
+
   /*
   computeNewMesh () {
 
@@ -318,59 +439,6 @@ class Mesh extends THREE.Mesh {
   }
   */
 
-  computeBumpMesh () {
-    this.app.pattern.computeSvgMeshPositions()
-    const json = {
-      model: this.app.model,
-      type: this.textureType,
-      text: this.geometry.text,
-      selectIndex: this.selectIndex,
-      svgMeshPositions: this.app.pattern.svgMeshPositions,
-    }
-    const data = JSON.stringify(json)
-    this.worker.postMessage(data);
-    this.worker.onmessage = function(event) {
-      const data = event.data
-      console.log(data);
-      var geometry = data.ng
-      this.showNewMesh(geometry)
-    }.bind(this)
-  }
-
-  showNewMesh (geometry) {
-    this.ng = new Geometry()
-    for (var i=0; i<geometry.faces.length; i++) {
-      var a = geometry.vertices[geometry.faces[i].a]
-      var b = geometry.vertices[geometry.faces[i].b]
-      var c = geometry.vertices[geometry.faces[i].c]
-
-      var va = new THREE.Vector3(a.x, a.y, a.z)
-      var vb = new THREE.Vector3(b.x, b.y, b.z)
-      var vc = new THREE.Vector3(c.x, c.y, c.z)
-
-      var num = this.ng.vertices.length
-      this.ng.vertices.push(va)
-      this.ng.vertices.push(vb)
-      this.ng.vertices.push(vc)
-      this.ng.faces.push(new THREE.Face3(num, num+1, num+2))
-    }
-
-    this.geometry = this.ng
-    this.geometry.computeFaceNormals()
-    this.normalize()
-    this.replace()
-    this.app.finish = true
-
-    this.originalMesh = new THREE.Mesh(this.original, this.material)
-    // this.app.scene.add(this.originalMesh)
-  }
-
-  export () {
-    let exporter = new STLExporter();
-    let stlString = exporter.parse(this)
-    let blob = new Blob([stlString], {type: 'text/plain'});
-    FileSaver.saveAs(blob, `${Date.now()}.stl`);
-  }
 
 
   extrude () {
