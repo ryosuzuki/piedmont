@@ -245,27 +245,25 @@ class Pattern {
     let unit = new THREE.Vector2().subVectors(pos1, pos0).normalize()
     let dist = pos1.distanceTo(pos0)
 
-    if (this.repeatCount % 2 < 1) {
-      for (let i=-10; i<10; i++) {
-        if (i === 0 || i === 1) continue
-        var pos = new THREE.Vector2()
-        var vec = unit.clone().multiplyScalar(i*dist)
-        pos.addVectors(pos0, vec)
+    this.existItems = _.clone(this.items)
+    for (let i=-10; i<10; i++) {
+      if (i === 0 || i === 1) continue
+      var pos = new THREE.Vector2()
+      var vec = unit.clone().multiplyScalar(i*dist)
+      pos.addVectors(pos0, vec)
 
-        let item = item0.clone()
-        item.position = [pos.x, pos.y]
-        item.opacity = 0.3
-        item.scalar = i
-        this.items.push(item)
-      }
-      this.update()
-      this.app.mode = 'EDIT_INIT'
-      $('#edit-finish').addClass('orange')
-    } else {
-      let existItems = _.clone(this.items)
-      for (let i=0; i<existItems.length; i++) {
-        let existItem = existItems[i]
-        if (existItem === this.app.item) continue
+      let item = item0.clone()
+      item.position = [pos.x, pos.y]
+      item.opacity = 0.3
+      item.scalar = i
+      item.origin = pos0
+      this.items.push(item)
+    }
+
+    if (this.repeatCount >= 1) {
+      for (let i=0; i<this.existItems.length; i++) {
+        let existItem = this.existItems[i]
+        if (_.includes(this.seeds, existItem)) continue
         for (let j=-10; j<10; j++) {
           if (j === 0) continue
           let origin = new THREE.Vector2(existItem.position.x, existItem.position.y)
@@ -276,14 +274,15 @@ class Pattern {
           let item = item0.clone()
           item.position = [pos.x, pos.y]
           item.opacity = 0.3
+          item.origin = origin
           item.scalar = j
           this.items.push(item)
         }
       }
-      this.update()
-      this.app.mode = 'EDIT_INIT'
-      $('#edit-finish').addClass('orange')
     }
+    this.update()
+    this.app.mode = 'EDIT_INIT'
+    $('#edit-finish').addClass('orange')
   }
 
   edit () {
@@ -298,14 +297,28 @@ class Pattern {
     let pos1 = new THREE.Vector2(this.app.item.position.x, this.app.item.position.y)
     let unit = new THREE.Vector2().subVectors(pos1, pos0).normalize()
     let dist = pos1.distanceTo(pos0)
-    for (let i=0; i<this.items.length; i++) {
-      let item = this.items[i]
-      if (_.includes(this.seeds, item)) continue
-      let vec = new THREE.Vector2(item.position.x, item.position.y)
-      var pos = new THREE.Vector2()
-      var vec = unit.clone().multiplyScalar(item.scalar*dist)
-      pos.addVectors(pos0, vec)
-      item.position = [pos.x, pos.y]
+
+    if (this.repeatCount % 2 < 1) {
+      for (let i=0; i<this.items.length; i++) {
+        let item = this.items[i]
+        if (_.includes(this.seeds, item)) continue
+        let vec = new THREE.Vector2(item.position.x, item.position.y)
+        var pos = new THREE.Vector2()
+        var vec = unit.clone().multiplyScalar(item.scalar*dist)
+        pos.addVectors(pos0, vec)
+        item.position = [pos.x, pos.y]
+      }
+    } else {
+      for (let i=0; i<this.items.length; i++) {
+        let item = this.items[i]
+        if (_.includes(this.existItems, item)) continue
+        if (_.includes(this.seeds, item)) continue
+        let vec = new THREE.Vector2(item.position.x, item.position.y)
+        var pos = new THREE.Vector2()
+        var vec = unit.clone().multiplyScalar(item.scalar*dist)
+        pos.addVectors(item.origin, vec)
+        item.position = [pos.x, pos.y]
+      }
     }
     this.update()
   }
