@@ -6,16 +6,12 @@ import STLExporter from './three/stl-exporter'
 import ThreeCSG from './three/three-csg'
 import SvgToShape from './three/svg-to-shape'
 
+import HollowGeometry from './hollow-geometry'
+
 class Mesh extends THREE.Mesh {
   constructor (app) {
     super()
     this.app = app
-
-    if (_.includes(['grip', 'house'], this.app.model)) {
-      this.textureType = 'BUMP'
-    } else {
-      this.textureType = 'HOLLOW'
-    }
 
     this.worker = new Worker('./worker.js');
     this.imageFile = '/public/assets/bunny_1k.png'
@@ -29,7 +25,6 @@ class Mesh extends THREE.Mesh {
       wireframe: true
     })
     this.material = this.defaultMaterial
-
     this.initialize()
   }
 
@@ -37,16 +32,86 @@ class Mesh extends THREE.Mesh {
     this.loadImage()
     this.geometry = new Geometry()
     this.geometry.file = this.app.file
-    this.geometry.init()
+    this.geometry.get()
+    this.geometry.load()
     this.updateMorphTargets()
-    this.normalize()
+    this.position.setY(-this.geometry.boundingBox.min.y)
     this.original = this.geometry.clone()
     this.originalMesh = new THREE.Mesh(this.original, this.material)
-
+    this.originalMesh.position.setY(-this.geometry.boundingBox.min.y)
     this.dynamic = true;
     this.castShadow = true;
     this.app.scene.add(this)
+    this.getSelectIndex()
+    if (this.app.model !== '') {
+      this.rotateX(-Math.PI/2)
+    }
+  }
 
+  computeNewMesh () {
+    if (this.app.model === 'grip') {
+      this.textureType = 'BUMP'
+      this.computeBumpMesh()
+      return false
+    }
+    if (this.app.model === 'house') {
+      this.textureType = 'HOLLOW'
+    }
+    this.computeHollowMesh()
+  }
+
+  computeBumpMesh () {
+    this.app.pattern.computeSvgMeshPositions()
+    const json = {
+      model: this.app.model,
+      type: this.textureType,
+      action: 'bump',
+      text: this.geometry.text,
+      selectIndex: this.selectIndex,
+      svgMeshPositions: this.app.pattern.svgMeshPositions,
+    }
+    const data = JSON.stringify(json)
+    this.worker.postMessage(data);
+    this.worker.onmessage = function(event) {
+      const data = event.data
+      console.log(data);
+      var geometry = data.ng
+      this.showNewMesh(geometry)
+    }.bind(this)
+  }
+
+  computeHollowMesh () {
+    this.items = []
+    for (let i=0; i<this.app.pattern.items.length; i++) {
+      let item = this.app.pattern.items[i]
+      item.uv = this.app.convertCanvasToUv(item.bounds.center)
+      let center = this.app.convertUvTo3d(item.uv)
+      if (!center) continue
+      let hash = {}
+      hash.center = center.vertex
+      hash.normal = center.normal
+      this.items.push(hash)
+    }
+    const json = {
+      model: this.app.model,
+      type: this.textureType,
+      action: 'hollow',
+      text: this.geometry.text,
+      items: this.items,
+      position: this.position,
+      pathData: this.app.paint.path.pathData
+    }
+    const data = JSON.stringify(json)
+    this.worker.postMessage(data);
+    this.worker.onmessage = function(event) {
+      const data = event.data
+      console.log(data);
+      var geometry = data.ng
+      this.showNewMesh(geometry)
+    }.bind(this)
+  }
+
+  getSelectIndex () {
     switch (this.app.model) {
       case 'house':
         this.selectIndex = [1847, 1849, 1850, 2502, 2503, 2504, 2505, 2506, 2507, 2508, 2530, 2531, 1804, 1805, 1844, 1845, 1846, 1848, 1862, 1863, 1864, 1865, 1869, 1870, 1871, 2499, 2500, 2501, 2525, 2526]
@@ -64,33 +129,8 @@ class Mesh extends THREE.Mesh {
           this.selectIndex.push(i)
         }
         break
-      // default:
-      //   this.selectIndex = []
-      //   for (let i=0; i<this.geometry.faces.length; i++) {
-      //     this.selectIndex.push(i)
-      //   }
-      //   break
     }
     this.selectFaceVertexUvs()
-  }
-
-  normalize () {
-    this.geometry.verticesNeedUpdate = true;
-    this.geometry.normalize()
-    this.geometry.rotateX(-Math.PI/2)
-    this.geometry.computeBoundingBox()
-    this.position.setY(-this.geometry.boundingBox.min.y)
-  }
-
-  createHollow () {
-    this.outerMesh = this.originalMesh.clone()
-    this.innerMesh = this.originalMesh.clone()
-    this.innerMesh.scale.set(0.9, 0.9, 0.9)
-    this.innerMesh.position.set(0, 0.1, 0)
-    this.outerMeshCSG = new ThreeCSG(this.outerMesh)
-    this.innerMeshCSG = new ThreeCSG(this.innerMesh)
-    this.meshCSG = this.outerMeshCSG.subtract(this.innerMeshCSG)
-    this.geometry = this.meshCSG.toGeometry()
   }
 
   selectFaceVertexUvs () {
@@ -194,120 +234,6 @@ class Mesh extends THREE.Mesh {
     }
   }
 
-  computeNewMesh () {
-    switch (this.app.model) {
-      case 'house':
-        this.size = 0.1
-        break
-      case 'speaker':
-        this.size = 0.12
-        break
-      default:
-        this.size = 0.1
-        break
-    }
-
-    if (this.app.model === 'grip') {
-      this.computeBumpMesh()
-      return false
-    }
-
-    if (this.app.model === 'house') {
-      this.computeBumpMesh()
-      return false
-    }
-
-    this.items = []
-    for (let i=0; i<this.app.pattern.items.length; i++) {
-      let item = this.app.pattern.items[i]
-      item.uv = this.app.convertCanvasToUv(item.bounds.center)
-      let center = this.app.convertUvTo3d(item.uv)
-      if (!center) continue
-      let hash = {}
-      hash.center = center.vertex
-      hash.normal = center.normal
-      this.items.push(hash)
-    }
-    this.unit = SvgToShape.transform(this.app.pattern.unit.pathData)
-    this.createBumpMesh()
-  }
-
-  showInnerMesh () {
-    this.innerMesh = new THREE.Mesh(this.geometry, this.material)
-    this.innerMesh.scale.set(0.9, 0.9, 0.9)
-    let x = 0 + this.position.x
-    let y = 0.05 + this.position.y
-    let z = 0 + this.position.z
-    this.innerMesh.position.set(x, y, z)
-    this.app.scene.add(this.innerMesh)
-    this.app.scene.remove(this)
-  }
-
-  createBumpMesh () {
-    console.log('Start createBumpMesh')
-    for (let i=0; i<this.items.length; i++) {
-      let item = this.items[i]
-      let x = item.center.x + this.position.x
-      let y = item.center.y + this.position.y
-      let z = item.center.z + this.position.z
-      let center = new THREE.Vector3(x, y, z)
-      let normal = new THREE.Vector3(item.normal.x, item.normal.y, item.normal.z)
-      let vec = new THREE.Vector3()
-      let scalar = (this.textureType === 'HOLLOW') ? 10 : 1
-      let start = vec.clone().addVectors(
-        center,
-        normal.clone().multiplyScalar(-scalar)
-      )
-      let end = vec.clone().addVectors(
-        center,
-        normal.clone().multiplyScalar(scalar)
-      )
-      let spline = new THREE.CatmullRomCurve3([start, end]);
-      let extrudeSettings = { amount: 1, bevelEnabled: false, extrudePath: spline };
-      let geometry = new THREE.ExtrudeGeometry(this.unit, extrudeSettings);
-      geometry.normalize()
-      item.mesh = new THREE.Mesh(geometry, this.defaultMaterial)
-      item.mesh.position.set(x, y, z)
-      let scale = this.size
-      item.mesh.scale.set(scale, scale, scale)
-      this.items[i] = item
-    }
-
-    console.log('Start createMeshCSG')
-    this.meshCSG = new ThreeCSG(this)
-    this.itemMeshCSG = new ThreeCSG(this.items[0].mesh)
-    for (let i=1; i<this.items.length; i++) {
-      console.log('Start updating meshCSG')
-      let itemMeshCSG = new ThreeCSG(this.items[i].mesh)
-      this.itemMeshCSG = this.itemMeshCSG.union(itemMeshCSG)
-    }
-    if (this.textureType === 'BUMP') {
-      console.log('BUMP: Union the all CSG meshes')
-      this.meshCSG = this.meshCSG.union(this.itemMeshCSG)
-    } else {
-      console.log('HOLLOW: Subtract the all CSG meshes')
-      this.innerMesh = new THREE.Mesh(this.geometry, this.material)
-      this.innerMesh.scale.set(0.9, 0.9, 0.9)
-      let x = 0 + this.position.x
-      let y = 0.05 + this.position.y
-      let z = 0 + this.position.z
-      this.innerMesh.position.set(x, y, z)
-      this.innerMeshCSG = new ThreeCSG(this.innerMesh)
-      console.log('Inner mesh subtraction')
-      if (this.app.model !== 'lamp') {
-        this.meshCSG = this.meshCSG.subtract(this.innerMeshCSG)
-      }
-      console.log('Item mesh subtraction')
-      this.meshCSG = this.meshCSG.subtract(this.itemMeshCSG)
-    }
-    this.geometry = this.meshCSG.toGeometry()
-    this.geometry.computeFaceNormals()
-    this.replace()
-    this.app.finish = true
-  }
-
-
-
   loadImage () {
     var loader = new THREE.TextureLoader();
     loader.load(this.imageFile, function (image) {
@@ -359,25 +285,6 @@ class Mesh extends THREE.Mesh {
     this.app.scene.add(this);
   }
 
-  computeBumpMesh () {
-    this.app.pattern.computeSvgMeshPositions()
-    const json = {
-      model: this.app.model,
-      type: this.textureType,
-      text: this.geometry.text,
-      selectIndex: this.selectIndex,
-      svgMeshPositions: this.app.pattern.svgMeshPositions,
-    }
-    const data = JSON.stringify(json)
-    this.worker.postMessage(data);
-    this.worker.onmessage = function(event) {
-      const data = event.data
-      console.log(data);
-      var geometry = data.ng
-      this.showNewMesh(geometry)
-    }.bind(this)
-  }
-
   showNewMesh (geometry) {
     this.ng = new Geometry()
     for (var i=0; i<geometry.faces.length; i++) {
@@ -398,12 +305,22 @@ class Mesh extends THREE.Mesh {
 
     this.geometry = this.ng
     this.geometry.computeFaceNormals()
-    this.normalize()
     this.replace()
     this.app.finish = true
 
     this.originalMesh = new THREE.Mesh(this.original, this.material)
     // this.app.scene.add(this.originalMesh)
+  }
+
+  showInnerMesh () {
+    this.innerMesh = new THREE.Mesh(this.geometry, this.material)
+    this.innerMesh.scale.set(0.9, 0.9, 0.9)
+    let x = 0 + this.position.x
+    let y = 0.05 + this.position.y
+    let z = 0 + this.position.z
+    this.innerMesh.position.set(x, y, z)
+    this.app.scene.add(this.innerMesh)
+    this.app.scene.remove(this)
   }
 
   export () {
@@ -471,34 +388,7 @@ class Mesh extends THREE.Mesh {
 
   }
 
-  computeHollowMesh () {
-    let items = []
-    for (let i=0; i<this.app.pattern.items.length; i++) {
-      let item = this.app.pattern.items[i]
-      item.uv = this.app.convertCanvasToUv(item.bounds.center)
-      let center = this.app.convertUvTo3d(item.uv)
-      if (!center) continue
-      let hash = {}
-      hash.center = center.vertex
-      hash.normal = center.normal
-      items.push(hash)
-    }
-    const json = {
-      model: this.app.model,
-      type: this.textureType,
-      text: this.geometry.text,
-      items: items,
-      pathData: this.app.paint.path.pathData
-    }
-    const data = JSON.stringify(json)
-    this.worker.postMessage(data);
-    this.worker.onmessage = function(event) {
-      const data = event.data
-      console.log(data);
-      var geometry = data.ng
-      this.showNewMesh(geometry)
-    }.bind(this)
-  }
+
   */
 
 
@@ -558,7 +448,71 @@ class Mesh extends THREE.Mesh {
     // this.app.scene.add(this.shapeGeometry);
   };
 
+  /*
 
+  createBumpMesh () {
+    console.log('Start createBumpMesh')
+    for (let i=0; i<this.items.length; i++) {
+      let item = this.items[i]
+      let x = item.center.x + this.position.x
+      let y = item.center.y + this.position.y
+      let z = item.center.z + this.position.z
+      let center = new THREE.Vector3(x, y, z)
+      let normal = new THREE.Vector3(item.normal.x, item.normal.y, item.normal.z)
+      let vec = new THREE.Vector3()
+      let scalar = (this.textureType === 'HOLLOW') ? 10 : 1
+      let start = vec.clone().addVectors(
+        center,
+        normal.clone().multiplyScalar(-scalar)
+      )
+      let end = vec.clone().addVectors(
+        center,
+        normal.clone().multiplyScalar(scalar)
+      )
+      let spline = new THREE.CatmullRomCurve3([start, end]);
+      let extrudeSettings = { amount: 1, bevelEnabled: false, extrudePath: spline };
+      let geometry = new THREE.ExtrudeGeometry(this.unit, extrudeSettings);
+      geometry.normalize()
+      item.mesh = new THREE.Mesh(geometry, this.defaultMaterial)
+      item.mesh.position.set(x, y, z)
+      let scale = this.size
+      item.mesh.scale.set(scale, scale, scale)
+      this.items[i] = item
+    }
+
+    console.log('Start createMeshCSG')
+    this.meshCSG = new ThreeCSG(this)
+    this.itemMeshCSG = new ThreeCSG(this.items[0].mesh)
+    for (let i=1; i<this.items.length; i++) {
+      console.log('Start updating meshCSG')
+      let itemMeshCSG = new ThreeCSG(this.items[i].mesh)
+      this.itemMeshCSG = this.itemMeshCSG.union(itemMeshCSG)
+    }
+    if (this.textureType === 'BUMP') {
+      console.log('BUMP: Union the all CSG meshes')
+      this.meshCSG = this.meshCSG.union(this.itemMeshCSG)
+    } else {
+      console.log('HOLLOW: Subtract the all CSG meshes')
+      this.innerMesh = new THREE.Mesh(this.geometry, this.material)
+      this.innerMesh.scale.set(0.9, 0.9, 0.9)
+      let x = 0 + this.position.x
+      let y = 0.05 + this.position.y
+      let z = 0 + this.position.z
+      this.innerMesh.position.set(x, y, z)
+      this.innerMeshCSG = new ThreeCSG(this.innerMesh)
+      console.log('Inner mesh subtraction')
+      if (this.app.model !== 'lamp') {
+        this.meshCSG = this.meshCSG.subtract(this.innerMeshCSG)
+      }
+      console.log('Item mesh subtraction')
+      this.meshCSG = this.meshCSG.subtract(this.itemMeshCSG)
+    }
+    this.geometry = this.meshCSG.toGeometry()
+    this.geometry.computeFaceNormals()
+    this.replace()
+    this.app.finish = true
+  }
+  */
 
 }
 

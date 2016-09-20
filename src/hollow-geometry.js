@@ -18,70 +18,72 @@ class HollowGeometry extends Geometry {
 
   generate () {
     console.log(`Texture type is ${this.type}`)
-    this.createPreMesh()
     this.createItemMesh()
-    this.outerMeshCSG = new ThreeCSG(this.outerMesh)
-    this.innerMeshCSG = new ThreeCSG(this.innerMesh)
-    console.log('Start creating meshCSG')
-    if (this.type === 'BUMP') {
-      this.meshCSG = this.outerMeshCSG
-      this.itemMeshCSG = new ThreeCSG(this.items[0].mesh)
-      for (let i=1; i<this.items.length; i++) {
-        console.log('Start updating meshCSG')
-        let itemMeshCSG = new ThreeCSG(this.items[i].mesh)
-        this.itemMeshCSG = this.itemMeshCSG.union(itemMeshCSG)
-      }
-      console.log('Start subtracting meshCSG')
-      this.meshCSG = this.meshCSG.union(this.itemMeshCSG)
-    } else {
-      // this.meshCSG = this.outerMeshCSG.subtract(this.innerMeshCSG)
-      this.meshCSG = this.outerMeshCSG
-      this.itemMeshCSG = new ThreeCSG(this.items[0].mesh)
-      for (let i=1; i<this.items.length; i++) {
-        console.log('Start updating meshCSG')
-        let itemMeshCSG = new ThreeCSG(this.items[i].mesh)
-        this.itemMeshCSG = this.itemMeshCSG.union(itemMeshCSG)
-      }
-      console.log('Start subtracting meshCSG')
-      this.meshCSG = this.itemMeshCSG.union(this.meshCS)
+
+    this.mesh = new THREE.Mesh(this, this.material)
+    // this.mesh.setY(-this.boundingBox.min.y)
+    this.meshCSG = new ThreeCSG(this.mesh)
+    this.itemMeshCSG = new ThreeCSG(this.items[0].mesh)
+    for (let i=1; i<this.items.length; i++) {
+      console.log('Start updating meshCSG')
+      let itemMeshCSG = new ThreeCSG(this.items[i].mesh)
+      this.itemMeshCSG = this.itemMeshCSG.union(itemMeshCSG)
     }
-    // this.ng = this.itemMeshCSG.toGeometry()
+
+    if (this.type === 'BUMP') {
+      console.log('BUMP: Union the all CSG meshes')
+      this.meshCSG = this.meshCSG.intersect(this.itemMeshCSG)
+    } else {
+      console.log('HOLLOW: Subtract the all CSG meshes')
+      console.log('Inner mesh subtraction')
+      this.createInnerMesh()
+      // this.innerMeshCSG = new ThreeCSG(this.innerMesh)
+      // this.meshCSG = this.meshCSG.subtract(this.innerMeshCSG)
+      console.log('Item mesh subtraction')
+      this.meshCSG = this.meshCSG.subtract(this.itemMeshCSG)
+    }
     this.ng = this.meshCSG.toGeometry()
   }
 
   createItemMesh () {
     this.unit = SvgToShape.transform(this.pathData)
+
     for (let i=0; i<this.items.length; i++) {
       let item = this.items[i]
-      let center = item.center
-      let normal = item.normal
+      let x = item.center.x //+ this.position.x
+      let y = item.center.y //+ this.position.y
+      let z = item.center.z //+ this.position.z
+      let center = new THREE.Vector3(x, y, z)
+      let normal = new THREE.Vector3(item.normal.x, item.normal.y, item.normal.z)
       let vec = new THREE.Vector3()
-      item.center = new THREE.Vector3(center.x, center.y, center.z)
-      item.normal = new THREE.Vector3(normal.x, normal.y, normal.z)
+      let scalar = (this.type === 'HOLLOW') ? 10 : 1
       let start = vec.clone().addVectors(
-        item.center,
-        item.normal.clone().multiplyScalar(-0.01)
+        center,
+        normal.clone().multiplyScalar(-scalar)
       )
       let end = vec.clone().addVectors(
-        item.center,
-        item.normal.clone().multiplyScalar(this.wallHeight/this.scale)
+        center,
+        normal.clone().multiplyScalar(scalar)
       )
       let spline = new THREE.CatmullRomCurve3([start, end]);
-      let extrudeSettings = { bevelEnabled: false, extrudePath: spline};
+      let extrudeSettings = { amount: 1, bevelEnabled: false, extrudePath: spline };
       let geometry = new THREE.ExtrudeGeometry(this.unit, extrudeSettings);
-      item.mesh = new THREE.Mesh(geometry, this.material);
-      item.mesh.scale.set(this.scale, this.scale, this.scale)
-      item.mesh.position.set(start.x, start.y, start.z)
-      item.mesh.rotateOnAxis(item.normal, 3*Math.PI/2)
+      geometry.normalize()
+      let scale = 0.1 // this.size
+      geometry.scale(scale, scale, scale)
+      item.mesh = new THREE.Mesh(geometry, this.material)
+      item.mesh.position.set(x, y, z)
       this.items[i] = item
     }
   }
 
-  createPreMesh () {
-    this.outerMesh = new THREE.Mesh(this, this.material)
-    this.innerMesh = new THREE.Mesh(this, this.material)
+  createInnerMesh () {
+    this.innerMesh = this.mesh.clone()
     this.innerMesh.scale.set(1-this.wallHeight, 1-this.wallHeight, 1-this.wallHeight)
-    this.innerMesh.position.set(0, this.wallHeight, 0)
+    let x = 0 + this.position.x
+    let y = this.wallHeight/2 + this.position.y
+    let z = 0 + this.position.z
+    this.innerMesh.position.set(x, y, z)
   }
 
 }

@@ -33,6 +33,10 @@ class Geometry extends THREE.Geometry {
     if (object.attributes.uv) {
       this.getInitialUv(object)
     }
+    console.log('Start normalizing')
+    this.verticesNeedUpdate = true;
+    this.normalize()
+    this.computeBoundingBox()
   }
 
   getInitialUv (object) {

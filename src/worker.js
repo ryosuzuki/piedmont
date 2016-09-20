@@ -8,14 +8,11 @@ import ThreeCSG from './three/three-csg'
 
 onmessage = (event) => {
   let data = JSON.parse(event.data)
-  self.createBumpGeometry(data)
-  /*
-  if (data.type === 'BUMP') {
+  if (data.action === 'bump') {
     self.createBumpGeometry(data)
   } else {
     self.createHollowGeometry(data)
   }
-  */
 }
 
 self.createHollowGeometry = function (data) {
@@ -25,6 +22,7 @@ self.createHollowGeometry = function (data) {
   hollowGeometry.items = data.items
   hollowGeometry.type = data.type
   hollowGeometry.pathData = data.pathData
+  hollowGeometry.position = data.position
   hollowGeometry.load()
   hollowGeometry.generate()
 
