@@ -29,7 +29,155 @@ class Mesh extends THREE.Mesh {
       wireframe: true
     })
     this.material = this.defaultMaterial
+
     this.initialize()
+  }
+
+  initialize () {
+    this.loadImage()
+    this.geometry = new Geometry()
+    this.geometry.file = this.app.file
+    this.geometry.init()
+    this.updateMorphTargets()
+    this.normalize()
+    this.original = this.geometry.clone()
+    this.originalMesh = new THREE.Mesh(this.original, this.material)
+
+    this.dynamic = true;
+    this.castShadow = true;
+    this.app.scene.add(this)
+
+    if (this.app.model === 'house') {
+      this.selectIndex = [1847, 1849, 1850, 2502, 2503, 2504, 2505, 2506, 2507, 2508, 2530, 2531, 1804, 1805, 1844, 1845, 1846, 1848, 1862, 1863, 1864, 1865, 1869, 1870, 1871, 2499, 2500, 2501, 2525, 2526]
+    } if (this.app.model === 'grip') {
+      this.selectIndex = [249, 244, 331, 265, 336, 264, 250, 263, 252, 262, 344, 261, 346, 260, 230, 297, 233, 296, 234, 295, 255, 292, 349, 259, 350, 258, 256, 240, 248, 239, 352, 282, 360, 277, 208, 373, 210, 371, 251, 257, 253, 276, 254, 275, 318, 272, 319, 368, 320, 317, 321, 243, 323, 245, 322, 311, 324, 308, 246, 242, 247, 266, 325, 241]
+    } else {
+      this.selectIndex = []
+      for (let i=0; i<this.geometry.faces.length; i++) {
+        this.selectIndex.push(i)
+      }
+    }
+    this.selectFaceVertexUvs()
+  }
+
+  normalize () {
+    this.geometry.verticesNeedUpdate = true;
+    this.geometry.normalize()
+    this.geometry.rotateX(-Math.PI/2)
+    this.geometry.computeBoundingBox()
+    this.position.setY(-this.geometry.boundingBox.min.y)
+  }
+
+  createHollow () {
+    this.outerMesh = this.originalMesh.clone()
+    this.innerMesh = this.originalMesh.clone()
+    this.innerMesh.scale.set(0.9, 0.9, 0.9)
+    this.innerMesh.position.set(0, 0.1, 0)
+    this.outerMeshCSG = new ThreeCSG(this.outerMesh)
+    this.innerMeshCSG = new ThreeCSG(this.innerMesh)
+    this.meshCSG = this.outerMeshCSG.subtract(this.innerMeshCSG)
+    this.geometry = this.meshCSG.toGeometry()
+  }
+
+  selectFaceVertexUvs () {
+    for (let i=0; i<this.geometry.faces.length; i++) {
+      if (_.includes(this.selectIndex, i)) continue
+      this.geometry.faceVertexUvs[0][i] = [
+        new THREE.Vector2(0, 0),
+        new THREE.Vector2(0, 0),
+        new THREE.Vector2(0, 0)
+      ]
+    }
+  }
+
+  getSimilarFace () {
+    if (this.app.model === 'house') {
+      this.getSimilarHouseFace()
+    } else if (this.app.model === 'grip') {
+      this.getSimilarGripFace()
+    }
+    this.showSimilarFace()
+  }
+
+  getSimilarGripFace (epsilon) {
+    if (!epsilon) epsilon = 0.1
+    if (!this.geometry.uniq) this.geometry.computeUniq()
+    var face = this.app.current.face
+    var a = this.geometry.uniq[face.a]
+    var b = this.geometry.uniq[face.b]
+    var c = this.geometry.uniq[face.c]
+
+    this.faces = [this.app.current.faceIndex]
+    var queue = [this.app.current.faceIndex]
+    var finished = []
+    while (queue.length > 0) {
+      var faceIndex = queue.shift()
+      var currentFace = this.geometry.faces[faceIndex]
+
+      var a = this.geometry.uniq[this.geometry.map[currentFace.a]]
+      var b = this.geometry.uniq[this.geometry.map[currentFace.b]]
+      var c = this.geometry.uniq[this.geometry.map[currentFace.c]]
+      var faceAB = _.pull(_.intersection(a.faces, b.faces), faceIndex)
+      var faceBC = _.pull(_.intersection(b.faces, c.faces), faceIndex)
+      var faceCA = _.pull(_.intersection(c.faces, a.faces), faceIndex)
+      var nextFaces = _.union(faceAB, faceBC, faceCA)
+
+      var cos = nextFaces.map( function (index) {
+        var nextFace = this.geometry.faces[index]
+        return currentFace.normal.dot(nextFace.normal)
+      }.bind(this))
+      for (var i=0; i<3; i++) {
+        var cos_a = cos[i]
+        var cos_b = cos[(i+1)%3]
+        var cos_c = cos[(i+2)%3]
+        var bool = Math.abs(cos_a-1) < epsilon
+                || Math.abs(cos_a-cos_b) < epsilon
+                || Math.abs(cos_a-cos_c) < epsilon
+        if (bool) {
+          if (!finished.includes(nextFaces[i])) {
+            queue = _.union(queue, [nextFaces[i]])
+          }
+          this.faces.push(nextFaces[i])
+        }
+      }
+      this.faces = _.uniq(this.faces)
+      finished.push(faceIndex)
+    }
+  }
+
+  showSimilarFace() {
+    this.sg = new THREE.Geometry()
+    for (let i=0; i<this.faces.length; i++) {
+      let index = this.faces[i]
+      let face = this.geometry.faces[index]
+      var num = this.sg.vertices.length
+      this.sg.vertices.push(this.geometry.vertices[face.a])
+      this.sg.vertices.push(this.geometry.vertices[face.b])
+      this.sg.vertices.push(this.geometry.vertices[face.c])
+      this.sg.faces.push(new THREE.Face3(num, num+1, num+2))
+    }
+    this.sm = new THREE.Mesh(this.sg, new THREE.MeshLambertMaterial({
+      color: '#f00',
+      vertexColors: THREE.FaceColors,
+    }))
+    this.sm.position.setY(this.position.y)
+    this.app.scene.add(this.sm)
+    this.app.scene.remove(this)
+  }
+
+  getSimilarHouseFace () {
+    const epsilon = 0.01
+    let currentFace = this.app.current.face
+    if (!this.faces) this.faces = []
+    var ng = new THREE.Geometry()
+    for (let i=0; i<this.geometry.faces.length; i++) {
+      let face = this.geometry.faces[i]
+      let diff = currentFace.normal.dot(face.normal)
+      if (Math.abs(1 - diff) < epsilon) {
+        this.faces.push(i)
+        console.log(diff, i)
+      }
+    }
   }
 
   computeNewMesh () {
@@ -46,6 +194,11 @@ class Mesh extends THREE.Mesh {
     }
 
     if (this.app.model === 'grip') {
+      this.computeBumpMesh()
+      return false
+    }
+
+    if (this.app.model === 'house') {
       this.computeBumpMesh()
       return false
     }
@@ -141,45 +294,6 @@ class Mesh extends THREE.Mesh {
 
 
 
-  initialize () {
-    this.loadImage()
-    this.geometry = new Geometry()
-    this.geometry.file = this.app.file
-    this.geometry.init()
-    this.updateMorphTargets()
-    this.normalize()
-    this.original = this.geometry.clone()
-    this.originalMesh = new THREE.Mesh(this.original, this.material)
-
-    this.dynamic = true;
-    this.castShadow = true;
-    this.app.scene.add(this)
-
-    this.selectIndex = []
-    for (let i=0; i<this.geometry.faces.length; i++) {
-      this.selectIndex.push(i)
-    }
-  }
-
-  createHollow () {
-    this.outerMesh = this.originalMesh.clone()
-    this.innerMesh = this.originalMesh.clone()
-    this.innerMesh.scale.set(0.9, 0.9, 0.9)
-    this.innerMesh.position.set(0, 0.1, 0)
-    this.outerMeshCSG = new ThreeCSG(this.outerMesh)
-    this.innerMeshCSG = new ThreeCSG(this.innerMesh)
-    this.meshCSG = this.outerMeshCSG.subtract(this.innerMeshCSG)
-    this.geometry = this.meshCSG.toGeometry()
-  }
-
-  normalize () {
-    this.geometry.verticesNeedUpdate = true;
-    this.geometry.normalize()
-    this.geometry.rotateX(-Math.PI/2)
-    this.geometry.computeBoundingBox()
-    this.position.setY(-this.geometry.boundingBox.min.y)
-  }
-
   loadImage () {
     var loader = new THREE.TextureLoader();
     loader.load(this.imageFile, function (image) {
@@ -229,72 +343,6 @@ class Mesh extends THREE.Mesh {
     this.app.scene.remove(this)
     this.updateMorphTargets()
     this.app.scene.add(this);
-  }
-
-  segment (epsilon) {
-    // if (selectIndex.includes(current.faceIndex)) return false
-
-    var face = current.face
-    var a = geometry.uniq[face.a]
-    var b = geometry.uniq[face.b]
-    var c = geometry.uniq[face.c]
-
-    window.selectIndex = [current.faceIndex]
-    var queue = [current.faceIndex]
-    var finished = []
-    while (queue.length > 0) {
-      var faceIndex = queue.shift()
-      var face = geometry.faces[faceIndex]
-      var normal = face.normal
-      var nextFaces = getNextFaces(faceIndex)
-      var cos = nextFaces.map( function (index) {
-        var nextFace = geometry.faces[index]
-        return normal.dot(nextFace.normal)
-      })
-      for (var i=0; i<3; i++) {
-        var cos_a = cos[i]
-        var cos_b = cos[(i+1)%3]
-        var cos_c = cos[(i+2)%3]
-
-        var bool = false
-        switch (window.task) {
-          case 1:
-            bool = Math.abs(cos_a-1) < epsilon
-            break
-          case 2:
-            epsilon = 0.1
-            bool = Math.abs(cos_a-1) < epsilon
-                || Math.abs(cos_a-cos_b) < epsilon
-                || Math.abs(cos_a-cos_c) < epsilon
-            break
-          case 3:
-            epsilon = 0.01
-            bool = Math.abs(cos_a-1) < epsilon
-                || Math.abs(cos_a-cos_b) < epsilon
-                || Math.abs(cos_a-cos_c) < epsilon
-            break
-          case 4:
-            epsilon = 0.1
-            bool = Math.abs(cos_a-1) < epsilon
-                || Math.abs(cos_a-cos_b) < epsilon
-                || Math.abs(cos_a-cos_c) < epsilon
-            break
-          default:
-            bool = Math.abs(cos_a-1) < epsilon
-                || Math.abs(cos_a-cos_b) < epsilon
-                || Math.abs(cos_a-cos_c) < epsilon
-        }
-        if (bool) {
-          if (!finished.includes(nextFaces[i])) {
-            queue = _.union(queue, [nextFaces[i]])
-          }
-          selectIndex.push(nextFaces[i])
-        }
-      }
-      selectIndex = _.uniq(selectIndex)
-      finished.push(faceIndex)
-    }
-    return selectIndex
   }
 
   computeBumpMesh () {
