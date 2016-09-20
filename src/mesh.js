@@ -47,15 +47,29 @@ class Mesh extends THREE.Mesh {
     this.castShadow = true;
     this.app.scene.add(this)
 
-    if (this.app.model === 'house') {
-      this.selectIndex = [1847, 1849, 1850, 2502, 2503, 2504, 2505, 2506, 2507, 2508, 2530, 2531, 1804, 1805, 1844, 1845, 1846, 1848, 1862, 1863, 1864, 1865, 1869, 1870, 1871, 2499, 2500, 2501, 2525, 2526]
-    } if (this.app.model === 'grip') {
-      this.selectIndex = [249, 244, 331, 265, 336, 264, 250, 263, 252, 262, 344, 261, 346, 260, 230, 297, 233, 296, 234, 295, 255, 292, 349, 259, 350, 258, 256, 240, 248, 239, 352, 282, 360, 277, 208, 373, 210, 371, 251, 257, 253, 276, 254, 275, 318, 272, 319, 368, 320, 317, 321, 243, 323, 245, 322, 311, 324, 308, 246, 242, 247, 266, 325, 241]
-    } else {
-      this.selectIndex = []
-      for (let i=0; i<this.geometry.faces.length; i++) {
-        this.selectIndex.push(i)
-      }
+    switch (this.app.model) {
+      case 'house':
+        this.selectIndex = [1847, 1849, 1850, 2502, 2503, 2504, 2505, 2506, 2507, 2508, 2530, 2531, 1804, 1805, 1844, 1845, 1846, 1848, 1862, 1863, 1864, 1865, 1869, 1870, 1871, 2499, 2500, 2501, 2525, 2526]
+        break
+      case 'grip':
+        this.selectIndex = [249, 244, 331, 265, 336, 264, 250, 263, 252, 262, 344, 261, 346, 260, 230, 297, 233, 296, 234, 295, 255, 292, 349, 259, 350, 258, 256, 240, 248, 239, 352, 282, 360, 277, 208, 373, 210, 371, 251, 257, 253, 276, 254, 275, 318, 272, 319, 368, 320, 317, 321, 243, 323, 245, 322, 311, 324, 308, 246, 242, 247, 266, 325, 241]
+        break
+      default:
+        const epsilon = 0.001
+        this.selectIndex = []
+        let vec = new THREE.Vector3(0, 1, 0)
+        for (let i=0; i<this.geometry.faces.length; i++) {
+          let face = this.geometry.faces[i]
+          if (Math.abs(face.normal.dot(vec)) === 1) continue
+          this.selectIndex.push(i)
+        }
+        break
+      // default:
+      //   this.selectIndex = []
+      //   for (let i=0; i<this.geometry.faces.length; i++) {
+      //     this.selectIndex.push(i)
+      //   }
+      //   break
     }
     this.selectFaceVertexUvs()
   }
