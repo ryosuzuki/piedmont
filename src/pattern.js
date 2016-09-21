@@ -42,6 +42,9 @@ class Pattern {
       case 'lamp':
         this.unit.position = [0, 0]
         break
+      case 'grip':
+        this.unit.rotate(45)
+        break
       default:
         this.unit.position = [50*this.resolution, 50*this.resolution]
         break
@@ -219,7 +222,7 @@ class Pattern {
   }
 
   lineFinish () {
-    this.draftLine.simplify(0.1)
+    this.draftLine.simplify(2)
     this.update()
   }
 

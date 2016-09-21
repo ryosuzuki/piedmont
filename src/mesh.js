@@ -43,7 +43,7 @@ class Mesh extends THREE.Mesh {
     this.castShadow = true;
     this.app.scene.add(this)
     this.getSelectIndex()
-    if (this.app.model !== '') {
+    if (_.includes(['', 'cone'], this.app.model) === false) {
       this.rotateX(-Math.PI/2)
     }
   }

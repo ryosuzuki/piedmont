@@ -5,12 +5,24 @@ class Paint {
   constructor (app) {
     this.app = app
 
-    if (this.app.model === 'lamp') {
-      this.file = '/public/assets/fish.svg'
-      this.scale = 1
-    } else {
-      this.file = '/public/assets/star-2.svg'
-      this.scale = 1/5
+
+    switch (this.app.model) {
+      case 'grip':
+        this.file = '/public/assets/diamond.svg'
+        this.scale = 1/6
+        break
+      case 'lamp':
+        this.file = '/public/assets/fish.svg'
+        this.scale = 1
+        break
+      case 'cone':
+        this.file = '/public/assets/star-2.svg'
+        this.scale = 1/6
+        break
+      default:
+        this.file = '/public/assets/star-2.svg'
+        this.scale = 1/5
+        break
     }
 
     let canvas = document.getElementById('original')
@@ -40,11 +52,11 @@ class Paint {
         this.original.view.draw()
         this.update()
         return false
-      } else if (this.app.model === 'lamp') {
+      } else if (this.app.model === 'lamp-3') {
         this.original.activate()
         let circle = new Paper.Path.Circle({
           center: [0, 0],
-          radius: 50,
+          radius: 20,
           fillColor: 'black'
         });
         this.path = circle
