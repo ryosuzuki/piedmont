@@ -10,7 +10,7 @@ class HollowGeometry extends Geometry {
     super()
 
     this.type = 'HOLLOW' // 'BUMP'
-    this.wallHeight = 0.2
+    this.wallHeight = 0.1
     this.pathData = ''
     this.scale = 1/220
     this.material = new THREE.Material()
@@ -36,8 +36,8 @@ class HollowGeometry extends Geometry {
     } else {
       console.log('Subtract inner mesh')
       this.createInnerMesh()
-      // this.innerMeshCSG = new ThreeCSG(this.innerMesh)
-      // this.meshCSG = this.meshCSG.subtract(this.innerMeshCSG)
+      this.innerMeshCSG = new ThreeCSG(this.innerMesh)
+      this.meshCSG = this.meshCSG.subtract(this.innerMeshCSG)
       console.log('Subtract item mesh')
       this.meshCSG = this.meshCSG.subtract(this.itemMeshCSG)
     }
@@ -55,22 +55,28 @@ class HollowGeometry extends Geometry {
       let center = new THREE.Vector3(x, y, z)
       let normal = new THREE.Vector3(item.normal.x, item.normal.y, item.normal.z)
       let vec = new THREE.Vector3()
-      let scalar = (this.type === 'HOLLOW') ? 10 : 7
+      let scalar = (this.type === 'HOLLOW') ? 20 : 7
       let start = vec.clone().addVectors(
         center,
-        normal.clone().multiplyScalar(-scalar)
+        normal.clone().multiplyScalar(-20*scalar)
       )
       let end = vec.clone().addVectors(
         center,
         normal.clone().multiplyScalar(scalar)
       )
       let spline = new THREE.CatmullRomCurve3([start, end]);
-      let extrudeSettings = { amount: 1, bevelEnabled: false, extrudePath: spline };
+      let extrudeSettings = { amount: 2, bevelEnabled: false, extrudePath: spline };
       let geometry = new THREE.ExtrudeGeometry(this.unit, extrudeSettings);
       geometry.normalize()
       let scale = 0.1
       if (this.model === 'house') {
         scale = 0.04 // this.size
+      }
+      if (this.model === 'cone') {
+        scale = 0.3
+      }
+      if (this.model === 'speaker') {
+        scale = 0.5
       }
       geometry.scale(scale, scale, scale)
       item.mesh = new THREE.Mesh(geometry, this.material)
@@ -82,9 +88,9 @@ class HollowGeometry extends Geometry {
   createInnerMesh () {
     this.innerMesh = this.mesh.clone()
     this.innerMesh.scale.set(1-this.wallHeight, 1-this.wallHeight, 1-this.wallHeight)
-    let x = 0 + this.position.x
-    let y = this.wallHeight/2 + this.position.y
-    let z = 0 + this.position.z
+    let x = 0 //+ this.position.x
+    let y = 0 // + this.position.y
+    let z = this.wallHeight*1.5 //+ this.position.z
     this.innerMesh.position.set(x, y, z)
   }
 

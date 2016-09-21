@@ -37,7 +37,9 @@ class Pattern {
       case 'house':
         this.unit.position = [0, 0]
         this.unit.rotate(3)
-        this.unit.rot
+        break
+      case 'speaker':
+        this.unit.rotate(45)
         break
       case 'lamp':
         this.unit.position = [0, 0]

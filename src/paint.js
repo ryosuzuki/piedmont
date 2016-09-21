@@ -11,6 +11,14 @@ class Paint {
         this.file = '/public/assets/diamond.svg'
         this.scale = 1/6
         break
+      case 'speaker':
+        this.file = '/public/assets/diamond.svg'
+        this.scale = 1/6
+        break
+      case 'egg-3':
+        this.file = '/public/assets/diamond.svg'
+        this.scale = 1/6
+        break
       case 'lamp':
         this.file = '/public/assets/fish.svg'
         this.scale = 1
@@ -54,12 +62,12 @@ class Paint {
         return false
       } else if (this.app.model === 'lamp-3') {
         this.original.activate()
-        let circle = new Paper.Path.Circle({
-          center: [0, 0],
-          radius: 20,
+        let rect = new Paper.Path.Rectangle({
+          point: [0, 0],
+          size: [80, 80],
           fillColor: 'black'
         });
-        this.path = circle
+        this.path = rect
         this.path.position = [0, 0]
         this.original.view.draw()
         this.update()
