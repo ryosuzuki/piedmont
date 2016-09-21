@@ -6,7 +6,7 @@ class Pattern {
   constructor (app) {
     this.app = app
 
-    this.resolution = 10
+    this.resolution = 3
     this.size = 256 * this.resolution
     let drawing = document.getElementById('drawing')
     drawing.width = this.size // 1280 // 256
@@ -36,6 +36,8 @@ class Pattern {
     switch (this.app.model) {
       case 'house':
         this.unit.position = [0, 0]
+        this.unit.rotate(3)
+        this.unit.rot
         break
       case 'lamp':
         this.unit.position = [0, 0]
@@ -249,8 +251,13 @@ class Pattern {
     let unit = new THREE.Vector2().subVectors(pos1, pos0).normalize()
     let dist = pos1.distanceTo(pos0)
 
+    let limit = 10
+    if (this.app.model === 'house') {
+      limit = 20
+    }
+
     this.existItems = _.clone(this.items)
-    for (let i=-10; i<10; i++) {
+    for (let i=-limit; i<limit; i++) {
       if (i === 0 || i === 1) continue
       var pos = new THREE.Vector2()
       var vec = unit.clone().multiplyScalar(i*dist)
@@ -268,7 +275,7 @@ class Pattern {
       for (let i=0; i<this.existItems.length; i++) {
         let existItem = this.existItems[i]
         if (_.includes(this.seeds, existItem)) continue
-        for (let j=-10; j<10; j++) {
+        for (let j=-limit; j<limit; j++) {
           if (j === 0) continue
           let origin = new THREE.Vector2(existItem.position.x, existItem.position.y)
           var pos = new THREE.Vector2()

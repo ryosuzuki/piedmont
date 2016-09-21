@@ -55,7 +55,7 @@ class HollowGeometry extends Geometry {
       let center = new THREE.Vector3(x, y, z)
       let normal = new THREE.Vector3(item.normal.x, item.normal.y, item.normal.z)
       let vec = new THREE.Vector3()
-      let scalar = 10 // (this.type === 'HOLLOW') ? 10 : 1
+      let scalar = (this.type === 'HOLLOW') ? 10 : 7
       let start = vec.clone().addVectors(
         center,
         normal.clone().multiplyScalar(-scalar)
@@ -68,7 +68,10 @@ class HollowGeometry extends Geometry {
       let extrudeSettings = { amount: 1, bevelEnabled: false, extrudePath: spline };
       let geometry = new THREE.ExtrudeGeometry(this.unit, extrudeSettings);
       geometry.normalize()
-      let scale = 0.05 // this.size
+      let scale = 0.1
+      if (this.model === 'house') {
+        scale = 0.04 // this.size
+      }
       geometry.scale(scale, scale, scale)
       item.mesh = new THREE.Mesh(geometry, this.material)
       item.mesh.position.set(x, y, z)

@@ -35,12 +35,13 @@ class App {
     this.scene = new THREE.Scene()
     this.camera = new THREE.PerspectiveCamera(70, width / height, 0.01*unit, 1000)
     this.camera.position.set(unit*1.9, unit*1.4, unit*1.8)
-    this.camera.lookAt(new THREE.Vector3(0, 1*unit, 0));
     this.scene.add(this.camera)
 
-    // this.scene.add(this.lookAt)
-    // this.lookAt.add(this.camera)
-    // this.camera.lookAt(this.lookAt.position)
+    this.lookAt = new THREE.Object3D()
+    this.lookAt.position.set(0, 0.5*unit, 0)
+    this.scene.add(this.lookAt)
+    this.lookAt.add(this.camera)
+    this.camera.lookAt(this.lookAt.position)
 
     this.renderer = new THREE.WebGLRenderer(options)
     this.renderer.setClearColor('#eee')

@@ -92,10 +92,9 @@ class Mesh extends THREE.Mesh {
       hash.normal = center.normal
 
       if (this.app.model === 'house') {
-        let face = this.geometry.faces[1847]
+        let face = this.geometry.faces[2506]
         hash.normal = face.normal
       }
-
       this.items.push(hash)
     }
     const json = {
@@ -108,7 +107,41 @@ class Mesh extends THREE.Mesh {
       pathData: this.app.paint.path.pathData
     }
 
-    if (app.debugging || false) {
+    if (false) {
+      this.unit = SvgToShape.transform(json.pathData)
+      for (let i=0; i<this.items.length; i++) {
+        let item = this.items[i]
+        let x = item.center.x + this.position.x
+        let y = item.center.y + this.position.y
+        let z = item.center.z + this.position.z
+        let center = new THREE.Vector3(x, y, z)
+        let normal = new THREE.Vector3(item.normal.x, item.normal.y, item.normal.z)
+        let vec = new THREE.Vector3()
+        let scalar = 10 // (this.type === 'HOLLOW') ? 10 : 1
+        let start = vec.clone().addVectors(
+          center,
+          normal.clone().multiplyScalar(-scalar)
+        )
+        let end = vec.clone().addVectors(
+          center,
+          normal.clone().multiplyScalar(scalar)
+        )
+        let spline = new THREE.CatmullRomCurve3([start, end]);
+        let extrudeSettings = { amount: 1, bevelEnabled: false, extrudePath: spline };
+        let geometry = new THREE.ExtrudeGeometry(this.unit, extrudeSettings);
+        geometry.normalize()
+        let scale = 0.05 // this.size
+        geometry.scale(scale, scale, scale)
+        item.mesh = new THREE.Mesh(geometry, this.material)
+        item.mesh.position.set(x, y+0.428, z-0.428) // 0, 0.96, 0
+        item.mesh.rotateX(-Math.PI/2)
+        this.app.scene.add(item.mesh)
+        this.items[i] = item
+      }
+      return false
+    }
+
+    if (app.debugging) {
       let hollowGeometry = new HollowGeometry()
       hollowGeometry.model = json.model
       hollowGeometry.text = json.text
