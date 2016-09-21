@@ -42,10 +42,13 @@ class Pattern {
         this.unit.rotate(45)
         break
       case 'lamp':
-        this.unit.position = [0, 0]
+        this.unit.position = [330, -108]
         break
       case 'grip':
         this.unit.rotate(45)
+        break
+      case 'cylinder':
+        this.unit.position = [0, 0]
         break
       default:
         this.unit.position = [50*this.resolution, 50*this.resolution]
@@ -70,7 +73,7 @@ class Pattern {
       const size = drawing.view.size
       let rect = new Paper.Path.Rectangle({
         point: [-size.width*0.5, -size.height*0.5],
-        size: [size.width, size.height],
+        size: [size.width*2, size.height*2],
         strokeColor: '#eee',
       });
       rect.sendToBack();
@@ -210,7 +213,7 @@ class Pattern {
     this.drawing.activate()
     this.app.mode = 'LINE_INIT'
     this.draftLine = new Paper.Path({
-      strokeColor: 'red',
+      // strokeColor: 'red',
       strokeWidth: 5*this.resolution,
       fullySelected: true
     })
@@ -224,6 +227,9 @@ class Pattern {
   }
 
   lineFinish () {
+    this.draftLine.remove()
+    this.repeat()
+    return false
     this.draftLine.simplify(2)
     this.update()
   }
@@ -243,8 +249,8 @@ class Pattern {
 
   repeat () {
     if (this.app.mode === 'LINE_FINISH') {
-      this.lineRepeat()
-      return false
+      // this.lineRepeat()
+      // return false
     }
 
     this.drawing.activate()
@@ -259,6 +265,8 @@ class Pattern {
     let limit = 10
     if (this.app.model === 'house') {
       limit = 20
+    } else if (this.app.model === 'lamp') {
+      limit = 6
     }
 
     this.existItems = _.clone(this.items)

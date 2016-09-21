@@ -43,7 +43,7 @@ class Mesh extends THREE.Mesh {
     this.castShadow = true;
     this.app.scene.add(this)
     this.getSelectIndex()
-    if (_.includes(['', 'cone'], this.app.model) === false) {
+    if (_.includes(['', 'cone', 'cylinder'], this.app.model) === false) {
       this.rotateX(-Math.PI/2)
     }
   }
@@ -56,8 +56,12 @@ class Mesh extends THREE.Mesh {
     }
     if (this.app.model === 'house') {
       this.textureType = 'BUMP'
+      this.computeBumpMesh()
+      return false
     }
-    this.computeHollowMesh()
+    this.texture = 'BUMP'
+    this.computeBumpMesh()
+    // this.computeHollowMesh()
   }
 
   computeBumpMesh () {
@@ -345,6 +349,7 @@ class Mesh extends THREE.Mesh {
   showNewMesh (geometry) {
     this.ng = new Geometry()
     for (var i=0; i<geometry.faces.length; i++) {
+      try {
       var a = geometry.vertices[geometry.faces[i].a]
       var b = geometry.vertices[geometry.faces[i].b]
       var c = geometry.vertices[geometry.faces[i].c]
@@ -358,6 +363,9 @@ class Mesh extends THREE.Mesh {
       this.ng.vertices.push(vb)
       this.ng.vertices.push(vc)
       this.ng.faces.push(new THREE.Face3(num, num+1, num+2))
+      } catch (err) {
+        console.log(err)
+      }
     }
 
     this.geometry = this.ng

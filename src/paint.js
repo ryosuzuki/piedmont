@@ -24,7 +24,7 @@ class Paint {
         this.scale = 1
         break
       case 'cone':
-        this.file = '/public/assets/star-2.svg'
+        this.file = '/public/assets/dog.svg'
         this.scale = 1/6
         break
       default:
@@ -101,6 +101,9 @@ class Paint {
       this.path.scale(axis['horizontal'].x, axis['horizontal'].y)
       this.original.view.draw()
       this.update()
+
+      this.path.scale(-1, 1)
+
     }.bind(this))
   }
 

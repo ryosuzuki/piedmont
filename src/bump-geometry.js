@@ -123,9 +123,9 @@ class BumpGeometry extends Geometry {
     var cells = boundaryMesh.cells
 
     for (var i=0; i<cells.length; i++) {
-      var outerPointA = this.outerPoints[cells[i][0]]
-      var outerPointB = this.outerPoints[cells[i][1]]
-      var outerPointC = this.outerPoints[cells[i][2]]
+      var outerPointA = this.outerPoints[(cells[i][0]+1)%this.outerPoints.length]
+      var outerPointB = this.outerPoints[(cells[i][1]+1)%this.outerPoints.length]
+      var outerPointC = this.outerPoints[(cells[i][2]+1)%this.outerPoints.length]
       var num = this.ng.vertices.length;
       this.ng.vertices.push(outerPointA);
       this.ng.vertices.push(outerPointB);

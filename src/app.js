@@ -312,6 +312,9 @@ class App {
       case 'KeyC':
         this.pattern.copy()
         break
+      case 'KeyA':
+        this.pattern.repeat()
+        break
       default:
         break
     }
@@ -328,6 +331,7 @@ class App {
 
     Mousetrap.bind('command+c', this.command.bind(this), 'keydown')
     Mousetrap.bind('command+v', this.command.bind(this), 'keydown')
+    Mousetrap.bind('command+a', this.command.bind(this), 'keydown')
   }
 
   onWindowResize () {
