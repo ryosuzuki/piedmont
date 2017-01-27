@@ -42,7 +42,7 @@ git clone git@github.com:libigl/libigl.git
 brew install eigen
 ```
 
-# Compile convert file
+## Compile convert file
 ```
 cd engine
 make
