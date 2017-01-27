@@ -46,6 +46,8 @@ OBJLoader.prototype = {
 
     console.time( 'OBJLoader' );
 
+    text = text.replace(new RegExp('nan', 'g'), 0)
+
     var objects = [];
     var object;
     var foundObjects = false;
