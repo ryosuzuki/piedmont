@@ -4,7 +4,7 @@ set(CMAKE_DEPENDS_LANGUAGES
   )
 # The set of files for implicit dependencies of each language:
 set(CMAKE_DEPENDS_CHECK_CXX
-  "/Users/ryosuzuki/Documents/node/tabby-new/engine/cgal/Surface_mesh_parameterization/examples/Surface_mesh_parameterization/Square_border_parameterization.cpp" "/Users/ryosuzuki/Documents/node/tabby-new/engine/cgal/Surface_mesh_parameterization/examples/Surface_mesh_parameterization/build/CMakeFiles/Square_border_parameterization.dir/Square_border_parameterization.cpp.o"
+  "/Users/ryosuzuki/Documents/node/tabby/Surface_mesh_parameterization/Square_border_parameterization.cpp" "/Users/ryosuzuki/Documents/node/tabby/Surface_mesh_parameterization/build/CMakeFiles/Square_border_parameterization.dir/Square_border_parameterization.cpp.o"
   )
 set(CMAKE_CXX_COMPILER_ID "Clang")
 
@@ -23,7 +23,6 @@ set(CMAKE_CXX_TARGET_INCLUDE_PATH
   "../."
   "/usr/local/include"
   "."
-  "/usr/local/Cellar/cgal/4.7/include"
   "/usr/local/include/eigen3"
   )
 

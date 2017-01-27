@@ -1,4 +1,4 @@
-# Install script for directory: /Users/ryosuzuki/Documents/node/tabby-new/engine/cgal/Surface_mesh_parameterization/examples/Surface_mesh_parameterization
+# Install script for directory: /Users/ryosuzuki/Documents/node/tabby/Surface_mesh_parameterization
 
 # Set the install prefix
 if(NOT DEFINED CMAKE_INSTALL_PREFIX)
@@ -35,5 +35,5 @@ endif()
 
 string(REPLACE ";" "\n" CMAKE_INSTALL_MANIFEST_CONTENT
        "${CMAKE_INSTALL_MANIFEST_FILES}")
-file(WRITE "/Users/ryosuzuki/Documents/node/tabby-new/engine/cgal/Surface_mesh_parameterization/examples/Surface_mesh_parameterization/build/${CMAKE_INSTALL_MANIFEST}"
+file(WRITE "/Users/ryosuzuki/Documents/node/tabby/Surface_mesh_parameterization/build/${CMAKE_INSTALL_MANIFEST}"
      "${CMAKE_INSTALL_MANIFEST_CONTENT}")

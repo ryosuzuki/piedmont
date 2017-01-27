@@ -10,7 +10,8 @@
     "node": "6.x"
   },
   "scripts": {
-    "start": "node --harmony server.js",
+    "start": "webpack-dev-server --hot --inline",
+    "watch": "webpack --progress --color --watch",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "repository": {
@@ -27,6 +28,7 @@
     "2d-polygon-boolean": "^1.0.1",
     "area-polygon": "^1.0.1",
     "binary-search-bounds": "^2.0.3",
+    "body-parser": "^1.16.0",
     "brace": "^0.8.0",
     "bunny": "^1.0.1",
     "csr-matrix": "^1.0.0",

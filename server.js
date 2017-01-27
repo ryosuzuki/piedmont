@@ -1,5 +1,6 @@
 
 const fs = require('fs')
+const os = require('os')
 const path = require('path')
 const http = require('http')
 const express = require('express')
@@ -8,11 +9,14 @@ const config = require('./webpack.config.js')
 const favicon = require('serve-favicon')
 const webpackDevMiddleware = require('webpack-dev-middleware')
 const webpackHotMiddleware = require('webpack-hot-middleware')
+const bodyParser = require('body-parser')
+const execSync = require('child_process').execSync;
 
 const app = express()
 const compiler = webpack(config)
-const port = process.env.PORT || 5000
+const port = process.env.PORT || 8080
 
+app.use(bodyParser.json({ limit: '500mb' }));
 app.use(webpackDevMiddleware(compiler, {
   noInfo: true,
   publicPath: config.output.publicPath
@@ -28,6 +32,14 @@ app.get('/', function (req, res) {
 })
 app.get('/:id', function (req, res) {
   res.sendFile(__dirname + '/public/index.html')
+})
+
+app.post('/data', function (req, res) {
+  const text = req.body.text
+  fs.writeFileSync('temp.obj', text)
+  execSync('./hello')
+  execSync(`${os.homedir()}/Documents/c++/cgal/Surface_mesh_parameterization/examples/Surface_mesh_parameterization/build/polyhedron_ex_parameterization temp.off out.obj`)
+  res.json('ok')
 })
 
 

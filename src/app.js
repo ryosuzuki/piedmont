@@ -108,10 +108,10 @@ class App {
 
   start () {
     this.isAnimating = true
-    this.mesh = new Mesh(this)
-    this.plane = new Plane(this)
+    // this.mesh = new Mesh(this)
+    // this.plane = new Plane(this)
     this.paint = new Paint(this)
-    this.pattern = new Pattern(this)
+    // this.pattern = new Pattern(this)
     this.listen()
     this.render()
   }
@@ -127,6 +127,9 @@ class App {
     if (this.isAnimating) {
       requestAnimationFrame(this.render.bind(this))
     }
+
+    if (!this.mesh) return
+
     $('#mode').text(this.mode)
     switch (this.mode) {
       case 'CONTROL':
@@ -191,6 +194,9 @@ class App {
     this.mouse.x = ( event.clientX / this.renderer.domElement.clientWidth ) * 2 - 1;
     this.mouse.y = - ( event.clientY / this.renderer.domElement.clientHeight ) * 2 + 1;
     this.raycaster.setFromCamera( this.mouse, this.camera );
+
+    if (!this.mesh) return false
+
     let objects = [this.mesh]
     this.intersects = this.raycaster.intersectObjects(objects);
     if (this.intersects.length == 0) {

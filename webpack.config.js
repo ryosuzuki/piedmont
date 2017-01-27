@@ -5,7 +5,8 @@ module.exports = {
   devtool: 'inline-source-map',
   entry: {
     bundle: ['./src/index.js', 'webpack-hot-middleware/client?reload=true'],
-    worker: ['./src/worker.js', 'webpack-hot-middleware/client?reload=true']
+    worker: ['./src/worker.js', 'webpack-hot-middleware/client?reload=true'],
+    html: './public/index.html'
   },
   output: {
     path: path.resolve('./dist'),
@@ -30,6 +31,10 @@ module.exports = {
       {
         test: /\.css$/,
         loader: 'style!css?sourceMap'
+      },
+      {
+        test: /\.html$/,
+        loader: "file?name=[name].[ext]",
       },
       {
         test: /\.woff(\?v=\d+\.\d+\.\d+)?$/,
