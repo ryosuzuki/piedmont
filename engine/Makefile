@@ -15,4 +15,4 @@
 # 	-rm -f $(TARGET)
 
 compile:
-	g++ -std=c++11 -I/usr/local/opt/eigen/include/eigen3/ -I/Users/ryosuzuki/Documents/c++/libigl/include convert.cpp -o hello
+	g++ -std=c++11 -I/usr/local/opt/eigen/include/eigen3/ -I/Users/ryosuzuki/Documents/c++/libigl/include convert.cpp -o convert

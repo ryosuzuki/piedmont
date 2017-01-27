@@ -37,8 +37,9 @@ app.get('/:id', function (req, res) {
 app.post('/data', function (req, res) {
   const text = req.body.text
   fs.writeFileSync('temp.obj', text)
-  execSync('./hello')
-  execSync(`${os.homedir()}/Documents/c++/cgal/Surface_mesh_parameterization/examples/Surface_mesh_parameterization/build/polyhedron_ex_parameterization temp.off out.obj`)
+  execSync('./engine/convert')
+  execSync(`${os.homedir()}/Documents/c++/cgal/Surface_mesh_parameterization/examples/Surface_mesh_parameterization/build/polyhedron_ex_parameterization temp.off public/data/out.obj`)
+  execSync('rm temp.obj temp.off')
   res.json('ok')
 })
 

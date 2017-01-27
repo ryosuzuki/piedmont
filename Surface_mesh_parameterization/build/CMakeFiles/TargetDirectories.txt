@@ -1,8 +1,0 @@
-/Users/ryosuzuki/Documents/node/tabby/Surface_mesh_parameterization/build/CMakeFiles/rebuild_cache.dir
-/Users/ryosuzuki/Documents/node/tabby/Surface_mesh_parameterization/build/CMakeFiles/polyhedron_ex_parameterization.dir
-/Users/ryosuzuki/Documents/node/tabby/Surface_mesh_parameterization/build/CMakeFiles/Complete_parameterization_example.dir
-/Users/ryosuzuki/Documents/node/tabby/Surface_mesh_parameterization/build/CMakeFiles/Simple_parameterization.dir
-/Users/ryosuzuki/Documents/node/tabby/Surface_mesh_parameterization/build/CMakeFiles/Authalic_parameterization.dir
-/Users/ryosuzuki/Documents/node/tabby/Surface_mesh_parameterization/build/CMakeFiles/Mesh_cutting_parameterization.dir
-/Users/ryosuzuki/Documents/node/tabby/Surface_mesh_parameterization/build/CMakeFiles/edit_cache.dir
-/Users/ryosuzuki/Documents/node/tabby/Surface_mesh_parameterization/build/CMakeFiles/Square_border_parameterization.dir

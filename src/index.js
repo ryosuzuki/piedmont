@@ -49,7 +49,7 @@ window.addEventListener('drop', (event) => {
 }, false)
 
 const loadFile = () => {
-  app.file = '/out.obj'
+  app.file = '/public/data/out.obj'
 
   app.mesh = new Mesh(app)
   app.plane = new Plane(app)
