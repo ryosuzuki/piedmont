@@ -36,10 +36,11 @@ app.get('/:id', function (req, res) {
 
 app.post('/data', function (req, res) {
   const text = req.body.text
-  fs.writeFileSync('temp.obj', text)
-  execSync('./engine/convert')
-  execSync(`${os.homedir()}/Documents/c++/cgal/Surface_mesh_parameterization/examples/Surface_mesh_parameterization/build/polyhedron_ex_parameterization temp.off public/data/out.obj`)
-  execSync('rm temp.obj temp.off')
+  const type = req.body.type
+  fs.writeFileSync(`temp.${type}`, text)
+  execSync(`./engine/convert ${type}`)
+  execSync(`${os.homedir()}/Documents/c++/cgal/Surface_mesh_parameterization/examples/Surface_mesh_parameterization/build/polyhedron_ex_parameterization ./temp.off ./public/data/out.obj`)
+  execSync(`rm temp.${type} temp.off`)
   res.json('ok')
 })
 

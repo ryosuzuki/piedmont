@@ -31,12 +31,12 @@ window.addEventListener('drop', (event) => {
 
   const reader = new FileReader()
   reader.onload = (e) => {
-    const buffer = e.target.result
-    window.buffer = buffer
+    const text = e.target.result
+    const type = file.name.split('.')[1].toLowerCase()
     $.ajax({
       method: 'POST',
       url: '/data',
-      data: JSON.stringify({ text: buffer }),
+      data: JSON.stringify({ text: text, type: type }),
       dataType: 'json',
       contentType: 'application/json'
     })
