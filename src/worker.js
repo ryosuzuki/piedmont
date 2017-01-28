@@ -3,6 +3,7 @@ import THREE from 'three'
 import Geometry from './geometry'
 import BumpGeometry from './bump-geometry'
 import HollowGeometry from './hollow-geometry'
+import HollowCsgGeometry from './hollow-csg-geometry'
 
 import ThreeCSG from './three/three-csg'
 
@@ -10,13 +11,15 @@ onmessage = (event) => {
   let data = JSON.parse(event.data)
   if (data.action === 'bump') {
     self.createBumpGeometry(data)
-  } else {
+  } else if (data.action === 'hollow') {
     self.createHollowGeometry(data)
+  } else {
+    self.createHollowCsgGeometry(data)
   }
 }
 
-self.createHollowGeometry = function (data) {
-  let hollowGeometry = new HollowGeometry()
+self.createHollowCsgGeometry = function (data) {
+  let hollowGeometry = new HollowCsgGeometry()
   hollowGeometry.model = data.model
   hollowGeometry.text = data.text
   hollowGeometry.items = data.items
@@ -24,6 +27,23 @@ self.createHollowGeometry = function (data) {
   hollowGeometry.pathData = data.pathData
   hollowGeometry.position = data.position
   hollowGeometry.load()
+  hollowGeometry.generate()
+
+  postMessage({ ng: hollowGeometry.ng })
+}
+
+self.createHollowGeometry = function (data) {
+  let hollowGeometry = new HollowGeometry()
+  hollowGeometry.model = data.model
+  hollowGeometry.text = data.text
+  hollowGeometry.type = data.type
+  hollowGeometry.svgMeshPositions = data.svgMeshPositions
+  hollowGeometry.selectIndex = data.selectIndex
+  hollowGeometry.load()
+  hollowGeometry.computeFaceNormals()
+  hollowGeometry.computeUniq()
+  hollowGeometry.computeVertexNormals()
+  hollowGeometry.computeFaceVertexNormals()
   hollowGeometry.generate()
 
   postMessage({ ng: hollowGeometry.ng })

@@ -108,10 +108,12 @@ class App {
 
   start () {
     this.isAnimating = true
-    // this.mesh = new Mesh(this)
-    // this.plane = new Plane(this)
     this.paint = new Paint(this)
-    // this.pattern = new Pattern(this)
+    if (this.model !== '') {
+      this.mesh = new Mesh(this)
+      this.plane = new Plane(this)
+      this.pattern = new Pattern(this)
+    }
     this.listen()
     this.render()
   }

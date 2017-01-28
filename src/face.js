@@ -65,7 +65,7 @@ class Face extends THREE.Face3 {
   createBoundary () {
     console.log('Create boundary')
     console.log(this.triangle)
-    this.texture.type = 'HOLLOW'
+    // this.texture.type = 'HOLLOW'
     console.log(this.texture.type)
     switch (this.texture.type) {
       case 'BUMP':

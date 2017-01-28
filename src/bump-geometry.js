@@ -34,6 +34,7 @@ class BumpGeometry extends Geometry {
         const face = this.faces[index]
         const overlap = face.compute(positions)
         if (!overlap) continue
+        this.overlapIndex = _.union(this.overlapIndex, [index])
       }
 
       this.createWall()
@@ -117,8 +118,8 @@ class BumpGeometry extends Geometry {
     var d = Geometry.drawSVG(points);
     var boundaryMesh = SvgMesh3d(d, {
       scale: 1,
-      simplify: Math.pow(10, -5),
-      // customize: true,
+      simplify: Math.pow(10, -10),
+      customize: true,
     })
     var cells = boundaryMesh.cells
 

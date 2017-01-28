@@ -59,9 +59,11 @@ class Mesh extends THREE.Mesh {
       this.computeBumpMesh()
       return false
     }
-    this.texture = 'BUMP'
-    this.computeBumpMesh()
+    // this.textureType = 'BUMP'
+    // this.computeBumpMesh()
+    this.textureType = 'HOLLOW'
     // this.computeHollowMesh()
+    this.computeHollowCsgMesh()
   }
 
   computeBumpMesh () {
@@ -85,6 +87,26 @@ class Mesh extends THREE.Mesh {
   }
 
   computeHollowMesh () {
+    this.app.pattern.computeSvgMeshPositions()
+    const json = {
+      model: this.app.model,
+      type: this.textureType,
+      action: 'hollow',
+      text: this.geometry.text,
+      selectIndex: this.selectIndex,
+      svgMeshPositions: this.app.pattern.svgMeshPositions,
+    }
+    const data = JSON.stringify(json)
+    this.worker.postMessage(data);
+    this.worker.onmessage = function(event) {
+      const data = event.data
+      console.log(data);
+      var geometry = data.ng
+      this.showNewMesh(geometry)
+    }.bind(this)
+  }
+
+  computeHollowCsgMesh () {
     this.items = []
     for (let i=0; i<this.app.pattern.items.length; i++) {
       let item = this.app.pattern.items[i]
@@ -104,7 +126,7 @@ class Mesh extends THREE.Mesh {
     const json = {
       model: this.app.model,
       type: this.textureType,
-      action: 'hollow',
+      action: 'csg-hollow',
       text: this.geometry.text,
       items: this.items,
       position: this.position,
