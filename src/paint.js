@@ -28,7 +28,7 @@ class Paint {
         this.scale = 1/6
         break
       default:
-        this.file = '/public/assets/star-2.svg'
+        this.file = '/public/assets/sakura.svg'
         this.scale = 1/5
         break
     }
