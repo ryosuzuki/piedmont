@@ -27,7 +27,8 @@ class HollowCsgGeometry extends Geometry {
     for (let i=1; i<this.items.length; i++) {
       console.log('Start updating meshCSG')
       let itemMeshCSG = new ThreeCSG(this.items[i].mesh)
-      this.itemMeshCSG = this.itemMeshCSG.union(itemMeshCSG)
+      // this.itemMeshCSG = this.itemMeshCSG.union(itemMeshCSG)
+      this.meshCSG = this.meshCSG.subtract(itemMeshCSG)
     }
 
     if (this.type === 'BUMP') {
@@ -39,7 +40,7 @@ class HollowCsgGeometry extends Geometry {
       // this.innerMeshCSG = new ThreeCSG(this.innerMesh)
       // this.meshCSG = this.meshCSG.subtract(this.innerMeshCSG)
       console.log('Subtract item mesh')
-      this.meshCSG = this.meshCSG.subtract(this.itemMeshCSG)
+      // this.meshCSG = this.meshCSG.subtract(this.itemMeshCSG)
     }
     this.ng = this.meshCSG.toGeometry()
   }
@@ -68,7 +69,7 @@ class HollowCsgGeometry extends Geometry {
       let extrudeSettings = { amount: 2, bevelEnabled: false, extrudePath: spline };
       let geometry = new THREE.ExtrudeGeometry(this.unit, extrudeSettings);
       geometry.normalize()
-      let scale = 1
+      let scale = 0.8
       if (this.model === 'house') {
         scale = 0.04 // this.size
       }

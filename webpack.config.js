@@ -2,7 +2,7 @@ var webpack = require('webpack')
 var path = require('path')
 
 module.exports = {
-  devtool: 'inline-source-map',
+  devtool: 'eval',
   entry: {
     bundle: ['./src/index.js', 'webpack-hot-middleware/client?reload=true'],
     worker: ['./src/worker.js', 'webpack-hot-middleware/client?reload=true'],

@@ -240,6 +240,9 @@ class App {
         }
         break;
       case 'mousemove':
+        if (!window.selectIndex) window.selectIndex = []
+        window.selectIndex.push(this.current.faceIndex)
+
         switch (this.mode) {
           case 'ROTATE':
             this.pattern.rotate()

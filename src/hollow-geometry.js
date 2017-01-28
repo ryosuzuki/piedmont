@@ -18,7 +18,7 @@ function round (array) {
 function roundVector3 (v) {
   var vec = [v.x, v.y, v.z]
   vec = vec.map( function (val) {
-    return val // parseFloat(val.toFixed(5))
+    return val //  parseFloat(val.toFixed(3))
   })
   return new THREE.Vector3(vec[0], vec[1], vec[2])
 }
@@ -30,21 +30,31 @@ function getIndex (positions, uv) {
   var epsilon = Math.pow(10, -2)
   var ui = _.map(positions, 0).indexOf(uv[0])
   var vi = _.map(positions, 1).indexOf(uv[1])
+
+  var diff = positions.map( function (pos) {
+    return Math.abs(pos[0] - uv[0]) + Math.abs(pos[1] - uv[1])
+  })
+  var min = _.min(diff)
+  var index = diff.indexOf(min)
+  return { index: index, min: min }
+
+
+
   if (ui == -1 || vi == -1) {
     var diff = positions.map( function (pos) {
       return Math.abs(pos[0] - uv[0]) + Math.abs(pos[1] - uv[1])
     })
     var min = _.min(diff)
     var index = diff.indexOf(min)
-    return { index: index, equal: false }
+    // return { index: index, equal: false }
 
-    /*
+    if (index === 5) debugger
     if (min < epsilon) {
       return { index: index, equal: false }
     } else {
       return false
     }
-    */
+
   }
   if (ui == vi) {
     return { index: ui, equal: true }
@@ -150,7 +160,6 @@ class HollowGeometry extends Geometry {
     })
   }
 
-
   createHole (faceInfo, positions, hoge) {
     var faceIndex = faceInfo.faceIndex
     var face = this.faces[faceIndex];
@@ -184,6 +193,9 @@ class HollowGeometry extends Geometry {
       var inner_points = [];
       var outer_points = [];
 
+      var mins = Array(positions.length).fill(1000000)
+      var infos = Array(positions.length)
+
       for (var j=0; j<nf.length; j++) {
         var num = this.ng.vertices.length;
         var a = nxyz[nf[j][0]]
@@ -193,7 +205,7 @@ class HollowGeometry extends Geometry {
         this.ng.vertices.push(b.vertex)
         this.ng.vertices.push(c.vertex)
         // if (hole || hoge) {
-          this.ng.faces.push(new THREE.Face3(num, num+1, num+2))
+          // this.ng.faces.push(new THREE.Face3(num, num+1, num+2))
         // } else {
           this.ng.faces.push(new THREE.Face3(num+2, num+1, num))
         // }
@@ -206,6 +218,29 @@ class HollowGeometry extends Geometry {
         var bi = getIndex(positions, buv)
         var ci = getIndex(positions, cuv)
 
+        if (mins[ai.index] > ai.min) {
+          mins[ai.index] = ai.min
+          var index = ai.index
+          this.boundaryPoints[index] = a.vertex
+          this.boundaryNormals[index] = a.normal
+          this.boundary2d[index] = auv
+        }
+        if (mins[bi.index] > bi.min) {
+          mins[bi.index] = bi.min
+          var index = bi.index
+          this.boundaryPoints[index] = b.vertex
+          this.boundaryNormals[index] = b.normal
+          this.boundary2d[index] = buv
+        }
+        if (mins[ci.index] > ci.min) {
+          mins[ci.index] = ci.min
+          var index = ci.index
+          this.boundaryPoints[index] = c.vertex
+          this.boundaryNormals[index] = c.normal
+          this.boundary2d[index] = cuv
+        }
+
+        /*
         if (ai && ai.equal) {
           var index = ai.index
           if (!this.boundaryPoints[index]) {
@@ -240,7 +275,7 @@ class HollowGeometry extends Geometry {
         if (!this.boundaryNormals[index]) {
           this.boundaryNormals[index] = face.normal
         }
-
+        */
 
         // outer_faces.push({
         //   ai: ai,
@@ -261,13 +296,12 @@ class HollowGeometry extends Geometry {
       let inner = this.boundaryPoints[i]
       if (!inner) continue
       let normal = this.boundaryNormals[i]
-      if (!normal) continue
       let v = new THREE.Vector3();
       let wallNormal
       if (this.type === 'BUMP') {
         wallNormal = normal.clone().multiplyScalar(this.wallHeight);
       } else {
-        wallNormal = normal.clone().multiplyScalar(-this.wallHeight);
+        wallNormal = normal.clone().multiplyScalar(this.wallHeight);
       }
       let outer = v.clone().addVectors(inner, wallNormal)
       this.boundaryOuterPoints[i] = outer
@@ -313,6 +347,7 @@ class HollowGeometry extends Geometry {
     })
     var cells = boundaryMesh.cells
 
+    debugger
     for (var i=0; i<cells.length; i++) {
       var outerPointA = this.outerPoints[(cells[i][0]+1)%this.outerPoints.length]
       var outerPointB = this.outerPoints[(cells[i][1]+1)%this.outerPoints.length]
@@ -344,18 +379,18 @@ class HollowGeometry extends Geometry {
     var faces_bc = _.intersection(faces_b, faces_c)
     var faces_ca = _.intersection(faces_c, faces_a)
 
-    // var v = new THREE.Vector3()
-    // var n1 = geometry.faces[faces_ab[0]].normal
-    // var n2 = geometry.faces[faces_ab[1]].normal
-    // var normal_ab = v.clone().addVectors(n1, n2).normalize()
+    var v = new THREE.Vector3()
+    var n1 = this.faces[faces_ab[0]].normal
+    var n2 = this.faces[faces_ab[1]].normal
+    var normal_ab = v.clone().addVectors(n1, n2).normalize()
 
-    // var n1 = geometry.faces[faces_bc[0]].normal
-    // var n2 = geometry.faces[faces_bc[1]].normal
-    // var normal_bc = v.clone().addVectors(n1, n2).normalize()
+    var n1 = this.faces[faces_bc[0]].normal
+    var n2 = this.faces[faces_bc[1]].normal
+    var normal_bc = v.clone().addVectors(n1, n2).normalize()
 
-    // var n1 = geometry.faces[faces_ca[0]].normal
-    // var n2 = geometry.faces[faces_ca[1]].normal
-    // var normal_ca = v.clone().addVectors(n1, n2).normalize()
+    var n1 = this.faces[faces_ca[0]].normal
+    var n2 = this.faces[faces_ca[1]].normal
+    var normal_ca = v.clone().addVectors(n1, n2).normalize()
 
     var normal_a = this.uniq[this.map[face.a]].vertexNormal
     var normal_b = this.uniq[this.map[face.b]].vertexNormal
@@ -369,9 +404,9 @@ class HollowGeometry extends Geometry {
       normal_a: normal_a,
       normal_b: normal_b,
       normal_c: normal_c,
-      // normal_ab: normal_ab,
-      // normal_bc: normal_bc,
-      // normal_ca: normal_ca,
+      normal_ab: normal_ab,
+      normal_bc: normal_bc,
+      normal_ca: normal_ca,
     }
     return faceInfo
   }
@@ -399,6 +434,10 @@ class HollowGeometry extends Geometry {
       var B = [uv[0] - uv_c[0], uv[1] - uv_c[1]];
       var x = numeric.solve(A, B)
       var a = x[0], b = x[1], c = 1-x[0]-x[1];
+
+      // a = parseFloat(a.toFixed(1))
+      // b = parseFloat(b.toFixed(1))
+      // c = parseFloat(c.toFixed(1))
 
       var epsilon = Math.pow(10, -2)
       if ( Math.abs(a) < epsilon) a = 0;
@@ -434,8 +473,10 @@ class HollowGeometry extends Geometry {
         normal = normal_c
       }
 
-      v = roundVector3(v)
+      if (!normal) normal = face_info.normal
 
+      v = roundVector3(v)
+      normal = roundVector3(normal)
       // if (demo_video) {
         // return { vertex: v, normal: face_info.normal};
       // } else {

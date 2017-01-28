@@ -50,6 +50,9 @@ class Pattern {
       case 'cylinder':
         this.unit.position = [0, 0]
         break
+      case 'chair':
+        this.unit.position = [-56, 279]
+        break
       default:
         this.unit.position = [50*this.resolution, 50*this.resolution]
         break
@@ -378,7 +381,14 @@ class Pattern {
       1. scale: [x, y] -> scale * [x, y]
       2. set center: [0, 0] -> [0.5, 0.5] + alpha
     */
-    const scale = 0.2
+    var scale = 0.2
+    if (this.app.model === 'turtle') {
+      scale = 0.4
+    }
+    if (this.app.model === 'chair') {
+      scale = 0.06
+    }
+
     var s = scale / 10
     positions = positions.map( (p) => {
       return [ p[0]*s, p[1]*s ]
