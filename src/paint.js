@@ -30,6 +30,11 @@ class Paint {
       case 'turtle':
         this.file = '/public/assets/hexagon.svg'
         this.scale = 1/5
+        break
+      case 'gecko':
+        this.file = '/public/assets/diamond.svg'
+        this.scale = 1/5
+        break
       default:
         this.file = '/public/assets/double.svg'
         this.scale = 1/5

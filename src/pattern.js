@@ -1,6 +1,6 @@
 import Paper from 'paper'
 import SvgMesh3d from 'svg-mesh-3d'
-
+import _ from 'lodash'
 
 class Pattern {
   constructor (app) {
@@ -52,6 +52,9 @@ class Pattern {
         break
       case 'chair':
         this.unit.position = [-56, 279]
+        break
+      case 'gecko':
+        this.unit.position = [-172, 10]
         break
       default:
         this.unit.position = [50*this.resolution, 50*this.resolution]
@@ -225,16 +228,32 @@ class Pattern {
 
   line () {
     this.drawing.activate()
-    this.draftLine.add([this.app.current.pos.x, this.app.current.pos.y])
+    const calcDist = (a, b) => {
+      return Math.sqrt((a[0] - b[0])**2 + (a[1] - b[1])**2)
+    }
+    let pos0 = [this.items[0].position.x, this.items[0].position.y]
+    let pos1 = [this.items[1].position.x, this.items[1].position.y]
+    let dist = calcDist(pos0, pos1)
+    let last = this.items[this.items.length-1]
+    let pos = [this.app.current.pos.x, this.app.current.pos.y]
+    if (!window.lastPos) {
+      window.lastPos = [last.position.x, last.position.y]
+    }
+    let d = calcDist(pos, window.lastPos)
+    if (d > dist) {
+      this.draftLine.add(pos)
+      window.lastPos = pos
+    }
+    // this.draftLine.add([this.app.current.pos.x, this.app.current.pos.y])
     this.update()
   }
 
   lineFinish () {
+    this.drawing.activate()
+    // this.draftLine.simplify(0.1)
+    this.update()
     this.draftLine.remove()
     this.repeat()
-    return false
-    this.draftLine.simplify(2)
-    this.update()
   }
 
   lineRepeat () {
@@ -248,12 +267,13 @@ class Pattern {
     }
     this.draftLine.remove()
     this.update()
+    this.repeatCount++
   }
 
   repeat () {
-    if (this.app.mode === 'LINE_FINISH') {
-      // this.lineRepeat()
-      // return false
+    if (this.app.mode === 'LINE_FINISH' && this.repeatCount === 0) {
+      this.lineRepeat()
+      return false
     }
 
     this.drawing.activate()
@@ -270,6 +290,8 @@ class Pattern {
       limit = 20
     } else if (this.app.model === 'lamp') {
       limit = 6
+    } else if (this.app.model === 'gecko') {
+      limit = 2
     }
 
     this.existItems = _.clone(this.items)
@@ -387,6 +409,9 @@ class Pattern {
     }
     if (this.app.model === 'chair') {
       scale = 0.06
+    }
+    if (this.app.model === 'gecko') {
+      scale = 0.2
     }
 
     var s = scale / 10
