@@ -405,7 +405,7 @@ class Pattern {
     */
     var scale = 0.2
     if (this.app.model === 'turtle') {
-      scale = 0.4
+      scale = 0.33
     }
     if (this.app.model === 'chair') {
       scale = 0.06

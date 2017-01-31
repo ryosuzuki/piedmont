@@ -29,7 +29,7 @@ class Paint {
         break
       case 'turtle':
         this.file = '/public/assets/hexagon.svg'
-        this.scale = 1/5
+        this.scale = 1/2
         break
       case 'gecko':
         this.file = '/public/assets/diamond.svg'
