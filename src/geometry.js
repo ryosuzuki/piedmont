@@ -160,13 +160,46 @@ class Geometry extends THREE.Geometry {
   computeUniq () {
     console.log('Start computeUniq')
     let vertices = this.vertices;
+    let faces = this.faces
     let map = new Array(vertices.length);
     let uniq = [];
     let epsilon = Math.pow(10, -6);
-    for (let i=0; i<vertices.length; i++) {
-      let vertex = vertices[i];
+    // for (let i=0; i<vertices.length; i++) {
+    var i = 0
+
+    let xs = {}
+    let ys = {}
+    let zs = {}
+
+    for (let vertex of vertices) {
       let bool = true;
       let index;
+
+      let est = {
+        x: vertex.x.toFixed(5),
+        y: vertex.y.toFixed(5),
+        z: vertex.z.toFixed(5)
+      }
+      if (!xs[est.x]) xs[est.x] = []
+      if (!ys[est.y]) ys[est.y] = []
+      if (!zs[est.z]) zs[est.z] = []
+
+      let closest = _.intersection(xs[est.x], ys[est.y], zs[est.z])
+      for (let ci of closest) {
+        let j = map[ci]
+        let e = uniq[j]
+        const clsoe = Math.abs(vertex.x - e.vertex.x) < epsilon
+          && Math.abs(vertex.y - e.vertex.y) < epsilon
+          && Math.abs(vertex.z - e.vertex.z) < epsilon
+        if (close) {
+          bool = false
+          e.index.push(i);
+          map[i] = j;
+          break;
+        }
+      }
+
+      /*
       for (let j=0; j<uniq.length; j++) {
         let e = uniq[j];
         if (
@@ -181,18 +214,27 @@ class Geometry extends THREE.Geometry {
           break;
         }
       }
+      */
       if (bool) {
         uniq.push({ index: [i], vertex: vertex, id: uniq.length });
         map[i] = uniq.length-1;
       }
+
+      xs[est.x].push(i)
+      ys[est.y].push(i)
+      zs[est.z].push(i)
+      i++
     }
-    let faces = this.faces;
+
+    console.log('finish')
+
     let edges = new Array(uniq.length);
     let sides = new Array(uniq.length);
     for (let j=0; j<uniq.length; j++) {
       edges[j] = [];
       sides[j] = [];
     }
+    console.log('prep')
     for (let i=0; i<faces.length; i++) {
       let face = faces[i];
       let a = map[face.a];

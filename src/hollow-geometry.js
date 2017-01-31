@@ -86,16 +86,53 @@ class HollowGeometry extends Geometry {
   generate () {
     this.ng = new HollowGeometry()
 
+    var xs = {}
+    var ys = {}
+    for (let index of this.selectIndex) {
+      let face = this.faces[index]
+      var ouv = this.faceVertexUvs[0][index];
+      if (!ouv) ouv = emptyUv
+      for (let i of [0, 1, 2]) {
+        let est ={
+          x: ouv[i].x.toFixed(1),
+          y: ouv[i].y.toFixed(1),
+        }
+        if (!xs[est.x]) xs[est.x] = []
+        if (!ys[est.y]) ys[est.y] = []
+        xs[est.x].push(index)
+        ys[est.y].push(index)
+      }
+    }
+
+
+    let closeIds = this.svgMeshPositions.map((positions) => {
+      let ids = []
+      for (let pos of positions) {
+        let x = pos[0]
+        let y = pos[1]
+        let a = xs[x.toFixed(1)]
+        let b = ys[y.toFixed(1)]
+        let cid = _.intersection(a, b)
+        ids = _.union(ids, cid)
+      }
+      return ids
+    })
+
+    console.log(closeIds)
+
     var self = this
-    let commands = this.svgMeshPositions.map(function(positions) {
+    async.parallel(this.svgMeshPositions.map(function(positions, i) {
       return function(callback) {
         self.boundaryPoints = new Array(positions.length)
         self.boundaryNormals = new Array(positions.length)
         self.boundary2d = new Array(positions.length)
         self.boundaryOuterPoints = new Array(positions.length)
 
-        for (var j=0; j<self.selectIndex.length; j++) {
-          const index = self.selectIndex[j]
+
+        let closeIndex = closeIds[i]
+        // for (var j=0; j<self.selectIndex.length; j++) {
+        for (let index of closeIndex) {
+          // const index = self.selectIndex[j]
           const face = self.faces[index]
           const faceInfo = self.getFaceInfo(index)
 
@@ -124,6 +161,8 @@ class HollowGeometry extends Geometry {
                 self.overlapIndex = _.union(self.overlapIndex, [index])
                 console.log(area/triArea)
                 continue;
+              } else {
+                // self.overlapIndex = _.union(self.overlapIndex, [index])
               }
             }
           } else {
@@ -136,10 +175,31 @@ class HollowGeometry extends Geometry {
         self.createWall()
         callback(null)
       }
-    })
-
-    async.parallel(commands, (err, results) => {
+    }), function(err, results) {
       console.log('finish')
+
+      for (var i=0; i<self.faces.length; i++) {
+        const index = i
+        if (self.type !== 'BUMP' && self.overlapIndex.includes(index)) continue
+        const face = self.faces[index];
+        const normal = face.normal;
+        var va  = self.vertices[face.a];
+        var vb  = self.vertices[face.b];
+        var vc  = self.vertices[face.c];
+        var num = self.ng.vertices.length;
+        self.ng.vertices.push(va);
+        self.ng.vertices.push(vb);
+        self.ng.vertices.push(vc);
+        var nf = new THREE.Face3(num, num+1, num+2)
+        nf.normal = normal
+        self.ng.faces.push(nf)
+      }
+
+      console.log({
+        boundaryOuterPoints: self.boundaryOuterPoints,
+        outerPoints: self.outerPoints
+      })
+
     })
 
     return false
@@ -359,7 +419,7 @@ class HollowGeometry extends Geometry {
       if (this.type === 'BUMP') {
         wallNormal = normal.clone().multiplyScalar(this.wallHeight);
       } else {
-        wallNormal = normal.clone().multiplyScalar(this.wallHeight);
+        wallNormal = normal.clone().multiplyScalar(-this.wallHeight);
       }
       let outer = v.clone().addVectors(inner, wallNormal)
       this.boundaryOuterPoints[i] = outer
