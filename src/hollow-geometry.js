@@ -4,7 +4,7 @@ import GreinerHormann from 'greiner-hormann'
 import SvgMesh3d from 'svg-mesh-3d'
 import PolygonBoolean from '2d-polygon-boolean'
 import AreaPolygon from 'area-polygon'
-
+import async from 'async'
 import Geometry from './geometry'
 
 function round (array) {
@@ -86,6 +86,64 @@ class HollowGeometry extends Geometry {
   generate () {
     this.ng = new HollowGeometry()
 
+    var self = this
+    let commands = this.svgMeshPositions.map(function(positions) {
+      return function(callback) {
+        self.boundaryPoints = new Array(positions.length)
+        self.boundaryNormals = new Array(positions.length)
+        self.boundary2d = new Array(positions.length)
+        self.boundaryOuterPoints = new Array(positions.length)
+
+        for (var j=0; j<self.selectIndex.length; j++) {
+          const index = self.selectIndex[j]
+          const face = self.faces[index]
+          const faceInfo = self.getFaceInfo(index)
+
+          var ouv = self.faceVertexUvs[0][index];
+          if (!ouv) ouv = emptyUv
+          var triangle = ouv.map( function (v) {
+            return [v.x, v.y];
+          })
+          triangle = round(triangle)
+
+          var points = PolygonBoolean(triangle, positions, 'not')
+
+          if (points.length > 1) {
+            points = (points[0].length < points[1].length) ? points[0] : points[1]
+          } else {
+            points = points[0]
+          }
+          if (points.length <= 3) {
+            var points = GreinerHormann.intersection(positions, triangle)
+            if (points && points.length < 3) { // && va.y > 0) {
+              var area = AreaPolygon(points[0])
+              var triArea = AreaPolygon(triangle)
+              if (area/triArea > 0) {
+                self.createHole(faceInfo, positions)
+                // createHole(faceInfo, positions, true)
+                self.overlapIndex = _.union(self.overlapIndex, [index])
+                console.log(area/triArea)
+                continue;
+              }
+            }
+          } else {
+            self.createHole(faceInfo, positions)
+            // createHole(faceInfo, positions, true)
+            self.overlapIndex = _.union(self.overlapIndex, [index])
+          }
+        }
+
+        self.createWall()
+        callback(null)
+      }
+    })
+
+    async.parallel(commands, (err, results) => {
+      console.log('finish')
+    })
+
+    return false
+
     for (let i=0; i<this.svgMeshPositions.length; i++) {
       let positions = this.svgMeshPositions[i]
 
@@ -133,7 +191,7 @@ class HollowGeometry extends Geometry {
         }
       }
 
-      // this.createWall()
+      this.createWall()
       // this.createCover()
     }
 

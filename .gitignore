@@ -38,3 +38,4 @@ data/demo.obj
 # Distribution directory
 dist
 backup
+*/.DS_Store

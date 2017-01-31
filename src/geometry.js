@@ -1,6 +1,6 @@
 import THREE from 'three'
 import _ from 'lodash'
-
+import async from 'async'
 import OBJLoader from './three/obj-loader'
 
 import Face from './face'
